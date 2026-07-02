@@ -1,0 +1,72 @@
+builtin_models:
+  - id: lexai-ollama-qwen35-4b-qa
+    name: qwen3.5:4b
+    display_name: qwen3.5:4b (Ollama QA)
+    type: KnowledgeQA
+    source: local
+    description: Preloaded Ollama QA model on model-hub-ollama.
+    is_default: true
+    parameters:
+      base_url: http://model-hub-ollama:11434
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: lexai-ollama-qwen35-4b-vision
+    name: qwen3.5:4b
+    display_name: qwen3.5:4b (Ollama Vision)
+    type: VLLM
+    source: local
+    description: Preloaded Ollama vision model on model-hub-ollama.
+    is_default: true
+    parameters:
+      base_url: http://model-hub-ollama:11434
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: lexai-ollama-bge-m3-embedding
+    name: bge-m3
+    display_name: bge-m3 (Ollama Embedding)
+    type: Embedding
+    source: local
+    description: Preloaded Ollama embedding model on model-hub-ollama.
+    is_default: true
+    parameters:
+      base_url: http://model-hub-ollama:11434
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+
+  - id: lexai-vllm-qwen35-9b-awq-qa
+    name: qwen3.5-9b-awq
+    display_name: qwen3.5-9b-awq (vLLM QA)
+    type: KnowledgeQA
+    source: remote
+    description: OpenAI-compatible vLLM QA model on qwen35-9b-awq-vllm.
+    is_default: false
+    parameters:
+      base_url: http://qwen35-9b-awq-vllm:8000/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+
+  - id: lexai-vllm-qwen35-9b-awq-vision
+    name: qwen3.5-9b-awq
+    display_name: qwen3.5-9b-awq (vLLM Vision)
+    type: VLLM
+    source: remote
+    description: OpenAI-compatible vLLM vision model on qwen35-9b-awq-vllm.
+    is_default: false
+    parameters:
+      base_url: http://qwen35-9b-awq-vllm:8000/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
