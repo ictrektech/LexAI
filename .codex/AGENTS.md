@@ -11,12 +11,6 @@ These repository-wide instructions apply to AI coding agents working in this che
 - When testing local code on a remote server, do not run `git` commands on the server. Copy the local working tree or required files to the server through `ssh`, `rsync`, `scp`, or another available connection channel, then run the requested build/test commands there.
 - It is still fine to run read-only inspection commands locally, such as `ls`, `rg`, `git status`, `sed`, and `find`.
 
-## Apps Development
-
-- When working under `apps/`, review the relevant monorepo documentation under `docs/ictrek-monorepo/` before designing or editing code.
-- Start with `docs/ictrek-monorepo/README.md` and `docs/ictrek-monorepo/docs/agents.md` when they are relevant.
-- For app work that may affect VOS/app packaging, CI, service discovery, frontend integration, or lifecycle behavior, also consult the matching files under `docs/ictrek-monorepo/docs/`, especially `ci.md`, `ci-variables.md`, and `vos-app-spec/`.
-- If an `apps/<name>/AGENTS.md` file exists, follow it together with these root instructions. The more specific app instructions take precedence for conflicts.
 
 ## Feishu Release Table Lookup
 
@@ -24,6 +18,8 @@ These repository-wide instructions apply to AI coding agents working in this che
 - Feishu app credentials may exist on build/deployment hosts at `~/.feishu.json`; do not print or copy the credential values into the conversation or repository.
 - The release spreadsheet token currently used by local build scripts is `Htotsn3oahO1zxt73YMcaB1zn8e`.
 - To find an image tag, use the target component column in the relevant sheet instead of inferring from a nearby component. Common sheets include `AMD_with_cuda`, `AMD_with_mxn100`, `ARM_with_cuda`, `ARM_without_cuda`, `l4t`, `thor_spark`, and `SOPHON_bm1688`.
+- When `build_image.sh` builds an AMD Docker image, update both `AMD_with_cuda` and `AMD_with_mxn100`. When it builds an ARM image, update `ARM_with_cuda`, `ARM_without_cuda`, `l4t`, `thor_spark`, and `SOPHON_bm1688`.
+- In general, use `ssh tc232` for AMD platform builds/tests and `ssh tc192` for ARM platform builds/tests.
 - Spreadsheet URL pattern: `https://*.feishu.cn/sheets/Htotsn3oahO1zxt73YMcaB1zn8e`.
 - Build-host credential file: `~/.feishu.json`, with `feishu_app_id` and `feishu_app_secret`.
 - The release table uses one service image per column. Row 1 is the service name, row 2 is the SWR repository URI, and dated rows contain image tags. The full pullable image is `<row-2-repository-uri>:<dated-row-tag>`.
@@ -32,16 +28,8 @@ These repository-wide instructions apply to AI coding agents working in this che
 ## README Updates
 
 - When adding a new feature, changing behavior, or changing how users/operators/developers should invoke or configure something, update the relevant submodule README in the same task.
-- Prefer the nearest applicable README, such as `apps/<name>/README.md`, `modules/<name>/README.md`, or the README inside the affected submodule.
 - Document the practical usage difference: commands, configuration keys, environment variables, API behavior, deployment steps, migration notes, or screenshots/examples when they are part of the changed workflow.
 - If no appropriate README exists, either create one in the affected submodule or explicitly tell the user why no README update was made.
-
-## Submodule Delivery
-
-- When development happens inside a git submodule, finish and verify the submodule work first.
-- After the submodule code is complete and tested, commit the changes inside that submodule and push the submodule branch/commit to its remote.
-- Then return to the VAI root repository, update the parent repository's recorded submodule reference to the pushed submodule commit, and commit/push that parent repository update as well.
-- Do not leave completed submodule work only as uncommitted changes or only as a changed working tree in the parent repository.
 
 ## Instruction Maintenance
 
