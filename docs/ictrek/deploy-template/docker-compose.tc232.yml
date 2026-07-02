@@ -1,0 +1,234 @@
+name: ${COMPOSE_PROJECT_NAME:-lexai-ictrek}
+
+services:
+  frontend:
+    image: ${LEXAI_UI_IMAGE:?set LEXAI_UI_IMAGE in .env}
+    ports:
+      - "${FRONTEND_PORT:-30080}:80"
+    environment:
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      APP_HOST: app
+      APP_PORT: 8080
+      APP_SCHEME: http
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  app:
+    image: ${LEXAI_APP_IMAGE:?set LEXAI_APP_IMAGE in .env}
+    ports:
+      - "${APP_PORT:-30081}:8080"
+    env_file:
+      - .env.tc232
+    environment:
+      GIN_MODE: ${GIN_MODE:-release}
+      TZ: ${TZ:-Asia/Shanghai}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:?set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:?set DB_NAME in .env}
+      RETRIEVE_DRIVER: ${RETRIEVE_DRIVER:-postgres}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
+      STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+      DOCREADER_ADDR: docreader:50051
+      DOCREADER_TRANSPORT: grpc
+      OLLAMA_BASE_URL: http://model-hub-ollama:11434
+      SSRF_WHITELIST: ${SSRF_WHITELIST:-}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-backend,model-hub-ollama,qwen35-9b-awq-vllm,searxng,qdrant,milvus,weaviate,doris-fe}
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-false}
+      NEO4J_ENABLE: ${NEO4J_ENABLE:-false}
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-5}
+      WEKNORA_ASYNQ_CONCURRENCY: ${WEKNORA_ASYNQ_CONCURRENCY:-4}
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      JWT_SECRET: ${JWT_SECRET:-}
+      TENANT_AES_KEY: ${TENANT_AES_KEY:-}
+      SYSTEM_AES_KEY: ${SYSTEM_AES_KEY:-}
+      CRYPTO_MASTER_KEY: ${CRYPTO_MASTER_KEY:-}
+      CRYPTO_SALT: ${CRYPTO_SALT:-}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+    volumes:
+      - ./data/files:/data/files
+      - ./data/docreader:/tmp/docreader:ro
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      docreader:
+        condition: service_healthy
+      model-hub-backend:
+        condition: service_healthy
+      model-hub-ollama:
+        condition: service_healthy
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  docreader:
+    image: ${LEXAI_DOCREADER_IMAGE:?set LEXAI_DOCREADER_IMAGE in .env}
+    expose:
+      - "50051"
+    environment:
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      DOCREADER_ODL_MAX_WORKERS: ${DOCREADER_ODL_MAX_WORKERS:-1}
+      DOCREADER_ODL_HYBRID: ${DOCREADER_ODL_HYBRID:-off}
+      DOCREADER_MARKITDOWN_MAX_WORKERS: ${DOCREADER_MARKITDOWN_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_MAX_WORKERS: ${DOCREADER_PDF_RENDER_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_DPI: ${DOCREADER_PDF_RENDER_DPI:-200}
+      DOCREADER_PDF_JPEG_QUALITY: ${DOCREADER_PDF_JPEG_QUALITY:-90}
+      GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+      GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
+    volumes:
+      - ./data/docreader:/tmp/docreader
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-frontend:
+    image: ${MODEL_HUB_FRONTEND_IMAGE:?set MODEL_HUB_FRONTEND_IMAGE in .env}
+    ports:
+      - "${MODEL_HUB_FRONTEND_PORT:-30175}:80"
+    depends_on:
+      model-hub-backend:
+        condition: service_healthy
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-backend:
+    image: ${MODEL_HUB_BACKEND_IMAGE:?set MODEL_HUB_BACKEND_IMAGE in .env}
+    ports:
+      - "${MODEL_HUB_BACKEND_PORT:-30005}:5005"
+    environment:
+      MODELS_BASE_DIR: /data
+      OLLAMA_API_URL: http://model-hub-ollama:11434
+      OLLAMA_GATEWAY_URL: http://model-hub-ollama:11535
+      OLLAMA_DOWNLOAD_TIMEOUT: "3600"
+      OLLAMA_REGISTRY_URL: ${OLLAMA_REGISTRY_URL:-https://registry.ollama.ai}
+      HF_HOME: /data/huggingface
+      TRANSFORMERS_CACHE: /data/huggingface
+    volumes:
+      - ${MODEL_HUB_HF_MODELS_DIR:-/data/jhu/models/huggingface}:/data/huggingface
+      - ${OLLAMA_MODELS_DIR:-/data/ictrek_models/ollama/models}:/data/ollama/models
+    depends_on:
+      model-hub-ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -qO- http://127.0.0.1:5005/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-ollama:
+    image: ${OLLAMA_SERVER_IMAGE:?set OLLAMA_SERVER_IMAGE in .env}
+    ipc: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve > /tmp/ollama.log 2>&1 &
+        exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
+    ports:
+      - "${OLLAMA_API_HOST_PORT:-31434}:11434"
+      - "${OLLAMA_GATEWAY_HOST_PORT:-31535}:11535"
+    environment:
+      MODELS_BASE_DIR: /data
+      MODELS_HOST_DIR: /data/ictrek_models
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "8192"
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-/data/ictrek_models/ollama/models}:/root/.ollama/models
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    environment:
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - lexai
+    restart: unless-stopped
+    stop_grace_period: 1m
+
+  redis:
+    image: redis:7.0-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:2025.10.1
+    profiles:
+      - neo4j
+    ports:
+      - "${NEO4J_HTTP_PORT:-30074}:7474"
+      - "${NEO4J_BOLT_PORT:-30087}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4JLABS_PLUGINS: '["apoc"]'
+    volumes:
+      - ./data/neo4j:/data
+    networks:
+      - lexai
+    restart: unless-stopped
+
+networks:
+  lexai:
+    external: true
+    name: ${LEXAI_NETWORK:-lexai}

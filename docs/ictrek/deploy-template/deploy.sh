@@ -6,13 +6,14 @@ FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 REGISTRY="${REGISTRY:-swr.cn-southwest-2.myhuaweicloud.com/ictrek}"
 ENV_FILE="${ENV_FILE:-${ROOT_DIR}/.env}"
+COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
 PLATFORM=""
 SHEET_TITLE=""
 DRY_RUN=0
 
 usage() {
   cat <<'EOF'
-Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--dry-run]
+Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--dry-run]
 
 Looks up the latest LexAI, model_hub, and ollama_server image tags in Feishu,
 writes them to .env, then runs docker compose up -d.
@@ -21,6 +22,7 @@ Environment:
   FEISHU_CONFIG_FILE       Defaults to ~/.feishu.json
   FEISHU_SPREADSHEET_TOKEN Defaults to the ictrek release sheet token
   ENV_FILE                 Defaults to ./deploy-template/.env
+  COMPOSE_FILE             Defaults to ./deploy-template/docker-compose.yml
 EOF
 }
 
@@ -211,6 +213,10 @@ while [[ $# -gt 0 ]]; do
       SHEET_TITLE="$2"
       shift 2
       ;;
+    --compose-file)
+      COMPOSE_FILE="$2"
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -268,4 +274,4 @@ write_env_value MODEL_HUB_FRONTEND_IMAGE "$MODEL_HUB_FRONTEND_IMAGE" "$ENV_FILE"
 write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
-docker compose --env-file "$ENV_FILE" up -d
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
