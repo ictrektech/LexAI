@@ -2,13 +2,13 @@
 
 这个配置用于知识库设置里的「知识图谱」页。LexAI 是法律专用部署，新建知识库和上传确认弹窗默认都应使用这套法律图谱配置。建议不要使用随机标签，法律文档先固定实体和关系类型，抽取结果会更稳定。
 
-模型、Wiki 生成、Graph 抽取、部署和重新解析的完整流程见 `README.md`。本文只聚焦实体、关系和示例文本怎么填。
+模型、Wiki 生成、Graph 抽取、部署和重新解析的完整流程见 [README.md](README.md)。本文只聚焦实体、关系和示例文本怎么填。
 
 部署模板已内置同一份 JSON 预设：
 
-- 通用部署：`docs/ictrek/deploy-template/config/legal_graph_preset.json`
+- 通用部署：[docs/ictrek/deploy-template/config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)
 - 容器内路径：`/app/config/legal_graph_preset.json`
-- compose 挂载：通用 `docker-compose.yml` 和 tc232 `docker-compose.tc232.yml` 都已配置
+- compose 挂载：通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 tc232 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 都已配置
 
 注意：`NEO4J_ENABLE=true` 和 `ENABLE_GRAPH_RAG=true` 只表示系统图数据库可用；每个知识库还要有自己的 `indexing_strategy.graph_enabled=true` 和 `extract_config.enabled=true`。旧知识库如果是在启用图谱前创建的，可能仍然是 false，需要按本文手动保存一次，或用部署维护脚本/SQL 回填。
 

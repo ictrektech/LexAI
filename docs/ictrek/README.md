@@ -20,9 +20,7 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 部署模板中的内置模型文件：
 
-```text
-docs/ictrek/deploy-template/config/builtin_models.yaml
-```
+[docs/ictrek/deploy-template/config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)
 
 容器内挂载路径：
 
@@ -46,15 +44,11 @@ docs/ictrek/deploy-template/config/builtin_models.yaml
 
 前端默认模板：
 
-```text
-frontend/src/config/legalGraphPreset.ts
-```
+[frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)
 
 部署模板中的同源 JSON：
 
-```text
-docs/ictrek/deploy-template/config/legal_graph_preset.json
-```
+[docs/ictrek/deploy-template/config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)
 
 容器内挂载路径：
 
@@ -62,22 +56,18 @@ docs/ictrek/deploy-template/config/legal_graph_preset.json
 /app/config/legal_graph_preset.json
 ```
 
-新建知识库和上传确认弹窗里默认出现的法律实体、关系、示例文本来自前端 `legalGraphPreset.ts`。部署目录里的 `legal_graph_preset.json` 是运维可见的同源预设，方便部署包和文档引用；如果要改变前端默认值，需要改 `frontend/src/config/legalGraphPreset.ts` 并重新构建 `lexai-ui`。
+新建知识库和上传确认弹窗里默认出现的法律实体、关系、示例文本来自前端 `legalGraphPreset.ts`。部署目录里的 `legal_graph_preset.json` 是运维可见的同源预设，方便部署包和文档引用；如果要改变前端默认值，需要改 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts) 并重新构建 `lexai-ui`。
 
 ## 通用部署如何修改后生效
 
 1. 修改模型配置：
 
-   ```text
-   docs/ictrek/deploy-template/config/builtin_models.yaml
-   ```
+   [docs/ictrek/deploy-template/config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)
 
 2. 如需修改默认图谱模板，同时修改：
 
-   ```text
-   frontend/src/config/legalGraphPreset.ts
-   docs/ictrek/deploy-template/config/legal_graph_preset.json
-   ```
+   - [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)
+   - [docs/ictrek/deploy-template/config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)
 
    两份要保持语义一致。只改 JSON 不会改变前端新建知识库时的默认表单。
 
@@ -111,10 +101,8 @@ docs/ictrek/deploy-template/config/legal_graph_preset.json
 
 tc232 使用专用 compose：
 
-```text
-docs/ictrek/deploy-template/docker-compose.tc232.yml
-docs/ictrek/deploy-template/deploy-tc232.sh
-```
+- [docs/ictrek/deploy-template/docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)
+- [docs/ictrek/deploy-template/deploy-tc232.sh](deploy-template/deploy-tc232.sh)
 
 部署目录：
 
@@ -179,9 +167,7 @@ docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-r
 
 改的是：
 
-```text
-frontend/src/config/legalGraphPreset.ts
-```
+[frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)
 
 必须重新构建并部署 `lexai-ui`。否则浏览器里的新建知识库默认值不会变化。
 
@@ -275,11 +261,9 @@ Wiki 不是只靠模型表自动生成；它依赖知识库启用 Wiki 索引，
 
 默认模板适合混合法律知识库：法条、司法解释、案例、合同、证据材料都可能出现。完整配置见：
 
-```text
-docs/ictrek/legal-knowledge-graph-config.md
-docs/ictrek/deploy-template/config/legal_graph_preset.json
-frontend/src/config/legalGraphPreset.ts
-```
+- [docs/ictrek/legal-knowledge-graph-config.md](legal-knowledge-graph-config.md)
+- [docs/ictrek/deploy-template/config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)
+- [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)
 
 编写原则：
 
@@ -319,8 +303,8 @@ frontend/src/config/legalGraphPreset.ts
 
 如果要改所有新建知识库默认值：
 
-1. 修改 `frontend/src/config/legalGraphPreset.ts`。
-2. 同步修改 `docs/ictrek/deploy-template/config/legal_graph_preset.json`。
+1. 修改 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)。
+2. 同步修改 [docs/ictrek/deploy-template/config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)。
 3. 重新构建 `lexai-ui`。
 4. 部署新 frontend。
 5. 新建知识库检查默认实体和关系。
