@@ -95,12 +95,45 @@ get_range_values() {
   feishu_api_json "GET" "https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${SPREADSHEET_TOKEN}/values/${range}" "$token"
 }
 
+column_letter() {
+  python3 - "$1" <<'PY'
+import sys
+n = int(sys.argv[1])
+s = ""
+while n > 0:
+    n, r = divmod(n - 1, 26)
+    s = chr(ord("A") + r) + s
+print(s)
+PY
+}
+
+get_sheet_column_count() {
+  local token="$1"
+  local sheet_id="$2"
+  local resp
+  resp="$(feishu_api_json "GET" "https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${SPREADSHEET_TOKEN}/sheets/query" "$token")"
+  python3 - "$sheet_id" "$resp" <<'PY'
+import json, sys
+sheet_id, resp = sys.argv[1], sys.argv[2]
+data = json.loads(resp)
+if data.get("code") != 0:
+    raise SystemExit(f"query sheets failed: {data}")
+for sheet in data.get("data", {}).get("sheets", []):
+    if sheet.get("sheet_id") == sheet_id:
+        print(sheet.get("grid_properties", {}).get("column_count", 1))
+        raise SystemExit(0)
+raise SystemExit(f"sheet id not found: {sheet_id}")
+PY
+}
+
 find_component_column_letter() {
   local token="$1"
   local sheet_id="$2"
   local component="$3"
-  local resp
-  resp="$(get_range_values "$token" "${sheet_id}!A1:ZZ1")"
+  local column_count end_col resp
+  column_count="$(get_sheet_column_count "$token" "$sheet_id")"
+  end_col="$(column_letter "$column_count")"
+  resp="$(get_range_values "$token" "${sheet_id}!A1:${end_col}1")"
   python3 - "$component" "$resp" <<'PY'
 import json, sys
 target, resp = sys.argv[1], sys.argv[2]

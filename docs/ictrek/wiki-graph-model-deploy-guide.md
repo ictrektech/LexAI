@@ -1,0 +1,347 @@
+# LexAI Wiki 与知识图谱模型配置、部署和重建指引
+
+本文说明 LexAI 法律部署中 QA 模型、Wiki 生成、知识图谱抽取之间的关系，以及改配置后如何部署、生效和重新生成已有数据。
+
+## 结论
+
+QA 模型配好以后，不代表所有已有知识库都会自动改用它。
+
+- 对话问答：使用会话或知识库选择的 QA 模型。
+- Graph 抽取：使用知识库的 `summary_model_id`，也就是创建/编辑知识库页面里的「LLM 大语言模型」。
+- Wiki 生成：优先使用知识库的 `wiki_config.synthesis_model_id`；如果为空，回退到同一个知识库的 `summary_model_id`。
+- 内置模型配置文件只负责把模型注册进系统模型表，不会自动修改旧知识库已经保存的模型 ID。
+- 新上传或重新解析文档时，才会按当前知识库配置重新跑 Graph/Wiki 生成。
+
+因此，创建知识库时要选好主 QA/LLM 模型；如果启用 Wiki，可以不单独选 Wiki 合成模型，让它默认跟随主 QA/LLM 模型。tc232 上主 QA 模型就是 `lexai-vllm-qwen35-9b-awq-qa`。
+
+## 配置文件位置
+
+### 内置模型
+
+部署模板中的内置模型文件：
+
+```text
+docs/ictrek/deploy-template/config/builtin_models.yaml
+```
+
+容器内挂载路径：
+
+```text
+/app/config/builtin_models.yaml
+```
+
+当前模板里主要有：
+
+| 模型 ID | 用途 |
+| --- | --- |
+| `lexai-vllm-qwen35-9b-awq-qa` | tc232 vLLM 主 QA/LLM 模型，KnowledgeQA |
+| `lexai-vllm-qwen35-9b-awq-vision` | tc232 vLLM Vision 模型 |
+| `lexai-ollama-qwen35-4b-qa` | Ollama QA 备用模型 |
+| `lexai-ollama-qwen35-4b-vision` | Ollama Vision 模型 |
+| `lexai-ollama-bge-m3-embedding` | Ollama bge-m3 Embedding 模型 |
+
+应用启动时会读取这个 YAML，并按 `id` upsert 到 `models` 表。删除 YAML 中的条目会软删除对应的 YAML 托管模型；手工在页面/API 创建的模型不受影响。
+
+### 默认法律图谱提取模板
+
+前端默认模板：
+
+```text
+frontend/src/config/legalGraphPreset.ts
+```
+
+部署模板中的同源 JSON：
+
+```text
+docs/ictrek/deploy-template/config/legal_graph_preset.json
+```
+
+容器内挂载路径：
+
+```text
+/app/config/legal_graph_preset.json
+```
+
+新建知识库和上传确认弹窗里默认出现的法律实体、关系、示例文本来自前端 `legalGraphPreset.ts`。部署目录里的 `legal_graph_preset.json` 是运维可见的同源预设，方便部署包和文档引用；如果要改变前端默认值，需要改 `frontend/src/config/legalGraphPreset.ts` 并重新构建 `lexai-ui`。
+
+## 通用部署如何修改后生效
+
+1. 修改模型配置：
+
+   ```text
+   docs/ictrek/deploy-template/config/builtin_models.yaml
+   ```
+
+2. 如需修改默认图谱模板，同时修改：
+
+   ```text
+   frontend/src/config/legalGraphPreset.ts
+   docs/ictrek/deploy-template/config/legal_graph_preset.json
+   ```
+
+   两份要保持语义一致。只改 JSON 不会改变前端新建知识库时的默认表单。
+
+3. 构建并推送镜像：
+
+   ```bash
+   # AMD 构建机
+   ssh tc232
+   cd /data/jhu/lexai-build
+   ./build_image.sh --target amd
+
+   # ARM 构建机
+   ssh tc192
+   cd /data/jhu/lexai-build
+   ./build_image.sh --target arm
+   ```
+
+   脚本会构建 `lexai`、`lexai-ui`、`lexai-docreader`，推送镜像，并更新飞书对应 sheet。
+
+4. 部署：
+
+   ```bash
+   cd docs/ictrek/deploy-template
+   cp .env.example .env
+   ./deploy.sh --platform amd
+   ```
+
+   `deploy.sh` 会从飞书查当前平台最新的各组件 tag，写入 `.env`，再执行 `docker compose up -d`。
+
+## tc232 部署如何修改后生效
+
+tc232 使用专用 compose：
+
+```text
+docs/ictrek/deploy-template/docker-compose.tc232.yml
+docs/ictrek/deploy-template/deploy-tc232.sh
+```
+
+部署目录：
+
+```text
+/data/jhu/lexai-tc232-deploy
+```
+
+更新部署模板到 tc232 时，不要用 `--delete` 同步整个目录，否则会误碰远端 `data/` 数据卷。只同步脚本、compose 和 config：
+
+```bash
+rsync -az docs/ictrek/deploy-template/deploy.sh \
+  docs/ictrek/deploy-template/deploy-tc232.sh \
+  docs/ictrek/deploy-template/docker-compose.tc232.yml \
+  docs/ictrek/deploy-template/docker-compose.yml \
+  tc232:/data/jhu/lexai-tc232-deploy/
+
+rsync -az docs/ictrek/deploy-template/config/ \
+  tc232:/data/jhu/lexai-tc232-deploy/config/
+```
+
+然后在 tc232 上部署：
+
+```bash
+ssh tc232
+cd /data/jhu/lexai-tc232-deploy
+./deploy-tc232.sh
+```
+
+如果 tag 没变但镜像 digest 变了，强制重建 LexAI 三个容器：
+
+```bash
+docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app frontend docreader
+```
+
+## 已部署后改配置怎么生效
+
+### 只改 `.env.tc232` 或 `.env`
+
+例如并发、Neo4j、密钥、端口、模型镜像变量：
+
+```bash
+docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d
+```
+
+只想重启 app：
+
+```bash
+docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app
+```
+
+### 只改 `builtin_models.yaml`
+
+`builtin_models.yaml` 由 app 启动时读取。改完后重启 app：
+
+```bash
+docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app
+```
+
+这只会更新系统模型表，不会自动修改旧知识库的 `summary_model_id` 或 `wiki_config.synthesis_model_id`。
+
+### 改了前端默认图谱模板
+
+改的是：
+
+```text
+frontend/src/config/legalGraphPreset.ts
+```
+
+必须重新构建并部署 `lexai-ui`。否则浏览器里的新建知识库默认值不会变化。
+
+### 改了知识库配置
+
+在前端打开：
+
+```text
+知识库 -> 设置
+```
+
+需要检查：
+
+- 「模型配置」里的 LLM 大语言模型：Graph 抽取使用它。
+- 「Wiki 合成模型」：启用 Wiki 后可选；为空就使用 LLM 大语言模型。
+- 「知识图谱」里的实体、关系、示例文本：Graph 抽取使用它。
+- 索引策略里的 Wiki/Graph 开关：Wiki 必须启用 `wiki_enabled`；Graph 必须启用 `graph_enabled` 且 `extract_config.enabled=true`。
+
+保存知识库配置后，只影响后续上传和后续重新解析。已经解析过的文档不会自动重跑。
+
+## 如果 Wiki/Graph 没有自动生成
+
+先确认系统层启用：
+
+- `ENABLE_GRAPH_RAG=true`
+- `NEO4J_ENABLE=true`
+- app 能访问 `bolt://neo4j:7687`
+- 知识库不是 FAQ 类型
+
+再确认知识库层启用：
+
+- `summary_model_id` 不为空
+- Wiki：`indexing_strategy.wiki_enabled=true`
+- Graph：`indexing_strategy.graph_enabled=true`
+- Graph：`extract_config.enabled=true`
+- Graph：`extract_config.text/tags/nodes/relations` 都不为空
+
+如果只是部署了 Neo4j 或改了全局环境变量，但知识库自己的开关还是 false，就不会生成。
+
+## 已有文档如何重新生成 Graph
+
+改了实体、关系、示例文本或模型后，已有文档要重新解析。
+
+前端操作：
+
+1. 打开知识库。
+2. 进入「文档」列表。
+3. 选择单个或多个文档。
+4. 点击「重新解析」。
+5. 在上传/重新解析确认弹窗里确认图谱配置已启用，实体和关系是当前想要的版本。
+6. 提交后等待解析完成。
+7. 打开「图谱」页查看结果。
+
+API 操作：
+
+```bash
+curl -X POST "$BASE_URL/api/v1/knowledge/$KNOWLEDGE_ID/reparse" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+批量重新解析：
+
+```bash
+curl -X POST "$BASE_URL/api/v1/knowledge/batch-reparse" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":["knowledge-id-1","knowledge-id-2"]}'
+```
+
+如需临时覆盖本次解析配置，可以传 `process_config`。未传时使用知识库当前配置。
+
+## 已有文档如何重新生成 Wiki
+
+Wiki 不是只靠模型表自动生成；它依赖知识库启用 Wiki 索引，并在文档解析后触发 Wiki ingest。
+
+前端操作：
+
+1. 打开知识库设置。
+2. 启用 Wiki。
+3. 在模型配置里选择 LLM 大语言模型；Wiki 合成模型可以留空，留空会跟随 LLM 大语言模型。
+4. 保存知识库。
+5. 对已有文档执行「重新解析」。
+6. 等待解析和 Wiki ingest 完成。
+7. 打开「Wiki」页查看页面。
+
+`/wiki/rebuild-links` 只重建已有 Wiki 页面的链接关系，不会把原始文档重新合成为 Wiki 页面。要重新合成内容，仍然要重新解析文档。
+
+## 法律图谱实体和关系怎么定义
+
+默认模板适合混合法律知识库：法条、司法解释、案例、合同、证据材料都可能出现。完整配置见：
+
+```text
+docs/ictrek/legal-knowledge-graph-config.md
+docs/ictrek/deploy-template/config/legal_graph_preset.json
+frontend/src/config/legalGraphPreset.ts
+```
+
+编写原则：
+
+1. 实体类型要稳定，不要把具体对象写成实体类型。
+   - 正确：`案件`、`法条`、`法院`、`当事人`
+   - 不建议：`张三案`、`民法典第577条`、`北京一中院`
+
+2. 关系要表达法律语义，不要写成泛泛的“相关”。
+   - 正确：`裁判依据`、`证明`、`构成要件`、`法律后果`
+   - 不建议：`有关`、`包含信息`、`描述`
+
+3. 属性只放检索和判断常用字段。
+   - `案件`：案号、案由、审理法院、审级、裁判日期、裁判结果
+   - `法条`：条号、款项、原文、适用条件、法律后果、所属法规
+   - `证据`：名称、类型、证明对象、来源
+
+4. 示例文本要覆盖你希望模型学会抽取的结构。
+   - 法条原文
+   - 事实经过
+   - 证据
+   - 争议焦点
+   - 裁判理由和结果
+
+5. 先删后加。
+   默认模板已经偏通用。单一业务库不要继续堆实体，先删除无关项：
+   - 合同库：保留合同、条款、当事人、权利义务、违约、赔偿、法条。
+   - 案例库：保留案件、法院、当事人、争议焦点、证据、裁判观点、法条。
+   - 法规库：保留法律法规、法条、司法解释、权利义务、法律责任、处罚措施。
+
+## 修改默认图谱模板的流程
+
+如果只是某一个知识库要改：
+
+1. 在前端知识库设置里改「知识图谱」配置。
+2. 保存。
+3. 对已有文档重新解析。
+
+如果要改所有新建知识库默认值：
+
+1. 修改 `frontend/src/config/legalGraphPreset.ts`。
+2. 同步修改 `docs/ictrek/deploy-template/config/legal_graph_preset.json`。
+3. 重新构建 `lexai-ui`。
+4. 部署新 frontend。
+5. 新建知识库检查默认实体和关系。
+
+如果只改部署目录里的 `legal_graph_preset.json`，不会影响前端默认表单；除非后续代码改成由后端读取并下发该 JSON。
+
+## 推荐最小检查清单
+
+部署后：
+
+```bash
+docker ps --filter name=lexai
+curl -fsS http://127.0.0.1:30081/health
+curl -fsSI http://127.0.0.1:30080/
+```
+
+知识库创建后：
+
+1. 模型配置里 LLM 大语言模型是预期 QA 模型。
+2. Wiki 启用时，Wiki 合成模型为空或等于预期 QA 模型。
+3. 知识图谱设置里没有「知识图谱数据库未启用」提示。
+4. 实体、关系、示例文本不是空。
+5. 上传或重新解析文档后，文档状态完成。
+6. Wiki 页有内容，Graph 页有节点和关系。
