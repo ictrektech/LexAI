@@ -38,6 +38,9 @@ export function useStream() {
   // 启动流式请求
   const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; web_search_enabled?: boolean; enable_memory?: boolean; summary_model_id?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: Array<{id: string; name: string; type: string; kb_type?: string; kb_id?: string; kb_name?: string; service_id?: string; skill_name?: string}>; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
     const myGeneration = ++streamGeneration
+    controller.abort()
+    controller = new AbortController()
+    const currentController = controller
     // 重置状态
     output.value = '';
     error.value = null;
@@ -158,7 +161,7 @@ export function useStream() {
           params.method == "POST"
             ? JSON.stringify(postBody)
             : null,
-        signal: controller.signal,
+        signal: currentController.signal,
         openWhenHidden: true,
 
         onopen: async (res) => {
@@ -180,7 +183,11 @@ export function useStream() {
           buffer.push(parsed); // 数据存入缓冲
           // 执行自定义处理
           if (chunkHandler) {
-            chunkHandler(parsed);
+            try {
+              chunkHandler(parsed);
+            } catch (err) {
+              console.error('[Stream] chunk handler failed:', err, parsed);
+            }
           }
         },
 
@@ -189,12 +196,16 @@ export function useStream() {
         },
 
         onclose: () => {
-          stopStream();
+          if (myGeneration !== streamGeneration) return
+          isStreaming.value = false;
+          isLoading.value = false;
         },
       });
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
-      stopStream()
+      if (myGeneration === streamGeneration) {
+        error.value = err instanceof Error ? err.message : String(err)
+        stopStream()
+      }
     }
   }
 
