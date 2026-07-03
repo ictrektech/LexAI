@@ -5,7 +5,7 @@ builtin_models:
     type: KnowledgeQA
     source: local
     description: Preloaded Ollama QA model on model-hub-ollama.
-    is_default: true
+    is_default: false
     parameters:
       base_url: http://model-hub-ollama:11434
       api_key: ""
@@ -48,14 +48,16 @@ builtin_models:
     display_name: qwen3.5-9b-awq (vLLM QA)
     type: KnowledgeQA
     source: remote
-    description: OpenAI-compatible vLLM QA model on qwen35-9b-awq-vllm.
-    is_default: false
+    description: Main OpenAI-compatible QA model on qwen35-9b-awq-vllm.
+    is_default: true
     parameters:
       base_url: http://qwen35-9b-awq-vllm:8000/v1
       api_key: ""
       interface_type: openai
       provider: generic
       supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
 
   - id: lexai-vllm-qwen35-9b-awq-vision
     name: qwen3.5-9b-awq
@@ -70,3 +72,5 @@ builtin_models:
       interface_type: openai
       provider: generic
       supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs

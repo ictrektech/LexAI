@@ -159,14 +159,19 @@ raise SystemExit("latest version not found")
 PY
 }
 
-latest_image() {
+latest_tag_for_component() {
   local token="$1"
   local sheet_id="$2"
   local component="$3"
-  local repository="$4"
   local column tag
   column="$(find_component_column_letter "$token" "$sheet_id" "$component")"
   tag="$(find_latest_tag "$token" "$sheet_id" "$column")"
+  echo "$tag"
+}
+
+image_with_tag() {
+  local repository="$1"
+  local tag="$2"
   echo "${repository}:${tag}"
 }
 
@@ -245,20 +250,27 @@ APP_SECRET="$(read_feishu_field feishu_app_secret)"
 TOKEN="$(get_feishu_token "$APP_ID" "$APP_SECRET")"
 SHEET_ID="$(get_sheet_id_by_title "$TOKEN" "$SHEET_TITLE")"
 
-LEXAI_APP_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" lexai "${REGISTRY}/lexai")"
-LEXAI_UI_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" lexai-ui "${REGISTRY}/lexai-ui")"
-LEXAI_DOCREADER_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" lexai-docreader "${REGISTRY}/lexai-docreader")"
-MODEL_HUB_BACKEND_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" model_hub_backend "${REGISTRY}/model-hub-backend")"
-MODEL_HUB_FRONTEND_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" model_hub_frontend "${REGISTRY}/model-hub-frontend")"
-OLLAMA_SERVER_IMAGE="$(latest_image "$TOKEN" "$SHEET_ID" ollama_server "${REGISTRY}/ollama_server")"
+LEXAI_APP_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai)"
+LEXAI_UI_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-ui)"
+LEXAI_DOCREADER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-docreader)"
+MODEL_HUB_BACKEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_backend)"
+MODEL_HUB_FRONTEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_frontend)"
+OLLAMA_SERVER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" ollama_server)"
+
+LEXAI_APP_IMAGE="$(image_with_tag "${REGISTRY}/lexai" "$LEXAI_APP_TAG")"
+LEXAI_UI_IMAGE="$(image_with_tag "${REGISTRY}/lexai-ui" "$LEXAI_UI_TAG")"
+LEXAI_DOCREADER_IMAGE="$(image_with_tag "${REGISTRY}/lexai-docreader" "$LEXAI_DOCREADER_TAG")"
+MODEL_HUB_BACKEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-backend" "$MODEL_HUB_BACKEND_TAG")"
+MODEL_HUB_FRONTEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-frontend" "$MODEL_HUB_FRONTEND_TAG")"
+OLLAMA_SERVER_IMAGE="$(image_with_tag "${REGISTRY}/ollama_server" "$OLLAMA_SERVER_TAG")"
 
 log "sheet=${SHEET_TITLE}"
-log "LEXAI_APP_IMAGE=${LEXAI_APP_IMAGE}"
-log "LEXAI_UI_IMAGE=${LEXAI_UI_IMAGE}"
-log "LEXAI_DOCREADER_IMAGE=${LEXAI_DOCREADER_IMAGE}"
-log "MODEL_HUB_BACKEND_IMAGE=${MODEL_HUB_BACKEND_IMAGE}"
-log "MODEL_HUB_FRONTEND_IMAGE=${MODEL_HUB_FRONTEND_IMAGE}"
-log "OLLAMA_SERVER_IMAGE=${OLLAMA_SERVER_IMAGE}"
+log "LEXAI_APP_IMAGE=${LEXAI_APP_IMAGE} tag=${LEXAI_APP_TAG}"
+log "LEXAI_UI_IMAGE=${LEXAI_UI_IMAGE} tag=${LEXAI_UI_TAG}"
+log "LEXAI_DOCREADER_IMAGE=${LEXAI_DOCREADER_IMAGE} tag=${LEXAI_DOCREADER_TAG}"
+log "MODEL_HUB_BACKEND_IMAGE=${MODEL_HUB_BACKEND_IMAGE} tag=${MODEL_HUB_BACKEND_TAG}"
+log "MODEL_HUB_FRONTEND_IMAGE=${MODEL_HUB_FRONTEND_IMAGE} tag=${MODEL_HUB_FRONTEND_TAG}"
+log "OLLAMA_SERVER_IMAGE=${OLLAMA_SERVER_IMAGE} tag=${OLLAMA_SERVER_TAG}"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
