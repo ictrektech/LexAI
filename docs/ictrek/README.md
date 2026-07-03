@@ -2,41 +2,26 @@
 
 本文说明 ictrek 部署包需要哪些文件、如何修改配置、如何自动检测或手动填写镜像版本，以及 LexAI 法律部署中 QA 模型、Wiki 生成、知识图谱抽取之间的关系。
 
+开发、合并上游、构建镜像和 push 流程见 [开发文档](DEVELOPMENT.md)。
+
 ## 部署包范围
 
-部署目标机不需要整个 repo。常规部署只需要 [docs/ictrek/deploy-template](deploy-template/) 下面这组文件：
+部署目标机不需要整个 repo。按场景只同步必要文件：
 
-```text
-deploy-template/
-  deploy.sh
-  deploy-tc232.sh
-  sync-tc232.sh
-  docker-compose.yml
-  docker-compose.tc232.yml
-  .env.example
-  .env.tc232.example
-  config/
-    builtin_models.yaml
-    legal_graph_preset.json
-```
+| 场景 | 需要的文件 | 不需要的文件 | 主要改哪里 |
+| --- | --- | --- | --- |
+| tc232，已有 `qwen35-9b-awq-vllm` | [deploy-tc232.sh](deploy-template/deploy-tc232.sh)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)、[.env.tc232.example](deploy-template/.env.tc232.example)、[config/](deploy-template/config/)；本地同步可用 [sync-tc232.sh](deploy-template/sync-tc232.sh) | [docker-compose.yml](deploy-template/docker-compose.yml) 里的 vllm 服务不会用；`.env.example` 不是运行入口 | `.env.tc232` 的端口、密钥、数据目录、并发；如已有 vllm 容器名不同，改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 里的 `base_url` |
+| 全新主机，没有可用 vllm | [deploy.sh](deploy-template/deploy.sh)、[docker-compose.yml](deploy-template/docker-compose.yml)、[.env.example](deploy-template/.env.example)、[config/](deploy-template/config/) | `deploy-tc232.sh`、`docker-compose.tc232.yml`、`.env.tc232.example` | `.env` 的 `VLLM_HOST_PORT`、`VLLM_HF_MODELS_DIR`、模型目录、端口、密钥、并发 |
+| 主机已有可用 vllm，且同一个模型同时支持文本和 VLM | 以 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为模板另存一份机器专用 compose，配套一份 env，再带上 [config/](deploy-template/config/) | 通用 compose 里的 `qwen35-9b-awq-vllm` 服务不需要启动 | 把 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 中 QA 和 Vision 模型的 `base_url` 都指向已有 vllm 容器名；模型 ID 可以共用同一个 served model |
+| 只手动固定镜像版本 | 对应场景的 compose、env、[config/](deploy-template/config/) | [deploy.sh](deploy-template/deploy.sh) 可不用 | 直接在 env 里填写 `LEXAI_APP_IMAGE`、`LEXAI_UI_IMAGE`、`LEXAI_DOCREADER_IMAGE` 等镜像变量 |
 
-各文件用途：
-
-- [deploy.sh](deploy-template/deploy.sh)：通用部署脚本，从飞书表格按平台查找最新镜像 tag，并执行 `docker compose up -d`。
-- [deploy-tc232.sh](deploy-template/deploy-tc232.sh)：tc232 专用入口，使用 tc232 专用 env/compose。
-- [sync-tc232.sh](deploy-template/sync-tc232.sh)：把部署模板同步到 tc232 的 `/data/jhu/lexai-tc232-deploy`。
-- [docker-compose.yml](deploy-template/docker-compose.yml)：通用部署 compose，包含 LexAI、model_hub、ollama、neo4j、vllm 等组件。
-- [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)：tc232 专用 compose，不再新建 vllm，复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`。
-- [.env.example](deploy-template/.env.example)：通用部署 env 模板。
-- [.env.tc232.example](deploy-template/.env.tc232.example)：tc232 专用 env 模板。
-- [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)：默认内置模型配置。
-- [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：部署侧法律图谱实体/关系默认模板。
+[config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 和 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json) 两个配置文件建议所有部署场景都带上。前者注册默认模型，后者保留法律图谱实体/关系模板。
 
 只有在重新构建镜像、修改前端默认模板或修改后端源码时，才需要完整 repo、Dockerfile 和源码目录。单纯部署、改端口、改模型、改图谱模板，不需要把整个 repo 放到目标机。
 
 ## 初次部署需要改哪里
 
-通用部署：
+全新主机部署，即主机没有可用 vllm：
 
 1. 把 [deploy-template](deploy-template/) 目录同步到目标机，例如 `/data/jhu/lexai-deploy`。
 2. 在目标机执行 `cp .env.example .env`。
@@ -60,11 +45,18 @@ NEO4J_ENABLE=true
 NEO4J_URI=bolt://neo4j:7687
 ```
 
-tc232 部署：
+tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 
 1. 本地执行 [sync-tc232.sh](deploy-template/sync-tc232.sh)，会同步到 `tc232:/data/jhu/lexai-tc232-deploy`。
 2. 在 tc232 执行 `cp .env.tc232.example .env.tc232`，如果已有 `.env.tc232` 就只补缺失项。
 3. tc232 不需要配置 `VLLM_*` 镜像服务，compose 会通过 `http://qwen35-9b-awq-vllm:8000/v1` 访问 `lexai` 网络里已有的 vllm。
+
+其他已有 vllm 的主机：
+
+1. 复制 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为该机器专用 compose。
+2. 删除文件名里的 tc232 语义后，保留“没有 vllm 服务、通过容器名访问外部 vllm”的结构。
+3. 在 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 中把 QA 和 Vision 模型的 `base_url` 改成已有 vllm 的 OpenAI API 地址，例如 `http://your-vllm-container:8000/v1`。
+4. 如果已有 vllm 模型像 qwen3.5 一样同时支持文本和 VLM，QA 和 Vision 两条模型配置可以指向同一个 `base_url` 和同一个 served model，只保持不同模型 ID，方便前端分别选择。
 
 ## 自动检测最新镜像部署
 
@@ -224,21 +216,7 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
    两份要保持语义一致。只改 JSON 不会改变前端新建知识库时的默认表单。
 
-3. 构建并推送镜像：
-
-   ```bash
-   # AMD 构建机
-   ssh tc232
-   cd /data/jhu/lexai-build
-   ./build_image.sh --target amd
-
-   # ARM 构建机
-   ssh tc192
-   cd /data/jhu/lexai-build
-   ./build_image.sh --target arm
-   ```
-
-   脚本会构建 `lexai`、`lexai-ui`、`lexai-docreader`，推送镜像，并更新飞书对应 sheet。
+3. 如果改动需要重建镜像，先按 [开发文档](DEVELOPMENT.md) 构建、推送并更新飞书表格。
 
 4. 部署：
 
