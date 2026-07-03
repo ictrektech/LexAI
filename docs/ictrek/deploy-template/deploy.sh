@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+FEISHU_READ_CONFIG_FILE="${FEISHU_READ_CONFIG_FILE:-${HOME}/.feishu.components.json}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 REGISTRY="${REGISTRY:-swr.cn-southwest-2.myhuaweicloud.com/ictrek}"
@@ -19,7 +21,8 @@ Looks up the latest LexAI, model_hub, and ollama_server image tags in Feishu,
 writes them to .env, then runs docker compose up -d.
 
 Environment:
-  FEISHU_CONFIG_FILE       Defaults to ~/.feishu.json
+  FEISHU_READ_CONFIG_FILE  Defaults to ~/.feishu.components.json for read-only lookup
+  FEISHU_CONFIG_FILE       Fallback read config, defaults to ~/.feishu.json
   FEISHU_SPREADSHEET_TOKEN Defaults to the ictrek release sheet token
   ENV_FILE                 Defaults to ./deploy-template/.env
   COMPOSE_FILE             Defaults to ./deploy-template/docker-compose.yml
@@ -34,8 +37,9 @@ require_cmd() {
 }
 
 read_feishu_field() {
-  local field="$1"
-  python3 - "$FEISHU_CONFIG_FILE" "$field" <<'PY'
+  local file="$1"
+  local field="$2"
+  python3 - "$file" "$field" <<'PY'
 import json, sys
 path, field = sys.argv[1], sys.argv[2]
 with open(path, "r", encoding="utf-8") as f:
@@ -43,6 +47,40 @@ with open(path, "r", encoding="utf-8") as f:
 val = data.get(field, "")
 print(val if isinstance(val, str) else str(val))
 PY
+}
+
+resolve_feishu_reader() {
+  local config app_id app_secret token sheet_id err_file last_config
+  FEISHU_ACTIVE_CONFIG=""
+  TOKEN=""
+  SHEET_ID=""
+  last_config=""
+
+  for config in "$FEISHU_READ_CONFIG_FILE" "$FEISHU_CONFIG_FILE"; do
+    [[ -n "$config" && -f "$config" ]] || continue
+    [[ "$config" != "$last_config" ]] || continue
+    last_config="$config"
+
+    app_id="$(read_feishu_field "$config" feishu_app_id)"
+    app_secret="$(read_feishu_field "$config" feishu_app_secret)"
+    [[ -n "$app_id" && -n "$app_secret" ]] || continue
+
+    err_file="$(mktemp)"
+    if token="$(get_feishu_token "$app_id" "$app_secret" 2>"$err_file")" \
+      && sheet_id="$(get_sheet_id_by_title "$token" "$SHEET_TITLE" 2>>"$err_file")"; then
+      FEISHU_ACTIVE_CONFIG="$config"
+      TOKEN="$token"
+      SHEET_ID="$sheet_id"
+      rm -f "$err_file"
+      log "Feishu read config=${config}"
+      return 0
+    fi
+
+    log "Feishu read config failed, trying fallback: ${config}"
+    rm -f "$err_file"
+  done
+
+  die "No Feishu read config can read sheet ${SHEET_TITLE}; checked ${FEISHU_READ_CONFIG_FILE} and ${FEISHU_CONFIG_FILE}"
 }
 
 feishu_api_json() {
@@ -271,17 +309,10 @@ done
 
 [[ -n "$PLATFORM" ]] || die "--platform amd|l4t|thor is required"
 SHEET_TITLE="${SHEET_TITLE:-$(platform_sheet "$PLATFORM")}"
-[[ -f "$FEISHU_CONFIG_FILE" ]] || die "Feishu config not found: $FEISHU_CONFIG_FILE"
-
 require_cmd curl
 require_cmd python3
 
-APP_ID="$(read_feishu_field feishu_app_id)"
-APP_SECRET="$(read_feishu_field feishu_app_secret)"
-[[ -n "$APP_ID" && -n "$APP_SECRET" ]] || die "feishu_app_id or feishu_app_secret missing"
-
-TOKEN="$(get_feishu_token "$APP_ID" "$APP_SECRET")"
-SHEET_ID="$(get_sheet_id_by_title "$TOKEN" "$SHEET_TITLE")"
+resolve_feishu_reader
 
 LEXAI_APP_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai)"
 LEXAI_UI_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-ui)"

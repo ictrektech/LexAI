@@ -65,7 +65,9 @@ tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 - `docker` / `docker compose`
 - `curl`
 - `python3`
-- `~/.feishu.json`，包含 `feishu_app_id` 和 `feishu_app_secret`
+- `~/.feishu.components.json` 或 `~/.feishu.json`，包含 `feishu_app_id` 和 `feishu_app_secret`
+
+[deploy.sh](deploy-template/deploy.sh) 只读飞书表格时会优先使用 `FEISHU_READ_CONFIG_FILE`，默认是 `~/.feishu.components.json`；如果该配置不存在或没有读表权限，会回退到 `FEISHU_CONFIG_FILE`，默认是 `~/.feishu.json`。构建并更新飞书表格的写操作不走这个脚本，仍按 [开发文档](DEVELOPMENT.md) 使用 `build_image.sh` 和 `~/.feishu.json`。
 
 通用部署命令：
 

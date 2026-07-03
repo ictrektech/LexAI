@@ -85,6 +85,8 @@ cd /data/jhu/lexai-build
 
 脚本会 push 镜像并更新飞书表格。AMD 默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；ARM 默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`。
 
+`build_image.sh` 会写飞书表格，凭据使用 `FEISHU_CONFIG_FILE`，默认是 `~/.feishu.json`。`~/.feishu.components.json` 只给部署脚本做只读查表用，不用于构建写表。
+
 只检查计划，不构建、不写飞书：
 
 ```bash
