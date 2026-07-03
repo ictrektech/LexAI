@@ -385,6 +385,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
 
       restoreQuickAnswerFlags(item)
+      if (willContinueStream && item.role === 'assistant') {
+        ensureAgentMessageShell(
+          item,
+          (item.request_id as string | undefined) || (item.id as string | undefined),
+        )
+        item.hideContent = true
+      }
 
       if (item.content) {
         const content = String(item.content)
@@ -470,9 +477,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
   const handleAgentChunk = (data: ChatMessage) => {
     const dataId = data.id as string | undefined
-    let message = findLastMessage(
-      (item) => item.request_id === dataId || item.id === dataId,
-    )
+    let message = resolveActiveAssistantMessage(data)
     let created = false
 
     if (!message) {

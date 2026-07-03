@@ -346,8 +346,9 @@ watch([() => route.params], async (newvalue) => {
         if (!firstQuery.value) {
             scrollLock.value = false;
         }
+        const targetSessionId = newvalue[0].chatid;
         messagesList.splice(0);
-        session_id.value = newvalue[0].chatid;
+        session_id.value = targetSessionId;
         clearCitationChunkCache();
 
         // 切换会话时，重置状态
@@ -364,9 +365,10 @@ watch([() => route.params], async (newvalue) => {
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
         useSettingsStoreInstance.restoreDefaultsIfSnapshotted();
 
-        await loadSessionAndHydrate(session_id.value);
+        await loadSessionAndHydrate(targetSessionId);
+        if (session_id.value !== targetSessionId) return;
         let data = {
-            session_id: session_id.value,
+            session_id: targetSessionId,
             created_at: '',
             limit: limit.value
         }
@@ -458,6 +460,7 @@ const {
     onAfterMsgList: async () => {
         const lastMessage = messagesList[messagesList.length - 1];
         if (lastMessage && !lastMessage.is_completed) {
+            const targetSessionId = session_id.value;
             isReplying.value = true;
             if (lastMessage.role === 'assistant') {
                 currentAssistantMessageId.value = lastMessage.id;
@@ -470,14 +473,16 @@ const {
             // resume the stream still surfaces as an error) — we don't touch them.
             isAttachingImStream.value = lastMessage.channel === 'im';
             await startStream({
-                session_id: session_id.value,
+                session_id: targetSessionId,
                 query: lastMessage.id,
                 method: 'GET',
                 url: '/api/v1/sessions/continue-stream',
             });
             // On success the stream resumed normally; on failure the error watcher
             // already took over (quiet recovery for IM), so only clear the flag here.
-            if (!error.value) isAttachingImStream.value = false;
+            if (session_id.value === targetSessionId && !error.value) {
+                isAttachingImStream.value = false;
+            }
         }
     },
     onAgentQuery: (data, existingMessage) => {
