@@ -20,6 +20,8 @@ Wiki synthesis uses the same model as the knowledge base's main QA model by defa
 
 Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible models use `chat_template_kwargs.enable_thinking=false`. Ollama's native chat API uses `think=false`; Ollama OpenAI-compatible models should use `extra_config.thinking_control=reasoning_effort`, which sends `reasoning_effort=none`.
 
+Knowledge graph extraction shares the main QA model, so `WEKNORA_GRAPH_LLM_CONCURRENCY` is capped at half of `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`. The default `4/2` split keeps vLLM capacity available for chat streaming.
+
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
 ```bash
