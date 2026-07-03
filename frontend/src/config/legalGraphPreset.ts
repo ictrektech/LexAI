@@ -1,0 +1,81 @@
+export interface LegalGraphNode {
+  name: string
+  attributes: string[]
+}
+
+export interface LegalGraphRelation {
+  node1: string
+  node2: string
+  type: string
+}
+
+export interface LegalGraphPreset {
+  enabled: boolean
+  text: string
+  tags: string[]
+  nodes: LegalGraphNode[]
+  relations: LegalGraphRelation[]
+}
+
+export const LEGAL_GRAPH_PRESET: LegalGraphPreset = {
+  enabled: true,
+  tags: [
+    '适用', '引用', '解释', '规定', '禁止', '授权', '要求', '例外于', '构成要件', '法律后果',
+    '管辖', '审理', '判决', '裁判依据', '支持', '反驳', '变更', '废止', '上位法', '下位法',
+    '同案参考', '类案参考', '争议焦点', '证明', '抗辩', '代理', '签订', '履行', '违约', '赔偿',
+    '处罚', '追责', '包含', '所属法规', '来源案件', '适用场景',
+  ],
+  text:
+    '《中华人民共和国民法典》第五百零九条规定，当事人应当按照约定全面履行自己的义务。第五百七十七条规定，当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n\n' +
+    '在（2023）京01民终1234号买卖合同纠纷案中，甲公司与乙公司签订《设备采购合同》，约定乙公司于2023年6月30日前交付设备并完成安装。乙公司逾期交付，甲公司提交合同、付款凭证、催告函和物流记录证明乙公司未按约履行。北京市第一中级人民法院认为，乙公司逾期交付构成违约，应依据民法典第五百零九条、第五百七十七条承担违约责任，判决乙公司赔偿甲公司设备停产损失。\n\n' +
+    '本案争议焦点包括：乙公司是否构成违约、甲公司的损失是否与逾期交付存在因果关系、违约损失金额是否有充分证据支持。法院采纳付款凭证、催告函、物流记录作为证明交付迟延和损失发生的主要证据。',
+  nodes: [
+    { name: '法律法规', attributes: ['名称', '文号', '发布机关', '发布日期', '施行日期', '效力级别', '时效状态'] },
+    { name: '法条', attributes: ['条号', '款项', '原文', '适用条件', '法律后果', '所属法规'] },
+    { name: '司法解释', attributes: ['名称', '文号', '发布机关', '发布日期', '适用范围'] },
+    { name: '案件', attributes: ['案号', '案由', '审理法院', '审级', '裁判日期', '裁判结果'] },
+    { name: '当事人', attributes: ['名称', '诉讼地位', '主体类型'] },
+    { name: '法院', attributes: ['名称', '地域', '层级'] },
+    { name: '合同', attributes: ['名称', '类型', '签订日期', '履行期限'] },
+    { name: '条款', attributes: ['条款编号', '条款内容', '所属合同'] },
+    { name: '权利义务', attributes: ['主体', '内容', '来源'] },
+    { name: '法律事实', attributes: ['时间', '地点', '行为', '证据'] },
+    { name: '证据', attributes: ['名称', '类型', '证明对象', '来源'] },
+    { name: '争议焦点', attributes: ['名称', '关联事实', '关联法条'] },
+    { name: '裁判观点', attributes: ['内容', '来源案件', '适用场景'] },
+    { name: '法律责任', attributes: ['类型', '承担主体', '责任内容'] },
+    { name: '处罚措施', attributes: ['类型', '处罚机关', '幅度'] },
+  ],
+  relations: [
+    { node1: '法条', type: '所属法规', node2: '法律法规' },
+    { node1: '司法解释', type: '解释', node2: '法律法规' },
+    { node1: '法条', type: '规定', node2: '权利义务' },
+    { node1: '法条', type: '禁止', node2: '法律事实' },
+    { node1: '法条', type: '授权', node2: '法院' },
+    { node1: '法条', type: '要求', node2: '法律事实' },
+    { node1: '法条', type: '例外于', node2: '法条' },
+    { node1: '法条', type: '法律后果', node2: '法律责任' },
+    { node1: '案件', type: '审理', node2: '法院' },
+    { node1: '案件', type: '争议焦点', node2: '争议焦点' },
+    { node1: '案件', type: '裁判依据', node2: '法条' },
+    { node1: '案件', type: '引用', node2: '司法解释' },
+    { node1: '案件', type: '判决', node2: '法律责任' },
+    { node1: '裁判观点', type: '来源案件', node2: '案件' },
+    { node1: '裁判观点', type: '适用', node2: '法条' },
+    { node1: '裁判观点', type: '支持', node2: '争议焦点' },
+    { node1: '裁判观点', type: '反驳', node2: '争议焦点' },
+    { node1: '当事人', type: '签订', node2: '合同' },
+    { node1: '合同', type: '包含', node2: '条款' },
+    { node1: '条款', type: '规定', node2: '权利义务' },
+    { node1: '当事人', type: '履行', node2: '权利义务' },
+    { node1: '当事人', type: '违约', node2: '条款' },
+    { node1: '证据', type: '证明', node2: '法律事实' },
+    { node1: '法律事实', type: '构成要件', node2: '法条' },
+    { node1: '法律责任', type: '赔偿', node2: '当事人' },
+    { node1: '处罚措施', type: '处罚', node2: '当事人' },
+  ],
+}
+
+export function legalGraphPreset(): LegalGraphPreset {
+  return structuredClone(LEGAL_GRAPH_PRESET)
+}

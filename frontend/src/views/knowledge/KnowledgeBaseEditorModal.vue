@@ -414,6 +414,7 @@ import GraphSettings from './settings/GraphSettings.vue'
 import KBShareSettings from './settings/KBShareSettings.vue'
 import DataSourceSettings from './settings/DataSourceSettings.vue'
 import { useI18n } from 'vue-i18n'
+import { legalGraphPreset } from '@/config/legalGraphPreset'
 
 const uiStore = useUIStore()
 const authStore = useAuthStore()
@@ -668,20 +669,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       modelId: '',
       language: ''
     },
-    nodeExtractConfig: {
-      enabled: false,
-      text: '',
-      tags: [] as string[],
-      nodes: [] as Array<{
-        name: string
-        attributes: string[]
-      }>,
-      relations: [] as Array<{
-        node1: string
-        node2: string
-        type: string
-      }>
-    },
+    nodeExtractConfig: legalGraphPreset(),
     questionGenerationConfig: {
       enabled: true,
       questionCount: 3
@@ -695,7 +683,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       vectorEnabled: true,
       keywordEnabled: true,
       wikiEnabled: false,
-      graphEnabled: false,
+      graphEnabled: true,
     },
     // Vector-store binding. Empty string means "use the env-configured
     // store"; create mode defaults to that, edit mode loads the
@@ -782,8 +770,8 @@ const loadKBData = async () => {
         modelId: kb.asr_config?.model_id || '',
         language: kb.asr_config?.language || ''
       },
-      nodeExtractConfig: {
-        enabled: kb.extract_config?.enabled || false,
+      nodeExtractConfig: kb.extract_config?.enabled ? {
+        enabled: true,
         text: kb.extract_config?.text || '',
         tags: kb.extract_config?.tags || [],
         nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
@@ -791,7 +779,7 @@ const loadKBData = async () => {
           attributes: node.attributes || []
         })),
         relations: kb.extract_config?.relations || []
-      },
+      } : legalGraphPreset(),
       questionGenerationConfig: {
         enabled: kb.question_generation_config?.enabled || false,
         questionCount: kb.question_generation_config?.question_count || 3
@@ -810,7 +798,7 @@ const loadKBData = async () => {
         vectorEnabled: kb.indexing_strategy?.vector_enabled ?? true,
         keywordEnabled: kb.indexing_strategy?.keyword_enabled ?? true,
         wikiEnabled: kb.indexing_strategy?.wiki_enabled ?? false,
-        graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+        graphEnabled: true,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
@@ -1145,7 +1133,7 @@ const buildSubmitData = () => {
       vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
       keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
       wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-      graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
+      graph_enabled: true,
     }
   }
 
@@ -1153,7 +1141,7 @@ const buildSubmitData = () => {
   // regardless of whether the graph indexing strategy is currently enabled.
   if (formData.value.nodeExtractConfig) {
     data.extract_config = {
-      enabled: !!formData.value.nodeExtractConfig.enabled,
+      enabled: true,
       text: formData.value.nodeExtractConfig.text || '',
       tags: formData.value.nodeExtractConfig.tags || [],
       nodes: formData.value.nodeExtractConfig.nodes || [],
@@ -1240,7 +1228,7 @@ const doSubmit = async () => {
           vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
           keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
           wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-          graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
+          graph_enabled: true,
         }
       }
       await updateKnowledgeBase(props.kbId, {
@@ -1896,4 +1884,3 @@ watch(
   }
 }
 </style>
-

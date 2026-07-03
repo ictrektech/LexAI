@@ -261,6 +261,7 @@ import KBAdvancedSettings from '../settings/KBAdvancedSettings.vue'
 import GraphSettings from '../settings/GraphSettings.vue'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { useUIStore } from '@/stores/ui'
+import { legalGraphPreset } from '@/config/legalGraphPreset'
 import { formatFileSize, getFileIcon } from '@/utils/files'
 import { getUploadFileKey } from '../utils/uploadSources'
 import KbUploadSourceDropdown from './KbUploadSourceDropdown.vue'
@@ -639,14 +640,8 @@ function createDefaultUIState(): UploadUIState {
     multimodalConfig: { enabled: false, vllmModelId: '' },
     asrConfig: { enabled: false, modelId: '', language: '' },
     questionGenerationConfig: { enabled: true, questionCount: 3 },
-    nodeExtractConfig: {
-      enabled: false,
-      text: '',
-      tags: [],
-      nodes: [],
-      relations: [],
-    },
-    graphEnabled: false,
+    nodeExtractConfig: legalGraphPreset(),
+    graphEnabled: true,
     pdfForceScanned: false,
   }
 }
@@ -683,8 +678,8 @@ function initFromKbInfo(kb: any) {
       enabled: kb.question_generation_config?.enabled ?? true,
       questionCount: kb.question_generation_config?.question_count || 3,
     },
-    nodeExtractConfig: {
-      enabled: kb.extract_config?.enabled || false,
+    nodeExtractConfig: kb.extract_config?.enabled ? {
+      enabled: true,
       text: kb.extract_config?.text || '',
       tags: kb.extract_config?.tags || [],
       nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
@@ -692,8 +687,8 @@ function initFromKbInfo(kb: any) {
         attributes: node.attributes || [],
       })),
       relations: kb.extract_config?.relations || [],
-    },
-    graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+    } : legalGraphPreset(),
+    graphEnabled: true,
     pdfForceScanned: false,
   }
 }
@@ -729,9 +724,9 @@ function buildProcessOverrides(): KnowledgeProcessOverrides {
       enabled: state.questionGenerationConfig.enabled,
       question_count: state.questionGenerationConfig.questionCount,
     },
-    graph_enabled: state.nodeExtractConfig.enabled && state.graphEnabled,
+    graph_enabled: true,
     extract_config: {
-      enabled: state.nodeExtractConfig.enabled,
+      enabled: true,
       text: state.nodeExtractConfig.text,
       tags: state.nodeExtractConfig.tags,
       nodes: state.nodeExtractConfig.nodes,
@@ -788,7 +783,7 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
     if (ec.nodes) s.nodeExtractConfig.nodes = ec.nodes.map(n => ({ name: n.name, attributes: n.attributes || [] }))
     if (ec.relations) s.nodeExtractConfig.relations = ec.relations
   }
-  if (o.graph_enabled != null) s.graphEnabled = o.graph_enabled
+  s.graphEnabled = true
   if (o.parser_engine_overrides && o.parser_engine_overrides.pdf_force_scanned === 'true') {
     s.pdfForceScanned = true
   } else {
