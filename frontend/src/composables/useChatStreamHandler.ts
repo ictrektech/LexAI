@@ -160,14 +160,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         thinkContent: '',
         thinking: false,
         is_completed: false,
+        isRagMode: !isAgentStreamSession(),
         knowledge_references: [],
       }
-      ensureAgentMessageShell(message, data.id as string | undefined)
       messagesList.push(message)
       onMessageCreated?.(message)
       loading.value = false
-    } else {
+    } else if (isAgentStreamSession()) {
       ensureAgentMessageShell(message, data.id as string | undefined)
+    } else {
+      message.isRagMode = true
+      if (data.id && !message.request_id) message.request_id = data.id
     }
 
     message.knowledge_references = refs.slice()
@@ -385,14 +388,6 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
 
       restoreQuickAnswerFlags(item)
-      if (willContinueStream && item.role === 'assistant') {
-        ensureAgentMessageShell(
-          item,
-          (item.request_id as string | undefined) || (item.id as string | undefined),
-        )
-        item.hideContent = true
-      }
-
       if (item.content) {
         const content = String(item.content)
         const thinkCloseTag = '</think>'
@@ -873,7 +868,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       })
 
       let existingMessage = findLastMessage(
-        (item) => item.id === data.id || item.request_id === data.id,
+        (item) =>
+          item.id === data.id ||
+          item.request_id === data.id ||
+          item.id === data.assistant_message_id,
       )
       const created = !existingMessage
       if (!existingMessage) {
@@ -883,7 +881,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           request_id: data.id,
           role: 'assistant',
           content: '',
-          isAgentMode: true,
+          isAgentMode: isAgentStreamSession(),
           isRagMode: !isAgentStreamSession(),
           is_completed: false,
           agentEventStream: [],
@@ -896,19 +894,37 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         loading.value = false
         scrollToBottom(true)
         log('[Agent Query] Created agent placeholder message')
-      } else {
+      } else if (isAgentStreamSession()) {
         ensureAgentMessageShell(existingMessage, data.id as string | undefined)
         log('[Agent Query] Continuing stream for existing message')
+      } else {
+        existingMessage.isRagMode = true
+        if (data.id && !existingMessage.request_id) existingMessage.request_id = data.id
       }
       onAgentQuery?.(data, existingMessage, created)
       return
     }
 
     const isAgentOnlyResponse =
-      data.response_type === 'thinking' ||
-      data.response_type === 'tool_call' ||
-      data.response_type === 'tool_result' ||
-      data.response_type === 'reflection'
+      isAgentStreamSession() &&
+      (data.response_type === 'thinking' ||
+        data.response_type === 'tool_call' ||
+        data.response_type === 'tool_result' ||
+        data.response_type === 'reflection')
+
+    if (
+      !isAgentStreamSession() &&
+      (data.response_type === 'thinking' ||
+        data.response_type === 'tool_call' ||
+        data.response_type === 'tool_result' ||
+        data.response_type === 'reflection')
+    ) {
+      const message = resolveActiveAssistantMessage(data)
+      if (message) message.isRagMode = true
+      loading.value = false
+      scrollToBottom()
+      return
+    }
 
     const lastMessage = messagesList[messagesList.length - 1]
     const isCurrentlyAgentMode = lastMessage?.isAgentMode === true
