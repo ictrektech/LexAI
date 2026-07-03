@@ -10,6 +10,8 @@ rsync -az \
   "${ROOT_DIR}/deploy-tc232.sh" \
   "${ROOT_DIR}/docker-compose.yml" \
   "${ROOT_DIR}/docker-compose.tc232.yml" \
+  "${ROOT_DIR}/.env.example" \
+  "${ROOT_DIR}/.env.tc232.example" \
   "${ROOT_DIR}/README.md" \
   "${HOST}:${DEST}/"
 

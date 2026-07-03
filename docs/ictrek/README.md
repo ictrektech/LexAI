@@ -1,8 +1,161 @@
-# LexAI Wiki 与知识图谱模型配置、部署和重建指引
+# LexAI ictrek 部署 README
 
-本文说明 LexAI 法律部署中 QA 模型、Wiki 生成、知识图谱抽取之间的关系，以及改配置后如何部署、生效和重新生成已有数据。
+本文说明 ictrek 部署包需要哪些文件、如何修改配置、如何自动检测或手动填写镜像版本，以及 LexAI 法律部署中 QA 模型、Wiki 生成、知识图谱抽取之间的关系。
 
-## 结论
+## 部署包范围
+
+部署目标机不需要整个 repo。常规部署只需要 [docs/ictrek/deploy-template](deploy-template/) 下面这组文件：
+
+```text
+deploy-template/
+  deploy.sh
+  deploy-tc232.sh
+  sync-tc232.sh
+  docker-compose.yml
+  docker-compose.tc232.yml
+  .env.example
+  .env.tc232.example
+  config/
+    builtin_models.yaml
+    legal_graph_preset.json
+```
+
+各文件用途：
+
+- [deploy.sh](deploy-template/deploy.sh)：通用部署脚本，从飞书表格按平台查找最新镜像 tag，并执行 `docker compose up -d`。
+- [deploy-tc232.sh](deploy-template/deploy-tc232.sh)：tc232 专用入口，使用 tc232 专用 env/compose。
+- [sync-tc232.sh](deploy-template/sync-tc232.sh)：把部署模板同步到 tc232 的 `/data/jhu/lexai-tc232-deploy`。
+- [docker-compose.yml](deploy-template/docker-compose.yml)：通用部署 compose，包含 LexAI、model_hub、ollama、neo4j、vllm 等组件。
+- [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)：tc232 专用 compose，不再新建 vllm，复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`。
+- [.env.example](deploy-template/.env.example)：通用部署 env 模板。
+- [.env.tc232.example](deploy-template/.env.tc232.example)：tc232 专用 env 模板。
+- [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)：默认内置模型配置。
+- [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：部署侧法律图谱实体/关系默认模板。
+
+只有在重新构建镜像、修改前端默认模板或修改后端源码时，才需要完整 repo、Dockerfile 和源码目录。单纯部署、改端口、改模型、改图谱模板，不需要把整个 repo 放到目标机。
+
+## 初次部署需要改哪里
+
+通用部署：
+
+1. 把 [deploy-template](deploy-template/) 目录同步到目标机，例如 `/data/jhu/lexai-deploy`。
+2. 在目标机执行 `cp .env.example .env`。
+3. 编辑 `.env`，至少检查密钥、端口、模型目录和并发：
+
+```bash
+DB_PASSWORD=...
+REDIS_PASSWORD=...
+JWT_SECRET=...
+TENANT_AES_KEY=0123456789abcdef0123456789abcdef
+SYSTEM_AES_KEY=0123456789abcdef0123456789abcdef
+FRONTEND_PORT=30080
+MODEL_HUB_FRONTEND_PORT=30175
+OLLAMA_MODELS_DIR=/data/ictrek_models/ollama/models
+MODEL_HUB_HF_MODELS_DIR=/data/jhu/models/huggingface
+VLLM_HF_MODELS_DIR=/data/jhu/models/huggingface
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+ENABLE_GRAPH_RAG=true
+NEO4J_ENABLE=true
+NEO4J_URI=bolt://neo4j:7687
+```
+
+tc232 部署：
+
+1. 本地执行 [sync-tc232.sh](deploy-template/sync-tc232.sh)，会同步到 `tc232:/data/jhu/lexai-tc232-deploy`。
+2. 在 tc232 执行 `cp .env.tc232.example .env.tc232`，如果已有 `.env.tc232` 就只补缺失项。
+3. tc232 不需要配置 `VLLM_*` 镜像服务，compose 会通过 `http://qwen35-9b-awq-vllm:8000/v1` 访问 `lexai` 网络里已有的 vllm。
+
+## 自动检测最新镜像部署
+
+自动模式适合目标机可以访问飞书表格配置的情况。运行脚本前，执行部署脚本的机器需要有：
+
+- `docker` / `docker compose`
+- `curl`
+- `python3`
+- `~/.feishu.json`，包含 `feishu_app_id` 和 `feishu_app_secret`
+
+通用部署命令：
+
+```bash
+cd /data/jhu/lexai-deploy
+./deploy.sh --platform amd
+./deploy.sh --platform l4t
+./deploy.sh --platform thor
+```
+
+如果需要指定表格 sheet：
+
+```bash
+./deploy.sh --platform amd --sheet AMD_with_cuda
+```
+
+只检查将会使用哪些镜像、不实际部署：
+
+```bash
+./deploy.sh --platform amd --dry-run
+```
+
+tc232 专用部署：
+
+```bash
+cd /data/jhu/lexai-tc232-deploy
+./deploy-tc232.sh
+```
+
+[deploy.sh](deploy-template/deploy.sh) 会分别查找这些组件的最新镜像，允许 LexAI 三个组件和 model_hub/ollama 使用不同版本：
+
+```text
+LEXAI_APP_IMAGE
+LEXAI_UI_IMAGE
+LEXAI_DOCREADER_IMAGE
+MODEL_HUB_BACKEND_IMAGE
+MODEL_HUB_FRONTEND_IMAGE
+OLLAMA_SERVER_IMAGE
+```
+
+脚本会把查到的镜像写回 `.env` 或 `.env.tc232`，然后执行对应 compose 文件的 `up -d`。
+
+## 手动填写镜像部署
+
+如果目标机没有飞书凭据，或者要固定某一批镜像版本，不要运行 `deploy.sh`。直接编辑 `.env` 或 `.env.tc232`，手动填入镜像：
+
+```bash
+LEXAI_APP_IMAGE=registry.example.com/lexai:xxx
+LEXAI_UI_IMAGE=registry.example.com/lexai-ui:xxx
+LEXAI_DOCREADER_IMAGE=registry.example.com/lexai-docreader:xxx
+MODEL_HUB_BACKEND_IMAGE=registry.example.com/model_hub_backend:xxx
+MODEL_HUB_FRONTEND_IMAGE=registry.example.com/model_hub_frontend:xxx
+OLLAMA_SERVER_IMAGE=registry.example.com/ollama_server:xxx
+```
+
+然后直接用 compose 部署：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml up -d
+```
+
+tc232：
+
+```bash
+docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d
+```
+
+注意：再次运行 `deploy.sh` 或 `deploy-tc232.sh` 会重新从飞书表格检测镜像并覆盖 env 中的镜像变量。需要完全手动固定版本时，只运行 `docker compose ... up -d`。
+
+## 已部署环境更新
+
+已部署环境改配置后，一般只需要同步部署模板文件并重新 `up -d`：
+
+- 改 `.env` / `.env.tc232`：重新执行对应 compose `up -d`。
+- 改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)：同步文件后重启 `lexai-app`。
+- 改 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：同步文件后重启 `lexai-app`，新建或重新保存知识库图谱配置后生效。
+- 改 [docker-compose.yml](deploy-template/docker-compose.yml) 或 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)：重新执行对应 compose `up -d`。
+- 改 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)：这是前端默认值，必须重新构建并部署 `lexai-ui` 镜像。
+
+部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
+
+## Wiki/Graph 模型结论
 
 QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
