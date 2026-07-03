@@ -453,6 +453,8 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool) *
 	// connection-independent context derived from baseCtx so it survives the
 	// client disconnect.
 	h.startStopWatcher(logger.CloneContext(baseCtx), reqCtx.sessionID, reqCtx.assistantMessage.ID, eventBus)
+	h.startIncompleteMessageWatchdog(logger.CloneContext(baseCtx), reqCtx.sessionID, reqCtx.assistantMessage.ID,
+		reqCtx.session.TenantID, reqCtx.query)
 
 	// Setup stream handler
 	h.setupStreamHandler(asyncCtx, reqCtx.sessionID, reqCtx.assistantMessage.ID,
@@ -696,9 +698,19 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 
 	// Normal mode: register completion handler on EventAgentFinalAnswer
 	// (Agent mode handles completion in the defer block instead)
-	if mode == qaModeNormal {
-		var completionHandled bool
+	var completionMu sync.Mutex
+	completionHandled := false
+	markCompletionHandled := func() bool {
+		completionMu.Lock()
+		defer completionMu.Unlock()
+		if completionHandled {
+			return false
+		}
+		completionHandled = true
+		return true
+	}
 
+	if mode == qaModeNormal {
 		// Persist reasoning_content into agent_steps so historical reload can
 		// reconstruct the thinking card (same shape as Agent-mode steps).
 		// Accumulate on assistantMessage directly so user-initiated stop also
@@ -722,10 +734,9 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 				streamCtx.assistantMessage.IsFallback = true
 			}
 			if data.Done {
-				if completionHandled {
+				if !markCompletionHandled() {
 					return nil
 				}
-				completionHandled = true
 
 				logger.Infof(streamCtx.asyncCtx, "Knowledge QA service completed for session: %s", sessionID)
 				updateCtx := context.WithValue(streamCtx.asyncCtx, types.TenantIDContextKey, reqCtx.session.TenantID)

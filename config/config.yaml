@@ -111,3 +111,9 @@ extract:
 tenant:
   # Enable cross-tenant access (can be enabled for intranet environments)
   enable_cross_tenant_access: false
+
+auth:
+  # Enable one default local user/tenant and skip the manual login screen.
+  single_user_mode: false
+  # Optional default account email for single-user mode.
+  single_user_email: ""

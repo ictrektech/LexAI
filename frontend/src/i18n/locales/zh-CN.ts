@@ -49,12 +49,12 @@ export default {
     reopen: "新手引导",
     steps: {
       welcome: {
-        title: "欢迎使用 WeKnora",
+        title: "欢迎使用 LexAI法律小助手",
         desc: "只需几步，带你快速了解知识库、对话与智能体的核心用法。点击「下一步」开始。",
       },
       knowledge: {
         title: "创建你的知识库",
-        desc: "知识库是一切的起点：上传文档、网页或 FAQ，WeKnora 会自动解析并建立索引。点击这里进入知识库。",
+        desc: "知识库是一切的起点：上传文档、网页或 FAQ，LexAI法律小助手会自动解析并建立索引。点击这里进入知识库。",
       },
       chat: {
         title: "发起智能对话",
@@ -1521,7 +1521,7 @@ export default {
   },
   initialization: {
     title: "初始化",
-    welcome: "欢迎使用WeKnora",
+    welcome: "欢迎使用 LexAI法律小助手",
     description: "请先配置系统以开始使用",
     step1: "步骤1：配置LLM模型",
     step2: "步骤2：配置嵌入模型",
@@ -1773,7 +1773,7 @@ export default {
     backToLogin: "返回登录",
     registerNow: "立即注册",
     loginHint: "登录以继续使用；首次使用请在下方创建账户。",
-    firstTime: "首次使用 WeKnora？",
+    firstTime: "首次使用 LexAI法律小助手？",
     registerSuccess: "注册成功！系统已为您创建专属空间，请登录",
     registerFailed: "注册失败",
     subtitle: "RAG 问答、ReAct 智能体与 Wiki 知识库，大模型驱动的企业级知识框架",
@@ -3110,7 +3110,7 @@ export default {
     },
   },
   createChat: {
-    title: "Hi，我是 WeKnora，让你的知识触手可及",
+    title: "Hi，我是 LexAI法律小助手，专门帮你解决法律问题",
     newSessionTitle: "新会话",
     messages: {
       selectKnowledgeBase: "请先选择知识库",

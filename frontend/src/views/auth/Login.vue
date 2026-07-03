@@ -97,7 +97,7 @@
 
     <!-- Logo - Top Left -->
     <a href="https://github.com/Tencent/WeKnora" target="_blank" class="header-logo" :title="$t('common.github')">
-      <img src="@/assets/img/weknora.png" alt="WeKnora" class="logo-image" />
+      <span class="logo-image">LexAI法律小助手</span>
     </a>
 
     <!-- Header Links - Top Right -->
@@ -1142,8 +1142,12 @@ onMounted(async () => {
   cursor: pointer;
 
   .logo-image {
-    width: 120px;
-    height: auto;
+    display: inline-block;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 }
 
@@ -1594,7 +1598,7 @@ onMounted(async () => {
     left: 40px;
 
     .logo-image {
-      width: 100px;
+      font-size: 18px;
     }
   }
 
@@ -1642,7 +1646,7 @@ onMounted(async () => {
     left: 30px;
 
     .logo-image {
-      width: 80px;
+      font-size: 16px;
     }
   }
 
@@ -1702,7 +1706,7 @@ onMounted(async () => {
     left: 20px;
 
     .logo-image {
-      width: 70px;
+      font-size: 14px;
     }
   }
 
@@ -1771,7 +1775,7 @@ html[theme-mode="dark"] {
   }
 
   .header-logo .logo-image {
-    filter: invert(1) hue-rotate(180deg) brightness(1.1);
+    color: #ffffff;
   }
 
   .header-link {

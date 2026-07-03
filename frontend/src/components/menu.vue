@@ -3,8 +3,7 @@
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <img class="logo" src="@/assets/img/weknora.png" alt="">
-                <sup v-if="isLiteEdition" class="lite-badge">Lite</sup>
+                <div class="brand-logo">LexAI法律小助手</div>
             </div>
             <div class="logo_actions">
                 <t-tooltip placement="bottom">
@@ -1277,21 +1276,14 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         min-width: 0;
         overflow: hidden;
 
-        .logo {
-            width: 128px;
-            height: auto;
-        }
-
-        .lite-badge {
-            margin-left: 2px;
-            align-self: flex-start;
-            margin-top: 2px;
-            font-size: 9px;
-            font-weight: 600;
-            color: var(--td-text-color-placeholder);
-            user-select: none;
+        .brand-logo {
+            color: var(--td-text-color-primary);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
             white-space: nowrap;
         }
+
     }
 
     .logo_img {

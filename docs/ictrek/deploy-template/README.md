@@ -12,6 +12,8 @@ Copy `.env.example` to `.env`, edit secrets, then run:
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
 
+By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
+
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
 ```bash

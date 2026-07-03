@@ -41,3 +41,17 @@ func TestApplyAuthAndTenantDefaults_DisableRegistrationDrivesRegistrationMode(t 
 		})
 	}
 }
+
+func TestApplyAuthAndTenantDefaults_SingleUserModeEnv(t *testing.T) {
+	t.Setenv("DISABLE_REGISTRATION", "")
+	t.Setenv("WEKNORA_TENANT_ENABLE_RBAC", "")
+	t.Setenv("WEKNORA_TENANT_MAX_OWNED_PER_USER", "")
+	t.Setenv("WEKNORA_SINGLE_USER_MODE", "true")
+
+	cfg := &Config{Auth: &AuthConfig{}}
+	applyAuthAndTenantDefaults(cfg)
+
+	if !cfg.Auth.SingleUserMode {
+		t.Fatalf("single_user_mode should be enabled by WEKNORA_SINGLE_USER_MODE=true")
+	}
+}

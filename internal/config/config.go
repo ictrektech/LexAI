@@ -257,6 +257,13 @@ type AuditConfig struct {
 
 // AuthConfig governs the user authentication entry points.
 type AuthConfig struct {
+	// SingleUserMode enables the existing auto-setup login flow outside Lite:
+	// the server creates/reuses one local default user + tenant and the SPA
+	// obtains a JWT transparently. Normal auth middleware still enforces that
+	// token, so tenant/RBAC code paths stay unchanged.
+	SingleUserMode bool `yaml:"single_user_mode" json:"single_user_mode"`
+	// SingleUserEmail optionally overrides the default single-user account email.
+	SingleUserEmail string `yaml:"single_user_email" json:"single_user_email"`
 	// RegistrationMode controls who may call POST /auth/register.
 	//   "self_serve" (default) — anyone may register; a new tenant is
 	//                            auto-created and the registrant becomes
@@ -773,12 +780,15 @@ func applyAgentEnvOverrides(cfg *Config) {
 // to enable RBAC or switch registration mode without editing config.yaml.
 //
 // Defaults:
+//   - auth.single_user_mode   -> false (standard multi-user login)
 //   - auth.registration_mode  -> "self_serve" (preserves pre-RBAC behaviour)
 //   - tenant.enable_rbac      -> true (enforce role checks unless an
 //     operator explicitly opts into the logging-only rollout window via
 //     config.yaml `enable_rbac: false` or `WEKNORA_TENANT_ENABLE_RBAC=false`).
 //
 // Env overrides (when set and non-empty):
+//   - WEKNORA_SINGLE_USER_MODE          ("true"/"false", case-insensitive)
+//   - WEKNORA_SINGLE_USER_EMAIL         existing user email for single-user mode
 //   - WEKNORA_TENANT_ENABLE_RBAC      ("true"/"false", case-insensitive)
 //   - WEKNORA_TENANT_MAX_OWNED_PER_USER (integer; <0 disables the cap,
 //     0 falls back to the handler default, >0 enforces that exact cap).
@@ -812,6 +822,13 @@ func applyAuthAndTenantDefaults(cfg *Config) {
 
 	if strings.TrimSpace(cfg.Auth.RegistrationMode) == "" {
 		cfg.Auth.RegistrationMode = AuthRegistrationModeSelfServe
+	}
+
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_SINGLE_USER_MODE")); value != "" {
+		cfg.Auth.SingleUserMode = strings.EqualFold(value, "true")
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_SINGLE_USER_EMAIL")); value != "" {
+		cfg.Auth.SingleUserEmail = value
 	}
 
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_TENANT_ENABLE_RBAC")); value != "" {

@@ -49,12 +49,12 @@ export default {
     reopen: 'Product tour',
     steps: {
       welcome: {
-        title: 'Welcome to WeKnora',
+        title: 'Welcome to LexAI Legal Assistant',
         desc: 'A few quick steps to get you familiar with knowledge bases, chat and agents. Click "Next" to begin.',
       },
       knowledge: {
         title: 'Create your knowledge base',
-        desc: 'Everything starts here: upload documents, web pages or FAQs and WeKnora parses and indexes them automatically. Click here to open knowledge bases.',
+        desc: 'Everything starts here: upload documents, web pages or FAQs and LexAI Legal Assistant parses and indexes them automatically. Click here to open knowledge bases.',
       },
       chat: {
         title: 'Start an AI chat',
@@ -1662,7 +1662,7 @@ export default {
   },
   initialization: {
     title: 'Initialization',
-    welcome: 'Welcome to WeKnora',
+    welcome: 'Welcome to LexAI Legal Assistant',
     description: 'Please configure the system before starting',
     step1: 'Step 1: Configure LLM Model',
     step2: 'Step 2: Configure Embedding Model',
@@ -1923,7 +1923,7 @@ export default {
     backToLogin: 'Back to Login',
     registerNow: 'Register Now',
     loginHint: 'Sign in to continue, or create an account below if this is your first time.',
-    firstTime: 'New to WeKnora?',
+    firstTime: 'New to LexAI Legal Assistant?',
     registerSuccess: 'Registration successful! The system has created an exclusive tenant for you, please login',
     registerFailed: 'Registration failed',
     subtitle: 'RAG Q&A, ReAct Agent and Wiki — an LLM-powered enterprise knowledge framework',
@@ -2206,7 +2206,7 @@ export default {
     goToAgentSettings: 'Go to agent settings'
   },
   createChat: {
-    title: 'Hi, I am WeKnora — your knowledge, within reach',
+    title: 'Hi, I am LexAI Legal Assistant, here to help solve legal problems',
     newSessionTitle: 'New Session',
     messages: {
       selectKnowledgeBase: 'Please select a knowledge base first',

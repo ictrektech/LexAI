@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -714,28 +713,32 @@ func (h *AuthHandler) SwitchTenant(c *gin.Context) {
 }
 
 // AutoSetup godoc
-// @Summary      自动初始化（Lite 桌面版）
-// @Description  Lite 版专用：首次启动时自动创建默认用户和租户并返回令牌，后续启动直接签发令牌，免除手动注册/登录流程
+// @Summary      自动初始化（单用户模式）
+// @Description  Lite 或 auth.single_user_mode 首次启动可自动创建默认用户和租户，后续直接签发令牌，免除手动注册/登录流程
 // @Tags         认证
 // @Accept       json
 // @Produce      json
 // @Success      200  {object}  types.LoginResponse
-// @Failure      403  {object}  errors.AppError  "非 Lite 版本"
+// @Failure      403  {object}  errors.AppError  "未启用单用户模式"
 // @Router       /auth/auto-setup [post]
 func (h *AuthHandler) AutoSetup(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	if Edition != "lite" {
-		appErr := errors.NewForbiddenError("auto-setup is only available in lite edition")
+	if Edition != "lite" && (h.configInfo == nil || h.configInfo.Auth == nil || !h.configInfo.Auth.SingleUserMode) {
+		appErr := errors.NewForbiddenError("auto-setup is only available in lite or single-user mode")
 		c.Error(appErr)
 		return
 	}
 
-	const defaultEmail = "admin@weknora.local"
+	const defaultEmail = "admin@lexai.local"
 
-	user, _ := h.userService.GetUserByEmail(ctx, defaultEmail)
+	email := defaultEmail
+	if h.configInfo != nil && h.configInfo.Auth != nil && strings.TrimSpace(h.configInfo.Auth.SingleUserEmail) != "" {
+		email = strings.TrimSpace(h.configInfo.Auth.SingleUserEmail)
+	}
+	user, _ := h.userService.GetUserByEmail(ctx, email)
 	if user == nil {
-		logger.Info(ctx, "Auto-setup: creating default user and tenant for lite edition")
+		logger.Info(ctx, "Auto-setup: creating default user and tenant")
 
 		randomBytes := make([]byte, 24)
 		if _, err := rand.Read(randomBytes); err != nil {
@@ -744,11 +747,11 @@ func (h *AuthHandler) AutoSetup(c *gin.Context) {
 			return
 		}
 		randomPassword := base64.RawURLEncoding.EncodeToString(randomBytes)
-		randomUsername := fmt.Sprintf("user_%s", base64.RawURLEncoding.EncodeToString(randomBytes[:6]))
+		defaultUsername := "lexai"
 
-		_, err := h.userService.Register(ctx, &types.RegisterRequest{
-			Username: randomUsername,
-			Email:    defaultEmail,
+		created, err := h.userService.Register(ctx, &types.RegisterRequest{
+			Username: defaultUsername,
+			Email:    email,
 			Password: randomPassword,
 		})
 		if err != nil {
@@ -757,7 +760,7 @@ func (h *AuthHandler) AutoSetup(c *gin.Context) {
 			c.Error(appErr)
 			return
 		}
-		user, _ = h.userService.GetUserByEmail(ctx, defaultEmail)
+		user = created
 		if user == nil {
 			appErr := errors.NewInternalServerError("auto-setup failed: user not found after registration")
 			c.Error(appErr)
