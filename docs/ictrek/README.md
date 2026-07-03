@@ -40,6 +40,7 @@ MODEL_HUB_HF_MODELS_DIR=/data/jhu/models/huggingface
 VLLM_HF_MODELS_DIR=/data/jhu/models/huggingface
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20
 ENABLE_GRAPH_RAG=true
 NEO4J_ENABLE=true
 NEO4J_URI=bolt://neo4j:7687
@@ -142,6 +143,7 @@ docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d
 已部署环境改配置后，一般只需要同步部署模板文件并重新 `up -d`：
 
 - 改 `.env` / `.env.tc232`：重新执行对应 compose `up -d`。
+- 改 `WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB`：只影响之后新建的空间；已有空间不会自动变化。要同步到已有空间，需要系统管理员调用“批量应用默认存储配额”，或直接更新 `tenants.storage_quota`。
 - 改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)：同步文件后重启 `lexai-app`。
 - 改 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：同步文件后重启 `lexai-app`，新建或重新保存知识库图谱配置后生效。
 - 改 [docker-compose.yml](deploy-template/docker-compose.yml) 或 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)：重新执行对应 compose `up -d`。
