@@ -67,6 +67,7 @@ services:
       - ./data/files:/data/files
       - ./data/docreader:/tmp/docreader:ro
       - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+      - ./config/legal_graph_preset.json:/app/config/legal_graph_preset.json:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

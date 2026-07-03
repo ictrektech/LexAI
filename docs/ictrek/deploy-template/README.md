@@ -14,6 +14,8 @@ All services join the `lexai` Docker network. Host ports start at 30000; service
 
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
 
+The deployment includes a legal knowledge graph preset at `config/legal_graph_preset.json`, mounted read-only in the app container at `/app/config/legal_graph_preset.json`. Use it as the default entity/relation setup for legal documents, statutes, contracts, and cases.
+
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
 ```bash
