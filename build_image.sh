@@ -396,6 +396,7 @@ update_feishu() {
     [[ "$BUILD_FRONTEND" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai-ui" "$UI_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_DOCREADER" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai-docreader" "$DOCREADER_IMAGE" "$date_row" "$tag"
   done
+  return 0
 }
 
 TAG_OVERRIDE=""

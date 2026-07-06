@@ -3,7 +3,7 @@
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <div class="brand-logo">LexAI法律小助手</div>
+                <div class="brand-logo">ChatSwitch法律小助手</div>
             </div>
             <div class="logo_actions">
                 <t-tooltip placement="bottom">

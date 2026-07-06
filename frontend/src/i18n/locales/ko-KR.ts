@@ -49,12 +49,12 @@ export default {
     reopen: "사용 가이드",
     steps: {
       welcome: {
-        title: "LexAI 법률 도우미에 오신 것을 환영합니다",
+        title: "ChatSwitch法律小助手에 오신 것을 환영합니다",
         desc: "몇 단계만으로 지식 베이스, 대화, 에이전트의 핵심 사용법을 안내합니다. '다음'을 눌러 시작하세요.",
       },
       knowledge: {
         title: "지식 베이스 만들기",
-        desc: "모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 LexAI 법률 도우미가 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.",
+        desc: "모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 ChatSwitch法律小助手가 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.",
       },
       chat: {
         title: "AI 대화 시작하기",
@@ -1513,7 +1513,7 @@ export default {
   },
   initialization: {
     title: "초기화",
-    welcome: "LexAI 법률 도우미에 오신 것을 환영합니다",
+    welcome: "ChatSwitch法律小助手에 오신 것을 환영합니다",
     description: "사용을 시작하려면 먼저 시스템을 구성하세요",
     step1: "1단계: LLM 모델 구성",
     step2: "2단계: 임베딩 모델 구성",
@@ -1766,7 +1766,7 @@ export default {
     backToLogin: "로그인으로 돌아가기",
     registerNow: "지금 가입하기",
     loginHint: "로그인하여 계속하세요. 처음이시라면 아래에서 계정을 만드세요.",
-    firstTime: "LexAI 법률 도우미가 처음이신가요?",
+    firstTime: "ChatSwitch法律小助手가 처음이신가요?",
     registerSuccess: "가입 성공! 시스템이 전용 테넌트를 생성했습니다. 로그인해주세요",
     registerFailed: "가입 실패",
     subtitle: "RAG Q&A, ReAct 에이전트, Wiki 지식베이스 — 대규모 언어 모델 기반 엔터프라이즈 지식 프레임워크",
@@ -3088,7 +3088,7 @@ export default {
     },
   },
   createChat: {
-    title: "안녕하세요, LexAI 법률 도우미입니다. 법률 문제 해결을 도와드립니다",
+    title: "안녕하세요, ChatSwitch法律小助手입니다. 법률 문제 해결을 도와드립니다",
     newSessionTitle: "새 세션",
     messages: {
       selectKnowledgeBase: "먼저 지식베이스를 선택해주세요",
