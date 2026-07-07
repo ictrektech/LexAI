@@ -2,6 +2,7 @@ package embedding
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -11,11 +12,11 @@ import (
 )
 
 type batchEmbedder struct {
-	pool *ants.Pool
+	sem chan struct{}
 }
 
 func NewBatchEmbedder(pool *ants.Pool) EmbedderPooler {
-	return &batchEmbedder{pool: pool}
+	return &batchEmbedder{sem: make(chan struct{}, pool.Cap())}
 }
 
 type textEmbedding struct {
@@ -44,10 +45,24 @@ func (e *batchEmbedder) BatchEmbedWithPool(ctx context.Context, model Embedder, 
 	processChunk := func(texts []*textEmbedding) func() {
 		return func() {
 			defer wg.Done()
-			// If an error has already occurred, don't continue processing
-			if firstErr != nil {
+			select {
+			case e.sem <- struct{}{}:
+				defer func() { <-e.sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = ctx.Err()
+				}
+				mu.Unlock()
 				return
 			}
+			// If an error has already occurred, don't continue processing
+			mu.Lock()
+			if firstErr != nil {
+				mu.Unlock()
+				return
+			}
+			mu.Unlock()
 			// Embed text
 			embedding, err := model.BatchEmbed(ctx, utils.MapSlice(texts, func(text *textEmbedding) string {
 				return text.text
@@ -56,6 +71,14 @@ func (e *batchEmbedder) BatchEmbedWithPool(ctx context.Context, model Embedder, 
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			if len(embedding) != len(texts) {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("embedding result count mismatch: got %d, want %d", len(embedding), len(texts))
 				}
 				mu.Unlock()
 				return
@@ -74,10 +97,7 @@ func (e *batchEmbedder) BatchEmbedWithPool(ctx context.Context, model Embedder, 
 	// Submit all tasks to the goroutine pool
 	for _, texts := range utils.ChunkSlice(textEmbeddings, batchSize) {
 		wg.Add(1)
-		err := e.pool.Submit(processChunk(texts))
-		if err != nil {
-			return nil, err
-		}
+		go processChunk(texts)()
 	}
 
 	// Wait for all tasks to complete
