@@ -5,7 +5,12 @@ Copy `.env.example` to `.env`, edit secrets, then run:
 ```bash
 ./deploy.sh --platform amd
 ./deploy.sh --platform l4t
-./deploy.sh --platform thor
+```
+
+Thor uses its dedicated script:
+
+```bash
+./deploy-thor.sh
 ```
 
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
@@ -22,9 +27,9 @@ Wiki synthesis uses the same model as the knowledge base's main QA model by defa
 
 Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible models use `chat_template_kwargs.enable_thinking=false`. Ollama's native chat API uses `think=false`; Ollama OpenAI-compatible models should use `extra_config.thinking_control=reasoning_effort`, which sends `reasoning_effort=none`.
 
-Knowledge graph extraction, Wiki synthesis, and generated-question postprocessing share the main QA model. Set `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` to the model server's real sequence cap, then keep at least `WEKNORA_CHAT_RESERVED_CONCURRENCY=1-2` for interactive chat. Background graph/wiki/question calls share only the remaining slots. On 6-sequence hosts such as thor and tc232, use `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, and `WEKNORA_ASYNQ_QUEUE_QUESTION=2`; this keeps Graph + Wiki at about 4 background slots and leaves question generation/chat room to run.
+Knowledge graph extraction, Wiki synthesis, and generated-question postprocessing share the main QA model. Configure queue weights, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). On 6-sequence hosts such as thor and tc232, use `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, and `WEKNORA_ASYNQ_QUEUE_QUESTION=2`.
 
-On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=12`; keep `WEKNORA_ASYNQ_CONCURRENCY=9` and `CONCURRENCY_POOL_SIZE=9` so document ingestion can use 9 embedding requests while interactive retrieval keeps 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup.
+On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=12`; keep `WEKNORA_ASYNQ_CONCURRENCY=9` and `CONCURRENCY_POOL_SIZE=9` so document ingestion can use 9 embedding requests while interactive retrieval keeps 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup; see [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
 
 Thor Wiki generation uses the 9B QA model and keeps source text capped at 12000 characters. For Thor KBs, set `wiki_config.extraction_granularity=focused`; the deployment defaults keep Wiki ingest map/reduce parallelism at 2 unless a KB explicitly overrides `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel`. On weaker machines, lower the Wiki map/reduce values before lowering chat reserved capacity.
 
