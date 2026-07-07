@@ -23,6 +23,7 @@ test('rag pipeline persists and collapses after the answer arrives', () => {
   assert.match(source, /collapsedSummaryHtml/)
   assert.match(source, /hasThinking\.value/)
   assert.match(source, /const visible = computed\([\s\S]*showPrePipelineWait\.value/)
+  assert.match(source, /const visible = computed\([\s\S]*hasReferences\.value/)
 })
 
 test('rag pipeline toggles expand and collapse from the root header', () => {

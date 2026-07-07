@@ -26,3 +26,9 @@ test('stream handler accepts pull-stream type field for references', () => {
   assert.match(handlerSource, /const getChunkType = \(data: ChatMessage\) =>[\s\S]*data\.response_type \|\| data\.type/)
   assert.match(handlerSource, /const responseType = getChunkType\(data\)[\s\S]*if \(responseType === 'references'\)/)
 })
+
+test('pre-answer references are kept for the first answer row', () => {
+  assert.match(handlerSource, /let pendingKnowledgeReferences: unknown\[\] = \[\]/)
+  assert.match(handlerSource, /pendingKnowledgeReferences = refs\.slice\(\)[\s\S]*return undefined/)
+  assert.match(handlerSource, /entry\.knowledge_references = pendingKnowledgeReferences\.slice\(\)/)
+})

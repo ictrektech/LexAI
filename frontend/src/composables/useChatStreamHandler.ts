@@ -61,6 +61,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
   const getChunkType = (data: ChatMessage) =>
     String(data.response_type || data.type || '')
+  let pendingKnowledgeReferences: unknown[] = []
 
   const findLastMessage = (predicate: (item: ChatMessage) => boolean) => {
     for (let i = messagesList.length - 1; i >= 0; i--) {
@@ -102,6 +103,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
     fullContent.value = ''
     currentAssistantMessageId.value = ''
+    pendingKnowledgeReferences = []
   }
 
   /** Mark the assistant row being stopped without clearing its id (stop API still needs it). */
@@ -151,25 +153,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!refs.length) return undefined
 
     let message = resolveActiveAssistantMessage(data)
-    const created = !message
     if (!message) {
-      const rowId = (data.id as string | undefined) || currentAssistantMessageId.value
-      message = {
-        id: rowId,
-        request_id: rowId,
-        role: 'assistant',
-        content: '',
-        showThink: false,
-        thinkContent: '',
-        thinking: false,
-        is_completed: false,
-        isRagMode: !isAgentStreamSession(),
-        knowledge_references: [],
-      }
-      messagesList.push(message)
-      onMessageCreated?.(message)
+      pendingKnowledgeReferences = refs.slice()
       loading.value = false
-    } else if (isAgentStreamSession()) {
+      return undefined
+    }
+    if (isAgentStreamSession()) {
       ensureAgentMessageShell(message, data.id as string | undefined)
     } else {
       message.isRagMode = true
@@ -177,7 +166,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
 
     message.knowledge_references = refs.slice()
-    if (created) onAgentChunkBound?.(message, true)
+    pendingKnowledgeReferences = []
     onMessageUpdated?.(message, data)
     log('[References] Saved to message, count:', refs.length)
     return message
@@ -454,6 +443,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       const refs = extractKnowledgeReferences(payload)
       if (refs.length > 0) {
         message.knowledge_references = refs.slice()
+        pendingKnowledgeReferences = []
+      } else if (pendingKnowledgeReferences.length > 0) {
+        message.knowledge_references = pendingKnowledgeReferences.slice()
+        pendingKnowledgeReferences = []
       } else if (!Array.isArray(message.knowledge_references)) {
         message.knowledge_references = []
       }
@@ -463,6 +456,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     } else {
       const entry = { ...payload }
       if (entry.id && !entry.request_id) entry.request_id = entry.id
+      const refs = extractKnowledgeReferences(payload)
+      if (refs.length > 0) {
+        entry.knowledge_references = refs.slice()
+        pendingKnowledgeReferences = []
+      } else if (pendingKnowledgeReferences.length > 0) {
+        entry.knowledge_references = pendingKnowledgeReferences.slice()
+        pendingKnowledgeReferences = []
+      }
       messagesList.push(entry)
       onMessageCreated?.(entry)
       onMessageUpdated?.(entry, payload)
