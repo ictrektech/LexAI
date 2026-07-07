@@ -446,29 +446,49 @@ const refreshMessageRow = (message) => {
     if (index >= 0) messagesList.splice(index, 1, message);
 };
 
-const syncCompletedMessageReferences = (message) => {
-    if (!message?.isRagMode || message.knowledge_references?.length) return;
-    const targetSessionId = session_id.value;
+const findFreshMessageForReferences = (items, message) => {
     const targetId = message.id;
     const targetRequestId = message.request_id;
+    const targetContent = String(message.content || '').trim();
+    const assistantItems = (items || []).filter((item) => item.role === 'assistant');
+
+    const matched = assistantItems.find((item) => {
+        return item.id === targetId ||
+            item.request_id === targetId ||
+            item.id === targetRequestId ||
+            item.request_id === targetRequestId;
+    });
+    if (matched) return matched;
+
+    if (targetContent) {
+        const sameContent = assistantItems.find((item) => String(item.content || '').trim() === targetContent);
+        if (sameContent) return sameContent;
+    }
+
+    return messagesList[messagesList.length - 1] === message
+        ? assistantItems.find((item) => item.is_completed)
+        : null;
+};
+
+const syncCompletedMessageReferences = (message, attempt = 0) => {
+    if (!message?.isRagMode || message.knowledge_references?.length) return;
+    const targetSessionId = session_id.value;
     window.setTimeout(async () => {
         if (session_id.value !== targetSessionId) return;
         try {
             const res = await getMessageList({ session_id: targetSessionId, limit: limit.value, created_at: '' });
-            const fresh = (res?.data || []).find((item) => {
-                if (item.role !== 'assistant') return false;
-                return item.id === targetId ||
-                    item.request_id === targetId ||
-                    item.id === targetRequestId ||
-                    item.request_id === targetRequestId;
-            });
-            if (!fresh?.knowledge_references?.length) return;
+            const fresh = findFreshMessageForReferences(res?.data || [], message);
+            if (!fresh?.knowledge_references?.length) {
+                if (attempt < 10) syncCompletedMessageReferences(message, attempt + 1);
+                return;
+            }
             message.knowledge_references = fresh.knowledge_references.slice();
             refreshMessageRow(message);
         } catch (error) {
             console.warn('[References] failed to sync completed message references:', error);
+            if (attempt < 10) syncCompletedMessageReferences(message, attempt + 1);
         }
-    }, 800);
+    }, attempt === 0 ? 300 : 700);
 };
 
 const {

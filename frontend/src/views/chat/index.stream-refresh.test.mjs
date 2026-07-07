@@ -12,9 +12,15 @@ test('stream message updates refresh the current row', () => {
 })
 
 test('completed quick answers sync references without page navigation', () => {
-  assert.match(source, /const syncCompletedMessageReferences = \(message\) => \{/)
+  assert.match(source, /const syncCompletedMessageReferences = \(message,\s*attempt = 0\) => \{/)
   assert.match(source, /getMessageList\(\{ session_id: targetSessionId[\s\S]*fresh\.knowledge_references\.slice\(\)/)
   assert.match(source, /if \(payload\?\.is_completed\) \{[\s\S]*syncCompletedMessageReferences\(message\)/)
+})
+
+test('completed quick answer reference sync retries and tolerates stream id drift', () => {
+  assert.match(source, /const findFreshMessageForReferences = \(items,\s*message\) => \{/)
+  assert.match(source, /String\(item\.content \|\| ''\)\.trim\(\) === targetContent/)
+  assert.match(source, /if \(!fresh\?\.knowledge_references\?\.length\) \{[\s\S]*attempt < 10[\s\S]*syncCompletedMessageReferences\(message,\s*attempt \+ 1\)/)
 })
 
 const handlerSource = readFileSync(
