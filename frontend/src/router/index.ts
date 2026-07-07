@@ -131,8 +131,13 @@ const router = createRouter({
         },
         {
           path: "integrations",
-          name: "integrations",
-          component: () => import("../views/platform/RoutePlaceholder.vue"),
+          redirect: (to) => ({
+            path: "/platform/settings",
+            query: {
+              ...to.query,
+              section: "integrations",
+            },
+          }),
           meta: { requiresInit: true, requiresAuth: true }
         },
         {
@@ -243,7 +248,6 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
       authStore.setTenant({
         id: String(tenant.id) || '',
         name: tenant.name || '',
-        api_key: tenant.api_key || '',
         owner_id: tenant.owner_id || user.id || '',
         description: tenant.description,
         status: tenant.status,
