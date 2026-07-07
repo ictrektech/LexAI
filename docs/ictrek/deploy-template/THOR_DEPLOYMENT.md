@@ -54,7 +54,6 @@ Use model_hub or its API to pull:
 
 ```text
 ollama://qwen3.5:4b
-ollama://bge-m3:latest
 ms://BAAI/bge-m3
 hf://QuantTrio/Qwen3.5-9B-AWQ
 ```
@@ -103,7 +102,7 @@ done
 
 The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=20480`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
 
-Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup. Keep `BGE_VLLM_MAX_NUM_SEQS=12`, `WEKNORA_ASYNQ_CONCURRENCY=9`, and `CONCURRENCY_POOL_SIZE=9` so document embedding can use 9 requests while interactive retrieval keeps 3 service slots.
+Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=12`, `WEKNORA_ASYNQ_CONCURRENCY=9`, and `CONCURRENCY_POOL_SIZE=9` so document embedding can use 9 requests while interactive retrieval keeps 3 service slots.
 
 Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; setting it below the document worker count can make background parsing appear stuck in the `embedding` stage.
 

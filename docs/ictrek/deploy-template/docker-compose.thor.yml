@@ -174,7 +174,7 @@ services:
         python3 - <<'PY'
         import json, os, time, urllib.error, urllib.request
         base = "http://model-hub-backend:5005"
-        models = [m for m in os.getenv("MODEL_HUB_PRELOAD_MODELS", "ollama://bge-m3:latest").split() if m]
+        models = [m for m in os.getenv("MODEL_HUB_PRELOAD_MODELS", "ms://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ").split() if m]
         for model in models:
             source = model.split("://", 1)[0]
             body = json.dumps({"model_id": model, "source": source}).encode()
@@ -200,7 +200,7 @@ services:
                     time.sleep(5)
         PY
     environment:
-      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-ollama://bge-m3:latest}
+      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-ms://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ}
     depends_on:
       model-hub-backend:
         condition: service_healthy

@@ -45,6 +45,8 @@ test('rag pipeline embeds references in the timeline instead of a separate card'
 
 test('rag pipeline keeps loading inside the thinking step instead of orphan dots', () => {
   assert.match(source, /showPrePipelineWait/)
+  assert.match(source, /agentStream\.toolStatus\.queryUnderstanding/)
+  assert.match(source, /inline-loading-typing/)
   assert.match(source, /showThinkingStep/)
   assert.match(source, /thinking-loading/)
   assert.match(source, /hasThinkingEvent/)

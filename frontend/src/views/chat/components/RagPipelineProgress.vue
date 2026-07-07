@@ -4,11 +4,19 @@
       <div class="tree-child tree-child-last streaming-loading-node">
         <div class="tree-branch" />
         <div class="tree-child-content">
-          <div class="loading-indicator">
-            <div class="loading-typing">
-              <span />
-              <span />
-              <span />
+          <div class="tool-event">
+            <div class="action-card">
+              <div class="action-header no-results">
+                <div class="action-title">
+                  <t-icon class="action-title-icon" name="search" />
+                  <span class="action-name is-running">{{ t('agentStream.toolStatus.queryUnderstanding') }}</span>
+                  <span class="loading-typing inline-loading-typing">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -561,6 +569,10 @@ watch(thinkingExpanded, (expanded) => {
       content: none;
     }
   }
+}
+
+.inline-loading-typing {
+  margin-left: 2px;
 }
 
 .rag-ref-step {
