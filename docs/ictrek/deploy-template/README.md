@@ -26,6 +26,8 @@ Knowledge graph extraction shares the main QA model. On thor, vLLM is capped at 
 
 On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=12`; keep `WEKNORA_ASYNQ_CONCURRENCY=9` and `CONCURRENCY_POOL_SIZE=9` so document ingestion can use 9 embedding requests while interactive retrieval keeps 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup.
 
+Thor Wiki generation uses the 9B QA model and keeps source text capped at 12000 characters. For Thor KBs, set `wiki_config.extraction_granularity=focused` and keep Wiki ingest map/reduce parallelism low (`1-2`) if JSON extraction starts failing or chat latency matters.
+
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
 ```bash

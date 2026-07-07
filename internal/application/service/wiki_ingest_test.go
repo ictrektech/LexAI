@@ -329,19 +329,51 @@ func TestGenerateWithTemplateMasksImageURLsBeforeLLM(t *testing.T) {
 	}
 }
 
+func TestGenerateWithTemplateEnablesJSONModeOnlyForJSONPrompts(t *testing.T) {
+	service := &wikiIngestService{}
+
+	jsonModel := &templateCaptureChatModel{response: `{}`}
+	if _, err := service.generateWithTemplate(
+		context.Background(),
+		jsonModel,
+		`Output ONLY valid JSON. Content={{.Content}}`,
+		map[string]string{"Content": "x"},
+	); err != nil {
+		t.Fatalf("json generateWithTemplate() error = %v", err)
+	}
+	if len(jsonModel.opts.Format) == 0 {
+		t.Fatal("JSON prompt did not enable response format")
+	}
+
+	markdownModel := &templateCaptureChatModel{response: `# Summary`}
+	if _, err := service.generateWithTemplate(
+		context.Background(),
+		markdownModel,
+		`Write Markdown. Content={{.Content}}`,
+		map[string]string{"Content": "x"},
+	); err != nil {
+		t.Fatalf("markdown generateWithTemplate() error = %v", err)
+	}
+	if len(markdownModel.opts.Format) != 0 {
+		t.Fatalf("markdown prompt unexpectedly enabled response format: %s", markdownModel.opts.Format)
+	}
+}
+
 type templateCaptureChatModel struct {
 	prompt   string
 	response string
+	opts     *chat.ChatOptions
 }
 
 func (m *templateCaptureChatModel) Chat(
 	_ context.Context,
 	messages []chat.Message,
-	_ *chat.ChatOptions,
+	opts *chat.ChatOptions,
 ) (*types.ChatResponse, error) {
 	if len(messages) > 0 {
 		m.prompt = messages[0].Content
 	}
+	m.opts = opts
 	return &types.ChatResponse{Content: m.response}, nil
 }
 

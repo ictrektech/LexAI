@@ -441,6 +441,11 @@ const handleScroll = () => {
 
 const fetchMessageList = (data) => getMessageList(data);
 
+const refreshMessageRow = (message) => {
+    const index = messagesList.indexOf(message);
+    if (index >= 0) messagesList.splice(index, 1, message);
+};
+
 const {
     findLastMessage,
     shouldRenderAssistantMessage,
@@ -506,6 +511,7 @@ const {
     onMessageCreated: (message) => attachStreamDebugToMessage(message),
     onMessageUpdated: (message, payload) => {
         attachStreamDebugToMessage(message);
+        refreshMessageRow(message);
         if (payload?.is_completed) pendingStreamDebug.value = null;
     },
     onAgentAnswerDone: (message) => {

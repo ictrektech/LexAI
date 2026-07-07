@@ -106,6 +106,8 @@ Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm`
 
 Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; setting it below the document worker count can make background parsing appear stuck in the `embedding` stage.
 
+Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters, set `wiki_config.extraction_granularity=focused`, and prefer low Wiki ingest parallelism for Thor knowledge bases (`wiki_config.ingest_map_parallel` / `ingest_reduce_parallel` around `1-2`). Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
+
 If this is an existing database, confirm the default Embedding row after restarting `app`:
 
 ```bash

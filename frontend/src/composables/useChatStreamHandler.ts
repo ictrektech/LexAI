@@ -448,8 +448,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       message.thinking = payload.thinking
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
-      if (!message.knowledge_references) {
-        message.knowledge_references = payload.knowledge_references
+      const refs = extractKnowledgeReferences(payload)
+      if (refs.length > 0) {
+        message.knowledge_references = refs.slice()
+      } else if (!Array.isArray(message.knowledge_references)) {
+        message.knowledge_references = []
       }
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true

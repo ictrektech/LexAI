@@ -34,8 +34,10 @@ import (
 var ErrWikiIngestConcurrent = errors.New("concurrent wiki task active")
 
 const (
-	// maxContentForWiki limits the document content sent to LLM for wiki generation
-	maxContentForWiki = 32768
+	// maxContentForWiki limits the document content sent to LLM for wiki generation.
+	// Keep this conservative: smaller local models tend to return truncated JSON
+	// when extraction prompts carry too much source text.
+	maxContentForWiki = 12000
 
 	// wikiActiveKeyPrefix is the Redis key for the "batch in progress" flag.
 	// Key format: wiki:active:{kbID} → "1" with TTL. Prevents concurrent batches.
@@ -1301,6 +1303,7 @@ func formatExistingTaxonomyForPrompt(paths [][]string) string {
 	}
 	return strings.TrimSpace(buf.String())
 }
+
 // getExistingPageSlugsForKnowledge returns all page slugs that currently
 // reference a given knowledge ID in their source_refs. Used to snapshot
 // state before re-ingest so the reduce phase can reconcile additions vs
@@ -1809,12 +1812,16 @@ func (s *wikiIngestService) generateWithTemplate(ctx context.Context, chatModel 
 
 	var lastErr error
 	for attempt := 1; attempt <= wikiLLMMaxAttempts; attempt++ {
-		response, err := chatModel.Chat(ctx, []chat.Message{
-			{Role: "user", Content: prompt},
-		}, &chat.ChatOptions{
+		opts := &chat.ChatOptions{
 			Temperature: 0.3,
 			Thinking:    &thinking,
-		})
+		}
+		if isJSONOnlyWikiPrompt(promptTpl) {
+			opts.Format = json.RawMessage(`{"type":"object"}`)
+		}
+		response, err := chatModel.Chat(ctx, []chat.Message{
+			{Role: "user", Content: prompt},
+		}, opts)
 		if err == nil {
 			return unmaskImageURLs(response.Content, urlMap), nil
 		}
@@ -1840,6 +1847,10 @@ func (s *wikiIngestService) generateWithTemplate(ctx context.Context, chatModel 
 		}
 	}
 	return "", fmt.Errorf("LLM call failed after %d attempts: %w", wikiLLMMaxAttempts, lastErr)
+}
+
+func isJSONOnlyWikiPrompt(promptTpl string) bool {
+	return strings.Contains(promptTpl, "Output ONLY valid JSON")
 }
 
 // isTransientLLMError reports whether an error from the chat provider
