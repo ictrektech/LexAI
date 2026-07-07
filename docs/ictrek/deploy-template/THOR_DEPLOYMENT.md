@@ -100,7 +100,31 @@ done
 
 The deployed 9B default is `Qwen3.5-9B-AWQ`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
 
-Embedding uses `bge-m3-vllm` with `BGE_VLLM_MAX_NUM_SEQS=6`. Keep `WEKNORA_ASYNQ_CONCURRENCY=3` so ingestion can use up to half of the embedding service while chat/retrieval keeps capacity.
+Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup. Keep `BGE_VLLM_MAX_NUM_SEQS=6` and `WEKNORA_ASYNQ_CONCURRENCY=3` so ingestion can use up to half of the embedding service while chat/retrieval keeps capacity.
+
+If this is an existing database, confirm the default Embedding row after restarting `app`:
+
+```bash
+docker exec lexai-thor-postgres-1 psql -U lexai -d lexai -P pager=off -c \
+  "select id,name,type,is_default,parameters->>'base_url' as base_url,parameters->>'interface_type' as interface_type from models where type='Embedding' order by is_default desc,id;"
+```
+
+Expected default row:
+
+```text
+lexai-thor-vllm-bge-m3-embedding | bge-m3 | Embedding | t | http://bge-m3-vllm:22223/v1 | openai
+```
+
+Keep automatic restart only for this LexAI deployment. To disable restart for unrelated containers without stopping them:
+
+```bash
+for c in $(docker ps -a --format '{{.Names}}'); do
+  case "$c" in
+    lexai-thor-*|qwen35-9b-vllm|bge-m3-vllm) continue ;;
+  esac
+  docker update --restart=no "$c"
+done
+```
 
 ## Verify
 
