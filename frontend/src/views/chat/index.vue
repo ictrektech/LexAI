@@ -446,6 +446,31 @@ const refreshMessageRow = (message) => {
     if (index >= 0) messagesList.splice(index, 1, message);
 };
 
+const syncCompletedMessageReferences = (message) => {
+    if (!message?.isRagMode || message.knowledge_references?.length) return;
+    const targetSessionId = session_id.value;
+    const targetId = message.id;
+    const targetRequestId = message.request_id;
+    window.setTimeout(async () => {
+        if (session_id.value !== targetSessionId) return;
+        try {
+            const res = await getMessageList({ session_id: targetSessionId, limit: limit.value, created_at: '' });
+            const fresh = (res?.data || []).find((item) => {
+                if (item.role !== 'assistant') return false;
+                return item.id === targetId ||
+                    item.request_id === targetId ||
+                    item.id === targetRequestId ||
+                    item.request_id === targetRequestId;
+            });
+            if (!fresh?.knowledge_references?.length) return;
+            message.knowledge_references = fresh.knowledge_references.slice();
+            refreshMessageRow(message);
+        } catch (error) {
+            console.warn('[References] failed to sync completed message references:', error);
+        }
+    }, 800);
+};
+
 const {
     findLastMessage,
     shouldRenderAssistantMessage,
@@ -512,10 +537,14 @@ const {
     onMessageUpdated: (message, payload) => {
         attachStreamDebugToMessage(message);
         refreshMessageRow(message);
-        if (payload?.is_completed) pendingStreamDebug.value = null;
+        if (payload?.is_completed) {
+            syncCompletedMessageReferences(message);
+            pendingStreamDebug.value = null;
+        }
     },
     onAgentAnswerDone: (message) => {
         attachStreamDebugToMessage(message);
+        syncCompletedMessageReferences(message);
         pendingStreamDebug.value = null;
     },
     onAgentChunkBound: (message) => {

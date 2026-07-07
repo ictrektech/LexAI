@@ -11,6 +11,12 @@ test('stream message updates refresh the current row', () => {
   assert.match(source, /onMessageUpdated:\s*\(message,\s*payload\) => \{[\s\S]*refreshMessageRow\(message\)/)
 })
 
+test('completed quick answers sync references without page navigation', () => {
+  assert.match(source, /const syncCompletedMessageReferences = \(message\) => \{/)
+  assert.match(source, /getMessageList\(\{ session_id: targetSessionId[\s\S]*fresh\.knowledge_references\.slice\(\)/)
+  assert.match(source, /if \(payload\?\.is_completed\) \{[\s\S]*syncCompletedMessageReferences\(message\)/)
+})
+
 const handlerSource = readFileSync(
   join(import.meta.dirname, '../../composables/useChatStreamHandler.ts'),
   'utf8',
