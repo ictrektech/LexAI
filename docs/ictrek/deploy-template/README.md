@@ -22,7 +22,9 @@ Wiki synthesis uses the same model as the knowledge base's main QA model by defa
 
 Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible models use `chat_template_kwargs.enable_thinking=false`. Ollama's native chat API uses `think=false`; Ollama OpenAI-compatible models should use `extra_config.thinking_control=reasoning_effort`, which sends `reasoning_effort=none`.
 
-Knowledge graph extraction shares the main QA model, so `WEKNORA_GRAPH_LLM_CONCURRENCY` is capped at half of `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`. The default `4/2` split keeps vLLM capacity available for chat streaming.
+Knowledge graph extraction shares the main QA model. On thor, vLLM is capped at 6 sequences, so set `WEKNORA_GRAPH_LLM_CONCURRENCY=3` to leave capacity for interactive chat.
+
+On thor, bge-m3 runs as a separate OpenAI-compatible vLLM embedding service, `bge-m3-vllm`, with `BGE_VLLM_MAX_NUM_SEQS=6`. Set `WEKNORA_ASYNQ_CONCURRENCY=3` so document ingestion can use up to half of that service while interactive retrieval still has capacity.
 
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
@@ -30,6 +32,15 @@ For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-
 cp .env.tc232.example .env.tc232
 ./deploy-tc232.sh
 ```
+
+For `thor`, use the dedicated compose file. It creates the external `lexai` Docker network if missing, looks up the latest `thor_spark` component tags from Feishu, starts model_hub, ollama, `qwen35-9b-vllm`, and `bge-m3-vllm` on the internal network, triggers `ollama://bge-m3:latest` and `ms://BAAI/bge-m3` through model_hub, and runs the model_hub-downloaded 9B and bge-m3 paths. See [THOR_DEPLOYMENT.md](THOR_DEPLOYMENT.md) for the reproducible host procedure.
+
+```bash
+cp .env.thor.example .env.thor
+./deploy-thor.sh
+```
+
+Thor persistent data defaults to `/data/ssd/ictrek` for LexAI, model_hub, Ollama, Postgres, Redis, Neo4j, files, and docreader. The 9B vLLM mounts `/data/ssd/ictrek/models:/data/models`; the bge-m3 vLLM mounts `/data/ssd/ictrek/model_hub:/data/model_hub`. Use container paths, not host absolute symlinks.
 
 When updating the tc232 deploy directory from this repo, use:
 

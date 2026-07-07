@@ -1,0 +1,397 @@
+name: ${COMPOSE_PROJECT_NAME:-lexai-thor}
+
+services:
+  frontend:
+    image: ${LEXAI_UI_IMAGE:?set LEXAI_UI_IMAGE in .env.thor}
+    ports:
+      - "${FRONTEND_PORT:-30080}:80"
+    environment:
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      APP_HOST: app
+      APP_PORT: 8080
+      APP_SCHEME: http
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  app:
+    image: ${LEXAI_APP_IMAGE:?set LEXAI_APP_IMAGE in .env.thor}
+    ports:
+      - "${APP_PORT:-30081}:8080"
+    env_file:
+      - .env.thor
+    environment:
+      GIN_MODE: ${GIN_MODE:-release}
+      TZ: ${TZ:-Asia/Shanghai}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:?set DB_USER in .env.thor}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.thor}
+      DB_NAME: ${DB_NAME:?set DB_NAME in .env.thor}
+      RETRIEVE_DRIVER: ${RETRIEVE_DRIVER:-postgres}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      LOCAL_STORAGE_BASE_DIR: /data/files
+      STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.thor}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+      DOCREADER_ADDR: docreader:50051
+      DOCREADER_TRANSPORT: grpc
+      OLLAMA_BASE_URL: http://model-hub-ollama:11434
+      SSRF_WHITELIST: ${SSRF_WHITELIST:-}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-backend,model-hub-ollama,qwen35-9b-vllm,bge-m3-vllm,searxng,qdrant,milvus,weaviate,doris-fe}
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
+      NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-5}
+      WEKNORA_ASYNQ_CONCURRENCY: ${WEKNORA_ASYNQ_CONCURRENCY:-3}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-3}
+      WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-3}
+      WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB: ${WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB:-20}
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      WEKNORA_SINGLE_USER_MODE: ${WEKNORA_SINGLE_USER_MODE:-true}
+      WEKNORA_SINGLE_USER_EMAIL: ${WEKNORA_SINGLE_USER_EMAIL:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      TENANT_AES_KEY: ${TENANT_AES_KEY:-}
+      SYSTEM_AES_KEY: ${SYSTEM_AES_KEY:-}
+      CRYPTO_MASTER_KEY: ${CRYPTO_MASTER_KEY:-}
+      CRYPTO_SALT: ${CRYPTO_SALT:-}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+    volumes:
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/files:/data/files
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/docreader:/tmp/docreader:ro
+      - ./config/builtin_models.thor.yaml:/app/config/builtin_models.yaml:ro
+      - ./config/legal_graph_preset.json:/app/config/legal_graph_preset.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      docreader:
+        condition: service_healthy
+      model-hub-backend:
+        condition: service_healthy
+      model-hub-ollama:
+        condition: service_healthy
+      bge-m3-vllm:
+        condition: service_started
+      qwen35-9b-vllm:
+        condition: service_started
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  docreader:
+    image: ${LEXAI_DOCREADER_IMAGE:?set LEXAI_DOCREADER_IMAGE in .env.thor}
+    expose:
+      - "50051"
+    environment:
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      DOCREADER_ODL_MAX_WORKERS: ${DOCREADER_ODL_MAX_WORKERS:-1}
+      DOCREADER_ODL_HYBRID: ${DOCREADER_ODL_HYBRID:-off}
+      DOCREADER_MARKITDOWN_MAX_WORKERS: ${DOCREADER_MARKITDOWN_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_MAX_WORKERS: ${DOCREADER_PDF_RENDER_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_DPI: ${DOCREADER_PDF_RENDER_DPI:-200}
+      DOCREADER_PDF_JPEG_QUALITY: ${DOCREADER_PDF_JPEG_QUALITY:-90}
+      GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+      GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
+    volumes:
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/docreader:/tmp/docreader
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-frontend:
+    image: ${MODEL_HUB_FRONTEND_IMAGE:?set MODEL_HUB_FRONTEND_IMAGE in .env.thor}
+    ports:
+      - "${MODEL_HUB_FRONTEND_PORT:-30175}:80"
+    depends_on:
+      model-hub-backend:
+        condition: service_healthy
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-backend:
+    image: ${MODEL_HUB_BACKEND_IMAGE:?set MODEL_HUB_BACKEND_IMAGE in .env.thor}
+    ports:
+      - "${MODEL_HUB_BACKEND_PORT:-30005}:5005"
+    environment:
+      MODELS_BASE_DIR: /data
+      OLLAMA_API_URL: http://model-hub-ollama:11434
+      OLLAMA_GATEWAY_URL: http://model-hub-ollama:11535
+      OLLAMA_DOWNLOAD_TIMEOUT: "3600"
+      OLLAMA_REGISTRY_URL: ${OLLAMA_REGISTRY_URL:-https://registry.ollama.ai}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /data/huggingface
+      TRANSFORMERS_CACHE: /data/huggingface
+    volumes:
+      - ${MODEL_HUB_DATA_DIR:-/data/ssd/ictrek/model_hub}:/data
+      - ${MODEL_HUB_HF_MODELS_DIR:-/data/ssd/ictrek/models/huggingface}:/data/huggingface
+      - ${OLLAMA_MODELS_DIR:-/data/ssd/ictrek/ollama/models}:/data/ollama/models
+    depends_on:
+      model-hub-ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -qO- http://127.0.0.1:5005/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  model-hub-bootstrap:
+    image: ${MODEL_HUB_BACKEND_IMAGE:?set MODEL_HUB_BACKEND_IMAGE in .env.thor}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        python3 - <<'PY'
+        import json, os, time, urllib.error, urllib.request
+        base = "http://model-hub-backend:5005"
+        models = [m for m in os.getenv("MODEL_HUB_PRELOAD_MODELS", "ollama://bge-m3:latest").split() if m]
+        for model in models:
+            source = model.split("://", 1)[0]
+            body = json.dumps({"model_id": model, "source": source}).encode()
+            req = urllib.request.Request(base + "/api/v1/models/pull", data=body, headers={"Content-Type": "application/json"})
+            for attempt in range(30):
+                try:
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        print(resp.read().decode())
+                    break
+                except urllib.error.HTTPError as exc:
+                    text = exc.read().decode(errors="replace")
+                    if exc.code in (400, 409) and any(word in text.lower() for word in ("already", "exist", "running", "duplicate", "已存在", "进行中")):
+                        print(text)
+                        break
+                    if attempt == 29:
+                        raise RuntimeError(text) from exc
+                    print(f"waiting for model-hub pull endpoint: HTTP {exc.code} {text}")
+                    time.sleep(5)
+                except Exception as exc:
+                    if attempt == 29:
+                        raise
+                    print(f"waiting for model-hub pull endpoint: {exc}")
+                    time.sleep(5)
+        PY
+    environment:
+      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-ollama://bge-m3:latest}
+    depends_on:
+      model-hub-backend:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    networks:
+      - lexai
+    restart: "no"
+
+  model-hub-ollama:
+    image: ${OLLAMA_SERVER_IMAGE:?set OLLAMA_SERVER_IMAGE in .env.thor}
+    ipc: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve > /tmp/ollama.log 2>&1 &
+        exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
+    ports:
+      - "${OLLAMA_API_HOST_PORT:-31434}:11434"
+      - "${OLLAMA_GATEWAY_HOST_PORT:-31535}:11535"
+    environment:
+      MODELS_BASE_DIR: /data
+      MODELS_HOST_DIR: ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-8}
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-/data/ssd/ictrek/ollama/models}:/root/.ollama/models
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  qwen35-9b-vllm:
+    image: ${VLLM_IMAGE:?set VLLM_IMAGE in .env.thor}
+    container_name: qwen35-9b-vllm
+    privileged: true
+    runtime: nvidia
+    shm_size: 12g
+    restart: unless-stopped
+    ports:
+      - "${VLLM_HOST_PORT:-32222}:22222"
+    volumes:
+      - ${VLLM_MODELS_DIR:-/data/ssd/ictrek/models}:/data/models
+      - /home/ictrek:/home/ictrek
+    working_dir: /home/ictrek
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        sync && echo 3 > /proc/sys/vm/drop_caches || true
+        mtp_args=()
+        if [ "${THOR_VLLM_ENABLE_MTP:-false}" = "true" ]; then
+          mtp_args=(
+            --speculative-config.method mtp
+            --speculative-config.num_speculative_tokens 4
+            --speculative-config.moe_backend triton
+          )
+        fi
+        eager_args=()
+        if [ "${VLLM_ENFORCE_EAGER:-true}" = "true" ]; then
+          eager_args=(--enforce-eager)
+        fi
+        exec vllm serve "${VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1}" \
+          --served-model-name "${VLLM_SERVED_MODEL_NAME:-Qwen3.5-9B-AWQ}" \
+          --host 0.0.0.0 \
+          --port 22222 \
+          --trust-remote-code \
+          --kv-cache-dtype fp8 \
+          --attention-backend flashinfer \
+          --moe-backend marlin \
+          --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.45}" \
+          --max-model-len "${VLLM_MAX_MODEL_LEN:-16384}" \
+          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-6}" \
+          --max-num-batched-tokens "${VLLM_MAX_NUM_BATCHED_TOKENS:-4096}" \
+          --enable-chunked-prefill \
+          --async-scheduling \
+          --enable-prefix-caching \
+          "$${eager_args[@]}" \
+          "$${mtp_args[@]}" \
+          --load-format fastsafetensors \
+          --reasoning-parser qwen3 \
+          --tool-call-parser qwen3_xml \
+          --enable-auto-tool-choice
+    environment:
+      TZ: Asia/Shanghai
+      DEBIAN_FRONTEND: noninteractive
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+      MAX_JOBS: ${VLLM_MAX_JOBS:-4}
+      THOR_VLLM_ENABLE_MTP: ${THOR_VLLM_ENABLE_MTP:-false}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - lexai
+
+  bge-m3-vllm:
+    image: ${VLLM_IMAGE:?set VLLM_IMAGE in .env.thor}
+    container_name: bge-m3-vllm
+    privileged: true
+    runtime: nvidia
+    shm_size: 4g
+    restart: unless-stopped
+    ports:
+      - "${BGE_VLLM_HOST_PORT:-32223}:22223"
+    volumes:
+      - ${MODEL_HUB_DATA_DIR:-/data/ssd/ictrek/model_hub}:/data/model_hub
+      - /home/ictrek:/home/ictrek
+    working_dir: /home/ictrek
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        exec vllm serve "${BGE_VLLM_MODEL_PATH:-/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3}" \
+          --served-model-name "${BGE_VLLM_SERVED_MODEL_NAME:-bge-m3}" \
+          --runner pooling \
+          --convert embed \
+          --host 0.0.0.0 \
+          --port 22223 \
+          --trust-remote-code \
+          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-6}" \
+          --max-model-len "${BGE_VLLM_MAX_MODEL_LEN:-8192}" \
+          --max-num-batched-tokens "${BGE_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
+          --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.2}"
+    environment:
+      TZ: Asia/Shanghai
+      DEBIAN_FRONTEND: noninteractive
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+      MAX_JOBS: ${VLLM_MAX_JOBS:-4}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - lexai
+
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    environment:
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env.thor}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.thor}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env.thor}
+    volumes:
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - lexai
+    restart: unless-stopped
+    stop_grace_period: 1m
+
+  redis:
+    image: redis:7.0-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.thor}
+    volumes:
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/redis:/data
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:2025.10.1
+    ports:
+      - "${NEO4J_HTTP_PORT:-30074}:7474"
+      - "${NEO4J_BOLT_PORT:-30087}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env.thor}
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4JLABS_PLUGINS: '["apoc"]'
+    volumes:
+      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/neo4j:/data
+    networks:
+      - lexai
+    restart: unless-stopped
+
+networks:
+  lexai:
+    external: true
+    name: ${LEXAI_NETWORK:-lexai}

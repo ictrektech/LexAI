@@ -1,0 +1,128 @@
+# Thor LexAI deployment
+
+This is the reproducible procedure used for the thor host `ictrek@192.168.1.81`.
+
+## Files
+
+Work from the repo directory `docs/ictrek/deploy-template`, then copy the directory to thor:
+
+```bash
+scp -r docs/ictrek/deploy-template ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy
+```
+
+On thor:
+
+```bash
+cd /home/ictrek/lexai-thor-deploy
+cp .env.thor.example .env.thor
+```
+
+Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc changes:
+
+```dotenv
+VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1
+VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
+VLLM_GPU_MEMORY_UTILIZATION=0.45
+VLLM_MAX_MODEL_LEN=16384
+VLLM_MAX_NUM_SEQS=6
+VLLM_MAX_NUM_BATCHED_TOKENS=4096
+VLLM_MAX_JOBS=4
+VLLM_ENFORCE_EAGER=true
+THOR_VLLM_ENABLE_MTP=false
+BGE_VLLM_MODEL_PATH=/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3
+BGE_VLLM_SERVED_MODEL_NAME=bge-m3
+BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
+BGE_VLLM_MAX_NUM_SEQS=6
+```
+
+`VLLM_MODEL_PATH` must be a path that exists inside the vLLM container. Avoid host absolute symlinks such as `/data/ssd/ictrek/...` because the 9B container mounts `/data/ssd/ictrek/models` as `/data/models`, and the bge-m3 container mounts `/data/ssd/ictrek/model_hub` as `/data/model_hub`.
+
+## Model preparation
+
+The persistent model/data root is `/data/ssd/ictrek`.
+
+If the models are missing, start only model_hub first and pull:
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d model-hub-ollama model-hub-backend model-hub-frontend
+```
+
+Use model_hub or its API to pull:
+
+```text
+ollama://qwen3.5:4b
+ollama://bge-m3:latest
+ms://BAAI/bge-m3
+hf://QuantTrio/Qwen3.5-9B-AWQ
+```
+
+If Hugging Face is slow, keep:
+
+```dotenv
+HF_ENDPOINT=https://hf-mirror.com
+```
+
+Confirm the snapshot exists:
+
+```bash
+test -f /data/ssd/ictrek/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1/config.json
+test -f /data/ssd/ictrek/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3/config.json
+```
+
+## Cleanup before deployment
+
+Stop the services that conflict with this deployment:
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml down --remove-orphans
+docker rm -f lexai-thor-emb-server-test 2>/dev/null || true
+docker stop vllm ollama-gateway ollama-redis qwen3.5-0.8b asr-streaming ollama-test ollama-131 2>/dev/null || true
+docker rm ollama-gateway ollama-redis qwen3.5-0.8b asr-streaming ollama-test ollama-131 2>/dev/null || true
+```
+
+Do not remove the original `vllm` container unless explicitly requested.
+
+Check that deployment ports are free:
+
+```bash
+for port in 30080 30081 30175 30005 31434 31535 32222 32223 30074 30087; do
+  ss -ltnp | grep ":${port} " || true
+done
+```
+
+## Deploy
+
+```bash
+./deploy-thor.sh
+```
+
+`deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
+
+The deployed 9B default is `Qwen3.5-9B-AWQ`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
+
+Embedding uses `bge-m3-vllm` with `BGE_VLLM_MAX_NUM_SEQS=6`. Keep `WEKNORA_ASYNQ_CONCURRENCY=3` so ingestion can use up to half of the embedding service while chat/retrieval keeps capacity.
+
+## Verify
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml ps
+curl -fsS http://127.0.0.1:30081/health
+curl -fsS http://127.0.0.1:30005/health
+curl -fsS http://127.0.0.1:32223/v1/models
+curl -fsS -X POST http://127.0.0.1:32223/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"bge-m3","input":["ping"]}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d["data"][0]["embedding"]))'
+curl -fsS http://127.0.0.1:32222/v1/models
+curl -I -s http://127.0.0.1:30080/ | sed -n '1,8p'
+curl -I -s http://127.0.0.1:30175/app/com.ictrek.model-hub/static/css/main.css | sed -n '1,10p'
+```
+
+Expected externally reachable URLs:
+
+```text
+LexAI: http://192.168.1.81:30080
+LexAI API: http://192.168.1.81:30081
+model_hub: http://192.168.1.81:30175/app/com.ictrek.model-hub/
+model_hub API: http://192.168.1.81:30005
+Ollama API: http://192.168.1.81:31434
+Qwen 9B vLLM OpenAI API: http://192.168.1.81:32222/v1
+bge-m3 vLLM OpenAI API: http://192.168.1.81:32223/v1
+```

@@ -3,6 +3,7 @@
 # 但不忽略特定隐藏文件和目录
 !.env.example
 !.env.tc232.example
+!.env.thor.example
 !.gitignore
 !.github/
 !.codex/

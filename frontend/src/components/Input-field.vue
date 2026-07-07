@@ -926,16 +926,20 @@ const loadChatModels = async (force = false) => {
 };
 
 const ensureModelSelection = () => {
-  if (selectedModelId.value) {
+  if (
+    selectedModelId.value
+    && availableModels.value.some(model => model.id === selectedModelId.value)
+  ) {
     return;
   }
   const lastPick = readLastChatModelID();
-  if (lastPick) {
+  if (lastPick && availableModels.value.some(model => model.id === lastPick)) {
     selectedModelId.value = lastPick;
     return;
   }
   if (availableModels.value.length > 0) {
-    selectedModelId.value = availableModels.value[0].id || '';
+    const defaultModel = availableModels.value.find(model => model.is_default) || availableModels.value[0];
+    selectedModelId.value = defaultModel.id || '';
   }
 };
 

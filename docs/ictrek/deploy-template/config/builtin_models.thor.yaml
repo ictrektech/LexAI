@@ -1,0 +1,64 @@
+builtin_models:
+  - id: lexai-thor-vllm-qwen35-9b-qa
+    name: Qwen3.5-9B-AWQ
+    display_name: Qwen3.5-9B-AWQ (vLLM QA)
+    type: KnowledgeQA
+    source: remote
+    description: Thor OpenAI-compatible QA model on qwen35-9b-vllm.
+    is_default: true
+    parameters:
+      base_url: http://qwen35-9b-vllm:22222/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
+
+  - id: lexai-thor-vllm-qwen35-9b-vlm
+    name: Qwen3.5-9B-AWQ
+    display_name: Qwen3.5-9B-AWQ (vLLM VLM)
+    type: VLLM
+    source: remote
+    description: Thor OpenAI-compatible VLM model on qwen35-9b-vllm.
+    is_default: true
+    parameters:
+      base_url: http://qwen35-9b-vllm:22222/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
+
+  - id: lexai-thor-vllm-bge-m3-embedding
+    name: bge-m3
+    display_name: bge-m3 (vLLM Embedding)
+    type: Embedding
+    source: remote
+    description: Preloaded bge-m3 model served by bge-m3-vllm.
+    is_default: true
+    parameters:
+      base_url: http://bge-m3-vllm:22223/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+
+  - id: lexai-thor-ollama-bge-m3-embedding
+    name: bge-m3:latest
+    display_name: bge-m3 (Ollama Embedding)
+    type: Embedding
+    source: local
+    description: Preloaded Ollama bge-m3 model on model-hub-ollama as backup.
+    is_default: false
+    parameters:
+      base_url: http://model-hub-ollama:11434
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
