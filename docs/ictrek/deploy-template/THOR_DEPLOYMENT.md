@@ -23,7 +23,7 @@ Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc 
 VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1
 VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
 VLLM_GPU_MEMORY_UTILIZATION=0.45
-VLLM_MAX_MODEL_LEN=16384
+VLLM_MAX_MODEL_LEN=20480
 VLLM_MAX_NUM_SEQS=6
 VLLM_MAX_NUM_BATCHED_TOKENS=4096
 VLLM_MAX_JOBS=4
@@ -32,10 +32,10 @@ THOR_VLLM_ENABLE_MTP=false
 BGE_VLLM_MODEL_PATH=/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3
 BGE_VLLM_SERVED_MODEL_NAME=bge-m3
 BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
-BGE_VLLM_MAX_NUM_SEQS=6
-WEKNORA_ASYNQ_CONCURRENCY=3
+BGE_VLLM_MAX_NUM_SEQS=12
+WEKNORA_ASYNQ_CONCURRENCY=9
 BATCH_EMBED_SIZE=4
-CONCURRENCY_POOL_SIZE=8
+CONCURRENCY_POOL_SIZE=9
 ```
 
 `VLLM_MODEL_PATH` must be a path that exists inside the vLLM container. Avoid host absolute symlinks such as `/data/ssd/ictrek/...` because the 9B container mounts `/data/ssd/ictrek/models` as `/data/models`, and the bge-m3 container mounts `/data/ssd/ictrek/model_hub` as `/data/model_hub`.
@@ -101,11 +101,11 @@ done
 
 `deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
 
-The deployed 9B default is `Qwen3.5-9B-AWQ`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
+The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=20480`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
 
-Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup. Keep `BGE_VLLM_MAX_NUM_SEQS=6` and `WEKNORA_ASYNQ_CONCURRENCY=3` so ingestion can use up to half of the embedding service while chat/retrieval keeps capacity.
+Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup. Keep `BGE_VLLM_MAX_NUM_SEQS=12`, `WEKNORA_ASYNQ_CONCURRENCY=9`, and `CONCURRENCY_POOL_SIZE=9` so document embedding can use 9 requests while interactive retrieval keeps 3 service slots.
 
-Keep `BATCH_EMBED_SIZE=4` and `CONCURRENCY_POOL_SIZE=8` on thor. The app uses the pool size as the global embedding request cap; setting it below the document worker count can make background parsing appear stuck in the `embedding` stage.
+Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; setting it below the document worker count can make background parsing appear stuck in the `embedding` stage.
 
 If this is an existing database, confirm the default Embedding row after restarting `app`:
 

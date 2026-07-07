@@ -24,7 +24,7 @@ Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible m
 
 Knowledge graph extraction shares the main QA model. On thor, vLLM is capped at 6 sequences, so set `WEKNORA_GRAPH_LLM_CONCURRENCY=3` to leave capacity for interactive chat.
 
-On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=6`; keep `WEKNORA_ASYNQ_CONCURRENCY=3` so document ingestion can use up to half of that service while interactive retrieval still has capacity. Ollama `bge-m3:latest` remains configured only as a backup.
+On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=12`; keep `WEKNORA_ASYNQ_CONCURRENCY=9` and `CONCURRENCY_POOL_SIZE=9` so document ingestion can use 9 embedding requests while interactive retrieval keeps 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup.
 
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
