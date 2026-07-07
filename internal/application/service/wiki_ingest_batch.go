@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,15 @@ import (
 	"github.com/hibiken/asynq"
 	"golang.org/x/sync/errgroup"
 )
+
+func envInt(name string, fallback int) int {
+	if raw := strings.TrimSpace(os.Getenv(name)); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			return n
+		}
+	}
+	return fallback
+}
 
 // scheduleFollowUp enqueues another asynq trigger task if there are
 // still pending ops in task_pending_ops for this KB. Returns true when
@@ -219,8 +230,8 @@ func (s *wikiIngestService) ProcessWikiIngest(ctx context.Context, t *asynq.Task
 	// to the historical defaults so existing KBs see no behaviour
 	// change until they opt in.
 	batchSize := kb.WikiConfig.IngestBatchSizeOrDefault(wikiMaxDocsPerBatch)
-	mapParallel := kb.WikiConfig.IngestMapParallelOrDefault(10)
-	reduceParallel := kb.WikiConfig.IngestReduceParallelOrDefault(10)
+	mapParallel := kb.WikiConfig.IngestMapParallelOrDefault(envInt("WEKNORA_WIKI_INGEST_MAP_PARALLEL", 10))
+	reduceParallel := kb.WikiConfig.IngestReduceParallelOrDefault(envInt("WEKNORA_WIKI_INGEST_REDUCE_PARALLEL", 10))
 	loggedBatchSize = batchSize
 	loggedMapPar = mapParallel
 	loggedReducePar = reduceParallel

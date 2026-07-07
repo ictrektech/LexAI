@@ -1819,9 +1819,14 @@ func (s *wikiIngestService) generateWithTemplate(ctx context.Context, chatModel 
 		if isJSONOnlyWikiPrompt(promptTpl) {
 			opts.Format = json.RawMessage(`{"type":"object"}`)
 		}
+		releaseLLM, waitErr := acquireBackgroundLLMSlot(ctx)
+		if waitErr != nil {
+			return "", fmt.Errorf("LLM call aborted waiting for background slot: %w", waitErr)
+		}
 		response, err := chatModel.Chat(ctx, []chat.Message{
 			{Role: "user", Content: prompt},
 		}, opts)
+		releaseLLM()
 		if err == nil {
 			return unmaskImageURLs(response.Content, urlMap), nil
 		}

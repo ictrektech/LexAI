@@ -34,6 +34,13 @@ BGE_VLLM_SERVED_MODEL_NAME=bge-m3
 BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
 BGE_VLLM_MAX_NUM_SEQS=12
 WEKNORA_ASYNQ_CONCURRENCY=9
+WEKNORA_ASYNQ_QUEUE_GRAPH=2
+WEKNORA_ASYNQ_QUEUE_QUESTION=2
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 BATCH_EMBED_SIZE=4
 CONCURRENCY_POOL_SIZE=9
 ```
@@ -106,7 +113,9 @@ Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm`
 
 Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; setting it below the document worker count can make background parsing appear stuck in the `embedding` stage.
 
-Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters, set `wiki_config.extraction_granularity=focused`, and prefer low Wiki ingest parallelism for Thor knowledge bases (`wiki_config.ingest_map_parallel` / `ingest_reduce_parallel` around `1-2`). Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
+Graph, Wiki, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6` and `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`; background LLM calls share the remaining 4 slots. Keep `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, `WEKNORA_ASYNQ_QUEUE_QUESTION=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, so question generation can still use 2 queue slots without consuming the reserved chat capacity.
+
+Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters and set `wiki_config.extraction_granularity=focused`. A KB-level `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel` overrides the Thor env defaults; keep those at `1-2` unless the 9B model has spare capacity. Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
 
 If this is an existing database, confirm the default Embedding row after restarting `app`:
 
