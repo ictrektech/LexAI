@@ -39,7 +39,12 @@ OLLAMA_MODELS_DIR=/data/ictrek_models/ollama/models
 MODEL_HUB_HF_MODELS_DIR=/data/jhu/models/huggingface
 VLLM_HF_MODELS_DIR=/data/jhu/models/huggingface
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=1
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
+WEKNORA_ASYNQ_QUEUE_GRAPH=2
+WEKNORA_ASYNQ_QUEUE_QUESTION=2
 WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20
 ENABLE_GRAPH_RAG=true
 NEO4J_ENABLE=true
@@ -163,6 +168,24 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 因此，创建知识库时要选好主 QA/LLM 模型；如果启用 Wiki，可以不单独选 Wiki 合成模型，让它默认跟随主 QA/LLM 模型。tc232 上主 QA 模型就是 `lexai-vllm-qwen35-9b-awq-qa`。
 
+## 后台任务并发和聊天保留
+
+Graph、Wiki、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。部署时按模型服务真实并发设置：
+
+```dotenv
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
+WEKNORA_ASYNQ_QUEUE_GRAPH=2
+WEKNORA_ASYNQ_QUEUE_QUESTION=2
+```
+
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；Graph/Wiki/Question 只共享剩余槽位。6 并发机器上保留 2 个给聊天，后台最多吃 4 个；4 并发机器上保留 1 个给聊天，Wiki map/reduce 建议降到 1。
+
+Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`。
+
 ## 配置文件位置
 
 ### 内置模型
@@ -186,6 +209,8 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 | `lexai-ollama-qwen35-4b-qa` | Ollama QA 备用模型 |
 | `lexai-ollama-qwen35-4b-vision` | Ollama Vision 模型 |
 | `lexai-ollama-bge-m3-embedding` | Ollama bge-m3 Embedding 模型 |
+
+Thor 使用单独的 [builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)：QA/Graph/Wiki/Question 指向 `lexai-thor-vllm-qwen35-9b-qa`，VLM 指向 `lexai-thor-vllm-qwen35-9b-vlm`，默认 Embedding 指向 `lexai-thor-vllm-bge-m3-embedding`；Ollama bge-m3 只保留为备用。
 
 应用启动时会读取这个 YAML，并按 `id` upsert 到 `models` 表。删除 YAML 中的条目会软删除对应的 YAML 托管模型；手工在页面/API 创建的模型不受影响。
 
@@ -211,7 +236,7 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 1. 修改模型配置：
 
-   [docs/ictrek/deploy-template/config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)
+   [docs/ictrek/deploy-template/config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)，Thor 则改 [docs/ictrek/deploy-template/config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)
 
 2. 如需修改默认图谱模板，同时修改：
 
