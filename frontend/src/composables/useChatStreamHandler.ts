@@ -59,6 +59,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (debug) console.log(...args)
   }
 
+  const getChunkType = (data: ChatMessage) =>
+    String(data.response_type || data.type || '')
+
   const findLastMessage = (predicate: (item: ChatMessage) => boolean) => {
     for (let i = messagesList.length - 1; i >= 0; i--) {
       const item = messagesList[i]
@@ -506,18 +509,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     ensureAgentMessageShell(message, dataId)
 
+    const responseType = getChunkType(data)
+
     if (
       loading.value &&
-      (data.response_type === 'thinking' ||
-        data.response_type === 'answer' ||
-        data.response_type === 'tool_call' ||
-        data.response_type === 'tool_approval_required')
+      (responseType === 'thinking' ||
+        responseType === 'answer' ||
+        responseType === 'tool_call' ||
+        responseType === 'tool_approval_required')
     ) {
       log('[Agent Chunk] Closing loading for continued stream')
       loading.value = false
     }
 
-    const responseType = data.response_type as string
     const dataPayload = data.data as ChatMessage | undefined
 
     switch (responseType) {
@@ -845,6 +849,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const processStreamChunk = (data: ChatMessage) => {
     log('[Agent Event Received]', {
       response_type: data.response_type,
+      type: data.type,
       id: data.id,
       done: data.done,
       content_length: (data.content as string | undefined)?.length || 0,
@@ -854,7 +859,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       assistant_message_id: data.assistant_message_id,
     })
 
-    if (data.response_type === 'agent_query') {
+    const responseType = getChunkType(data)
+
+    if (responseType === 'agent_query') {
       if (data.id) {
         const earlyMsg = getTrailingIncompleteAssistant()
         if (earlyMsg) earlyMsg.request_id = data.id
@@ -910,17 +917,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     const isAgentOnlyResponse =
       isAgentStreamSession() &&
-      (data.response_type === 'thinking' ||
-        data.response_type === 'tool_call' ||
-        data.response_type === 'tool_result' ||
-        data.response_type === 'reflection')
+      (responseType === 'thinking' ||
+        responseType === 'tool_call' ||
+        responseType === 'tool_result' ||
+        responseType === 'reflection')
 
     if (
       !isAgentStreamSession() &&
-      (data.response_type === 'thinking' ||
-        data.response_type === 'tool_call' ||
-        data.response_type === 'tool_result' ||
-        data.response_type === 'reflection')
+      (responseType === 'thinking' ||
+        responseType === 'tool_call' ||
+        responseType === 'tool_result' ||
+        responseType === 'reflection')
     ) {
       const message = resolveActiveAssistantMessage(data)
       if (message) message.isRagMode = true
@@ -938,9 +945,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         lastMessage?.request_id === data.id ||
         lastMessage?.id === data.id)
     const isAgentAnswerChunk =
-      data.response_type === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
+      responseType === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
     const isAgentCompleteChunk =
-      data.response_type === 'complete' && (isAgentStreamSession() || targetsActiveAgentRequest)
+      responseType === 'complete' && (isAgentStreamSession() || targetsActiveAgentRequest)
 
     const shouldHandleAsAgent =
       isAgentOnlyResponse ||
@@ -948,7 +955,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       isAgentAnswerChunk ||
       isAgentCompleteChunk
 
-    if (data.response_type === 'references') {
+    if (responseType === 'references') {
       applyKnowledgeReferences(data)
       scrollToBottom()
       return
@@ -956,7 +963,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     if (shouldHandleAsAgent) {
       handleAgentChunk(data)
-      if (data.response_type === 'stop') {
+      if (responseType === 'stop') {
         log('[Stop Event] Generation stopped')
         const stoppedMessage = resolveActiveAssistantMessage(data)
         if (stoppedMessage) markAssistantStopped(stoppedMessage)
@@ -967,7 +974,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       return
     }
 
-    if (data.response_type === 'stop') {
+    if (responseType === 'stop') {
       log('[Stop Event] Non-agent generation stopped')
       const stoppedMessage = findLastMessage((item) => {
         if (item.request_id === data.id) return true

@@ -21,3 +21,8 @@ test('final stream updates replace placeholder references', () => {
   assert.match(handlerSource, /if \(refs\.length > 0\) \{[\s\S]*message\.knowledge_references = refs\.slice\(\)/)
   assert.doesNotMatch(handlerSource, /if \(!message\.knowledge_references\) \{[\s\S]*message\.knowledge_references = payload\.knowledge_references/)
 })
+
+test('stream handler accepts pull-stream type field for references', () => {
+  assert.match(handlerSource, /const getChunkType = \(data: ChatMessage\) =>[\s\S]*data\.response_type \|\| data\.type/)
+  assert.match(handlerSource, /const responseType = getChunkType\(data\)[\s\S]*if \(responseType === 'references'\)/)
+})
