@@ -10,12 +10,13 @@
 
 | 场景 | 需要的文件 | 不需要的文件 | 主要改哪里 |
 | --- | --- | --- | --- |
+| Thor `ictrek@192.168.1.81`，完整启动 LexAI + model_hub + qwen35-9b-vLLM + bge-m3-vLLM | [deploy-thor.sh](deploy-template/deploy-thor.sh)、[docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)、[.env.thor.example](deploy-template/.env.thor.example)、[config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)、[config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)、[THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) | 通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 `.env.example` 不是 Thor 运行入口；tc232 文件也不用 | `.env.thor` 的密钥、端口、`/data/ssd/ictrek` 数据目录、vLLM 模型路径、bge-m3 路径、并发/队列参数；具体按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) |
 | tc232，已有 `qwen35-9b-awq-vllm` | [deploy-tc232.sh](deploy-template/deploy-tc232.sh)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)、[.env.tc232.example](deploy-template/.env.tc232.example)、[config/](deploy-template/config/)；本地同步可用 [sync-tc232.sh](deploy-template/sync-tc232.sh) | [docker-compose.yml](deploy-template/docker-compose.yml) 里的 vllm 服务不会用；`.env.example` 不是运行入口 | `.env.tc232` 的端口、密钥、数据目录、并发；如已有 vllm 容器名不同，改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 里的 `base_url` |
 | 全新主机，没有可用 vllm | [deploy.sh](deploy-template/deploy.sh)、[docker-compose.yml](deploy-template/docker-compose.yml)、[.env.example](deploy-template/.env.example)、[config/](deploy-template/config/) | `deploy-tc232.sh`、`docker-compose.tc232.yml`、`.env.tc232.example` | `.env` 的 `VLLM_HOST_PORT`、`VLLM_HF_MODELS_DIR`、模型目录、端口、密钥、并发 |
 | 主机已有可用 vllm，且同一个模型同时支持文本和 VLM | 以 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为模板另存一份机器专用 compose，配套一份 env，再带上 [config/](deploy-template/config/) | 通用 compose 里的 `qwen35-9b-awq-vllm` 服务不需要启动 | 把 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 中 QA 和 Vision 模型的 `base_url` 都指向已有 vllm 容器名；模型 ID 可以共用同一个 served model |
 | 只手动固定镜像版本 | 对应场景的 compose、env、[config/](deploy-template/config/) | [deploy.sh](deploy-template/deploy.sh) 可不用 | 直接在 env 里填写 `LEXAI_APP_IMAGE`、`LEXAI_UI_IMAGE`、`LEXAI_DOCREADER_IMAGE` 等镜像变量 |
 
-[config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 和 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json) 两个配置文件建议所有部署场景都带上。前者注册默认模型，后者保留法律图谱实体/关系模板。
+[config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 和 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json) 两个配置文件建议通用/tc232 部署场景都带上。Thor 使用 [config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml) 替代通用模型文件。模型文件注册默认模型，图谱文件保留法律图谱实体/关系模板。
 
 只有在重新构建镜像、修改前端默认模板或修改后端源码时，才需要完整 repo、Dockerfile 和源码目录。单纯部署、改端口、改模型、改图谱模板，不需要把整个 repo 放到目标机。
 
@@ -57,6 +58,12 @@ tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 2. 在 tc232 执行 `cp .env.tc232.example .env.tc232`，如果已有 `.env.tc232` 就只补缺失项。
 3. tc232 不需要配置 `VLLM_*` 镜像服务，compose 会通过 `http://qwen35-9b-awq-vllm:8000/v1` 访问 `lexai` 网络里已有的 vllm。
 
+Thor 部署，即 81 上完整启动 LexAI、model_hub、qwen35-9b-vLLM、bge-m3-vLLM：
+
+1. 把 [deploy-template](deploy-template/) 目录同步到 `ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy`。
+2. 在 81 执行 `cp .env.thor.example .env.thor`，如果已有 `.env.thor` 就只补缺失项和新版并发变量。
+3. 按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 检查 `/data/ssd/ictrek`、模型路径、vLLM 参数、默认 Embedding、队列/并发参数后执行 `./deploy-thor.sh`。
+
 其他已有 vllm 的主机：
 
 1. 复制 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为该机器专用 compose。
@@ -81,7 +88,6 @@ tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 cd /data/jhu/lexai-deploy
 ./deploy.sh --platform amd
 ./deploy.sh --platform l4t
-./deploy.sh --platform thor
 ```
 
 如果需要指定表格 sheet：
@@ -103,6 +109,13 @@ cd /data/jhu/lexai-tc232-deploy
 ./deploy-tc232.sh
 ```
 
+Thor 专用部署：
+
+```bash
+cd /home/ictrek/lexai-thor-deploy
+./deploy-thor.sh
+```
+
 [deploy.sh](deploy-template/deploy.sh) 会分别查找这些组件的最新镜像，允许 LexAI 三个组件和 model_hub/ollama 使用不同版本：
 
 ```text
@@ -114,11 +127,11 @@ MODEL_HUB_FRONTEND_IMAGE
 OLLAMA_SERVER_IMAGE
 ```
 
-脚本会把查到的镜像写回 `.env` 或 `.env.tc232`，然后执行对应 compose 文件的 `up -d`。
+脚本会把查到的镜像写回 `.env`、`.env.tc232` 或 `.env.thor`，然后执行对应 compose 文件的 `up -d`。
 
 ## 手动填写镜像部署
 
-如果目标机没有飞书凭据，或者要固定某一批镜像版本，不要运行 `deploy.sh`。直接编辑 `.env` 或 `.env.tc232`，手动填入镜像：
+如果目标机没有飞书凭据，或者要固定某一批镜像版本，不要运行 `deploy.sh` / `deploy-tc232.sh` / `deploy-thor.sh`。直接编辑对应 env，手动填入镜像：
 
 ```bash
 LEXAI_APP_IMAGE=registry.example.com/lexai:xxx
@@ -141,17 +154,23 @@ tc232：
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d
 ```
 
-注意：再次运行 `deploy.sh` 或 `deploy-tc232.sh` 会重新从飞书表格检测镜像并覆盖 env 中的镜像变量。需要完全手动固定版本时，只运行 `docker compose ... up -d`。
+Thor：
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
+```
+
+注意：再次运行 `deploy.sh`、`deploy-tc232.sh` 或 `deploy-thor.sh` 会重新从飞书表格检测镜像并覆盖 env 中的镜像变量。需要完全手动固定版本时，只运行 `docker compose ... up -d`。
 
 ## 已部署环境更新
 
 已部署环境改配置后，一般只需要同步部署模板文件并重新 `up -d`：
 
-- 改 `.env` / `.env.tc232`：重新执行对应 compose `up -d`。
+- 改 `.env` / `.env.tc232` / `.env.thor`：重新执行对应 compose `up -d`。
 - 改 `WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB`：只影响之后新建的空间；已有空间不会自动变化。要同步到已有空间，需要系统管理员调用“批量应用默认存储配额”，或直接更新 `tenants.storage_quota`。
-- 改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml)：同步文件后重启 `lexai-app`。
-- 改 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：同步文件后重启 `lexai-app`，新建或重新保存知识库图谱配置后生效。
-- 改 [docker-compose.yml](deploy-template/docker-compose.yml) 或 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)：重新执行对应 compose `up -d`。
+- 改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 或 Thor 的 [config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)：同步文件后重启 `app` 服务。
+- 改 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：同步文件后重启 `app` 服务，新建或重新保存知识库图谱配置后生效。
+- 改 [docker-compose.yml](deploy-template/docker-compose.yml)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 或 [docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)：重新执行对应 compose `up -d`。
 - 改 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)：这是前端默认值，必须重新构建并部署 `lexai-ui` 镜像。
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
@@ -297,28 +316,113 @@ cd /data/jhu/lexai-tc232-deploy
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app frontend docreader
 ```
 
+## Thor 部署如何修改后生效
+
+Thor 使用专用 compose：
+
+- [docs/ictrek/deploy-template/docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)
+- [docs/ictrek/deploy-template/deploy-thor.sh](deploy-template/deploy-thor.sh)
+- [docs/ictrek/deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)
+
+部署目录：
+
+```text
+/home/ictrek/lexai-thor-deploy
+```
+
+更新部署模板到 81 时，同步脚本、compose 和 config，不同步数据目录：
+
+```bash
+rsync -az docs/ictrek/deploy-template/deploy.sh \
+  docs/ictrek/deploy-template/deploy-thor.sh \
+  docs/ictrek/deploy-template/docker-compose.thor.yml \
+  docs/ictrek/deploy-template/.env.thor.example \
+  docs/ictrek/deploy-template/THOR_DEPLOYMENT.md \
+  ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy/
+
+rsync -az docs/ictrek/deploy-template/config/ \
+  ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy/config/
+```
+
+然后在 81 上部署：
+
+```bash
+ssh ictrek@192.168.1.81
+cd /home/ictrek/lexai-thor-deploy
+./deploy-thor.sh
+```
+
+如果只更新 LexAI 前端或后端镜像，按需强制重建对应服务：
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-recreate frontend
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-recreate app
+```
+
 ## 已部署后改配置怎么生效
 
-### 只改 `.env.tc232` 或 `.env`
+### 只改 env
 
 例如并发、Neo4j、密钥、端口、模型镜像变量：
+
+通用：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml up -d
+```
+
+tc232：
 
 ```bash
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d
 ```
 
+Thor：
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
+```
+
 只想重启 app：
+
+通用：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml up -d --force-recreate app
+```
+
+tc232：
 
 ```bash
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app
 ```
 
-### 只改 `builtin_models.yaml`
+Thor：
 
-`builtin_models.yaml` 由 app 启动时读取。改完后重启 app：
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-recreate app
+```
+
+### 只改内置模型 YAML
+
+`builtin_models.yaml` 和 Thor 的 `builtin_models.thor.yaml` 都由 app 启动时读取。改完后重启 app：
+
+通用：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml up -d --force-recreate app
+```
+
+tc232：
 
 ```bash
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app
+```
+
+Thor：
+
+```bash
+docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-recreate app
 ```
 
 这只会更新系统模型表，不会自动修改旧知识库的 `summary_model_id` 或 `wiki_config.synthesis_model_id`。
