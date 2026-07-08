@@ -36,6 +36,32 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
+compose_has_service() {
+  local service="$1"
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services \
+    | grep -qx "$service"
+}
+
+wait_service_healthy() {
+  local service="$1"
+  local timeout="${2:-180}"
+  local cid status deadline
+  cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
+  [[ -n "$cid" ]] || die "service not running: $service"
+
+  if ! docker inspect "$cid" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  deadline=$((SECONDS + timeout))
+  while (( SECONDS < deadline )); do
+    status="$(docker inspect "$cid" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' 2>/dev/null || true)"
+    [[ -z "$status" || "$status" == "healthy" ]] && return 0
+    sleep 3
+  done
+  die "service did not become healthy: $service"
+}
+
 read_feishu_field() {
   local file="$1"
   local field="$2"
@@ -351,3 +377,20 @@ write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
+
+if [[ "${WEKNORA_RECREATE_DOCREADER_ON_DEPLOY:-true}" != "false" ]] && compose_has_service docreader; then
+  log "recreating docreader to clear stale parser process state"
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate docreader
+  wait_service_healthy docreader 180
+
+  if compose_has_service app; then
+    log "recreating app after docreader is healthy"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate app
+    wait_service_healthy app 180
+  fi
+fi
+
+if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
+  log "triggering reparse for incomplete knowledge"
+  ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
+fi

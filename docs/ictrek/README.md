@@ -178,7 +178,9 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
 
-部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing`、`finalizing` 的知识条目，并通过已有批量重新解析任务重新触发解析；不需要手动逐条点重新解析。启动扫描走 `critical` 队列，每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing`、`finalizing` 的知识条目，并通过已有批量重新解析任务重新触发解析；不需要手动逐条点重新解析。启动扫描走 `critical` 队列，每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
+
+部署脚本还会默认重建 `docreader` 容器，但不会重新构建 docreader 镜像；这是为了让常驻解析进程在每次部署/重启后从干净状态开始。随后脚本会重建 `app` 并运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，即使只是 frontend-only 或配置更新，也会自动把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 
 ## Wiki/Graph 模型结论
 

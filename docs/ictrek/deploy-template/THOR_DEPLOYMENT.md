@@ -114,11 +114,13 @@ done
 
 `.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. After every app container recreate, LexAI automatically resubmits `failed`, `pending`, `processing`, and `finalizing` knowledge rows to the batch reparse queue. This is part of the redeploy flow: model/vLLM restarts or interrupted Graph/Wiki/VLM work should recover without manual per-document retry.
 
-The startup scan is intentionally submitted to the `critical` queue. The per-document retry still lands in `parse`, after stale queued/retry tasks for the same knowledge are removed. After every redeploy, verify it from logs:
+The deploy script also recreates `docreader` on every deploy by default. This does not rebuild the docreader image; it only replaces the running container so the long-lived parser process starts from a clean state. Then it recreates `app`, waits for health checks, and runs `trigger-reparse-incomplete.sh` to submit current incomplete knowledge through `POST /knowledge/batch-reparse`. Keep this default on Thor. Use `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only for a deliberate maintenance skip.
+
+The startup scan is intentionally submitted to the `critical` queue. The per-document retry still lands in `parse`, after stale queued/retry tasks for the same knowledge are removed. After every redeploy, verify the app startup hook and the deploy-script reparse trigger from logs:
 
 ```bash
 docker logs --since 5m lexai-thor-app-1 2>&1 \
-  | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task'
+  | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task|Batch knowledge reparse'
 ```
 
 The deployed and verified 81 plan uses these model roles:

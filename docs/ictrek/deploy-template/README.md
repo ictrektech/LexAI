@@ -26,6 +26,8 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
   | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task'
 ```
 
+`deploy.sh` also runs `trigger-reparse-incomplete.sh` after compose is healthy. This covers frontend-only or config-only redeploys where the app startup hook would not run. By default the deploy script recreates `docreader`, waits for it to become healthy, recreates `app`, then submits current `failed` / `pending` / `processing` / `finalizing` knowledge rows through `POST /knowledge/batch-reparse`. Set `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping those steps.
+
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
 
 New spaces default to `WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20`. Change it in `.env` or `.env.tc232` before deployment if the default storage quota should be larger. This only affects spaces created after the change; existing spaces must be updated through the system admin bulk quota action or by updating `tenants.storage_quota`.
