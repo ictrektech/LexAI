@@ -79,3 +79,7 @@ export const LEGAL_GRAPH_PRESET: LegalGraphPreset = {
 export function legalGraphPreset(): LegalGraphPreset {
   return structuredClone(LEGAL_GRAPH_PRESET)
 }
+
+export function disabledLegalGraphPreset(): LegalGraphPreset {
+  return { ...legalGraphPreset(), enabled: false }
+}

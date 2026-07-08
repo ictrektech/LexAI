@@ -261,7 +261,7 @@ import KBAdvancedSettings from '../settings/KBAdvancedSettings.vue'
 import GraphSettings from '../settings/GraphSettings.vue'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { useUIStore } from '@/stores/ui'
-import { legalGraphPreset } from '@/config/legalGraphPreset'
+import { disabledLegalGraphPreset } from '@/config/legalGraphPreset'
 import { formatFileSize, getFileIcon } from '@/utils/files'
 import { getUploadFileKey } from '../utils/uploadSources'
 import KbUploadSourceDropdown from './KbUploadSourceDropdown.vue'
@@ -640,7 +640,7 @@ function createDefaultUIState(): UploadUIState {
     multimodalConfig: { enabled: false, vllmModelId: '' },
     asrConfig: { enabled: false, modelId: '', language: '' },
     questionGenerationConfig: { enabled: true, questionCount: 3 },
-    nodeExtractConfig: legalGraphPreset(),
+    nodeExtractConfig: disabledLegalGraphPreset(),
     graphEnabled: false,
     pdfForceScanned: false,
   }
@@ -651,6 +651,18 @@ function initFromKbInfo(kb: any) {
     uiState.value = createDefaultUIState()
     return
   }
+
+  const graphEnabled = kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false
+  const nodeExtractConfig = kb.extract_config ? {
+    enabled: graphEnabled,
+    text: kb.extract_config?.text || '',
+    tags: kb.extract_config?.tags || [],
+    nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
+      name: node.name,
+      attributes: node.attributes || [],
+    })),
+    relations: kb.extract_config?.relations || [],
+  } : disabledLegalGraphPreset()
 
   uiState.value = {
     chunkingConfig: {
@@ -678,17 +690,8 @@ function initFromKbInfo(kb: any) {
       enabled: kb.question_generation_config?.enabled ?? true,
       questionCount: kb.question_generation_config?.question_count || 3,
     },
-    nodeExtractConfig: kb.extract_config?.enabled ? {
-      enabled: true,
-      text: kb.extract_config?.text || '',
-      tags: kb.extract_config?.tags || [],
-      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
-        name: node.name,
-        attributes: node.attributes || [],
-      })),
-      relations: kb.extract_config?.relations || [],
-    } : legalGraphPreset(),
-    graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
+    nodeExtractConfig,
+    graphEnabled,
     pdfForceScanned: false,
   }
 }

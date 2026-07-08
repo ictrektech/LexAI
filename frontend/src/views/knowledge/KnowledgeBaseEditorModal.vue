@@ -414,7 +414,7 @@ import GraphSettings from './settings/GraphSettings.vue'
 import KBShareSettings from './settings/KBShareSettings.vue'
 import DataSourceSettings from './settings/DataSourceSettings.vue'
 import { useI18n } from 'vue-i18n'
-import { legalGraphPreset } from '@/config/legalGraphPreset'
+import { disabledLegalGraphPreset } from '@/config/legalGraphPreset'
 
 const uiStore = useUIStore()
 const authStore = useAuthStore()
@@ -669,7 +669,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       modelId: '',
       language: ''
     },
-    nodeExtractConfig: legalGraphPreset(),
+    nodeExtractConfig: disabledLegalGraphPreset(),
     questionGenerationConfig: {
       enabled: true,
       questionCount: 3
@@ -728,6 +728,17 @@ const loadKBData = async () => {
     const kb = kbInfo.data
     hasFiles.value = (filesResult as any)?.total > 0
     kbCreatorId.value = (kb as any).creator_id || ''
+    const graphEnabled = kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false
+    const nodeExtractConfig = kb.extract_config ? {
+      enabled: graphEnabled,
+      text: kb.extract_config?.text || '',
+      tags: kb.extract_config?.tags || [],
+      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
+        name: node.name,
+        attributes: node.attributes || []
+      })),
+      relations: kb.extract_config?.relations || []
+    } : disabledLegalGraphPreset()
 
     // 设置表单数据
     const kbType = (kb.type as 'document' | 'faq') || 'document'
@@ -770,16 +781,7 @@ const loadKBData = async () => {
         modelId: kb.asr_config?.model_id || '',
         language: kb.asr_config?.language || ''
       },
-      nodeExtractConfig: kb.extract_config?.enabled ? {
-        enabled: true,
-        text: kb.extract_config?.text || '',
-        tags: kb.extract_config?.tags || [],
-        nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
-          name: node.name,
-          attributes: node.attributes || []
-        })),
-        relations: kb.extract_config?.relations || []
-      } : legalGraphPreset(),
+      nodeExtractConfig,
       questionGenerationConfig: {
         enabled: kb.question_generation_config?.enabled || false,
         questionCount: kb.question_generation_config?.question_count || 3
@@ -798,7 +800,7 @@ const loadKBData = async () => {
         vectorEnabled: kb.indexing_strategy?.vector_enabled ?? true,
         keywordEnabled: kb.indexing_strategy?.keyword_enabled ?? true,
         wikiEnabled: kb.indexing_strategy?.wiki_enabled ?? false,
-        graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
+        graphEnabled,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
