@@ -276,7 +276,8 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
 }
 
 async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
-  if (autoSetupAttempted || (!force && !shouldTryAutoSetup())) return false
+  if (autoSetupAttempted && !force) return false
+  if (!force && !shouldTryAutoSetup()) return false
 
   autoSetupAttempted = true
   try {
@@ -284,6 +285,7 @@ async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, f
     if (response.success) {
       persistLoginResponse(authStore, response)
       authStore.setLiteMode(true)
+      localStorage.removeItem(AUTO_SETUP_FAILED_KEY)
       return true
     }
     markAutoSetupFailed()

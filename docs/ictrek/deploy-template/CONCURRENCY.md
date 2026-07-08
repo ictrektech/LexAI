@@ -14,12 +14,50 @@
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。
 
+## 机器资源评估流程
+
+给一台新机器定模型、上下文、模型并发和聊天预留时，按下面顺序做，不要只按显存大小或 `max-num-seqs` 猜。
+
+1. 先定在线体验目标。明确是否必须跑 VLM/Graph/Wiki、是否需要 16k 以上上下文、是否要在文档入库时还能稳定聊天。聊天必须最高优先级时，先预留 `2-3` 个主 QA 槽；多人同时使用再继续提高。
+2. 选候选模型。优先用目标硬件已经验证能稳定启动的量化模型；同等效果下先选更小模型或更低显存量化。模型启动后显存不能长期贴近上限，至少留出 KV cache、embedding、数据库和系统余量。
+3. 定上下文。上下文越大，KV cache 越多，满长并发越低。先用业务必须值，例如 16k、18k、20k；如果聊天或 Graph 变慢，优先把上下文从 20k 降到 18k/16k，而不是直接抢聊天预留。
+4. 启动 vLLM 做实测。先设置保守 `--gpu-memory-utilization`，再设置 `--max-model-len` 和候选 `--max-num-seqs`。启动日志里的这一行是关键依据：
+
+```text
+Maximum concurrency for 18,000 tokens per request: 4.75x
+```
+
+这个数表示满长请求下的有效并发。`VLLM_MAX_NUM_SEQS` 可以略高于它，用于短请求调度弹性；但 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 不应明显高于这个有效并发，否则后台长任务会把聊天压住。
+
+5. 定 LexAI 应用侧并发。推荐公式：
+
+```text
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY = min(VLLM_MAX_NUM_SEQS, floor(vLLM 满长有效并发) 或略高 1)
+WEKNORA_CHAT_RESERVED_CONCURRENCY = 2-3
+background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY
+```
+
+如果 `background_llm_slots < 1`，说明模型/上下文/显存组合不足以同时跑后台增强和聊天，应降低上下文、换小模型，或关闭/降低 Graph、Wiki、VLM 后台任务。
+
+6. 定 Embedding 并发。Embedding 模型最好独立服务。`BGE_VLLM_MAX_NUM_SEQS` 是服务侧上限，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧上限；如果希望聊天检索保留 3 个槽，就让 `CONCURRENCY_POOL_SIZE <= BGE_VLLM_MAX_NUM_SEQS - 3`。
+
+7. 用线上指标回验。文档入库时看：
+
+```bash
+curl -sS http://127.0.0.1:32222/metrics \
+  | grep -E 'vllm:num_requests_(running|waiting)'
+docker logs --tail 50 qwen35-9b-vllm 2>&1 \
+  | grep -E 'Running:|Waiting:|GPU KV cache usage'
+```
+
+如果没有聊天时 qwen `Running` 长期等于或高于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`，这是正常后台占用；如果聊天时 `Waiting > 0` 持续出现，优先降低后台槽、Graph/Wiki/VLM 并发或上下文。不要用提高 Asynq worker 数解决模型排队。
+
 ## 主 QA/LLM 并发
 
 对话、Graph 抽取、Wiki 生成、自动问题生成可能共用同一个主 QA/LLM 模型。部署时按模型服务真实容量配置：
 
 ```dotenv
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7
 WEKNORA_CHAT_RESERVED_CONCURRENCY=3
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
@@ -59,7 +97,7 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=2
 
 在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径和 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 保证。文档入库主解析和批量重新解析调度走 `parse` 队列，确保新上传文档先完成文字解析、分块、向量化和可检索状态；VLM/OCR 图片多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph 抽取走 `graph` 队列，Wiki ingest 走 `low` 队列，作为解析后的后台增强慢慢补齐。
 
-部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，`failed`、`pending`、`processing`、`finalizing` 状态的知识会被重新提交到批量重解析任务；这些任务同样走 `parse` 队列，所以仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，`failed`、`pending`、`processing`、`finalizing` 状态的知识会被重新提交到批量重解析任务。启动扫描本身走 `critical` 队列，避免排在旧 `parse` 任务后面；每条知识真正重新解析前会先清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 `parse` 队列。所以它仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
 
 小机器上不要把 Graph 和 Question 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。
 
@@ -85,7 +123,7 @@ BGE_VLLM_MAX_NUM_SEQS=8
 
 | 机器类型 | LLM 服务并发 | 聊天保留 | Graph | Wiki map/reduce | Parse 队列 | Multimodal 队列 | Graph 队列 | Question 队列 | 说明 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Thor `192.168.1.81` | 8 | 3 | 2 | 2 / 2 | 5 | 3 | 2 | 2 | QA/Graph/Wiki/Question 共用 9B vLLM，后台 LLM 最多占 5 个槽位；文字解析先于 VLM，VLM 先于 Graph/Wiki。 |
+| Thor `192.168.1.81` | 7 | 3 | 2 | 2 / 2 | 5 | 3 | 2 | 2 | QA/Graph/Wiki/Question 共用 9B vLLM，`VLLM_MAX_MODEL_LEN=18000`，后台 LLM 最多占 4 个槽位；文字解析先于 VLM，VLM 先于 Graph/Wiki。 |
 | tc232 9B vLLM | 6 | 2 | 2 | 2 / 2 | 5 | 3 | 2 | 2 | 按 tc232 当前 6 并发模型容量保留 2 个聊天槽位。 |
 | 通用 4 并发主机 | 4 | 1 | 2 | 1 / 1 | 5 | 3 | 2 | 2 | 优先降低 Wiki 并发，不要先压缩聊天保留。 |
 

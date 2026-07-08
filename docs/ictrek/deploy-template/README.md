@@ -19,6 +19,13 @@ All services join the `lexai` Docker network. Host ports start at 30000; service
 
 These deployment templates set `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. Each app container start scans knowledge rows in `failed`, `pending`, `processing`, or `finalizing` and submits them to the existing batch reparse queue. This is intentional for redeploys: interrupted or failed parsing is retried automatically after the new app is healthy, without manually clicking reparse.
 
+Startup reparse is a two-step flow. The startup scanner submits one batch task to the `critical` queue so it is not stuck behind stale document tasks from the previous container. Each knowledge item is then reopened through the normal reparse path, old queued/retry tasks for that knowledge are removed, and a fresh `document:process` task is submitted to the `parse` queue. Check it after every redeploy:
+
+```bash
+docker logs --since 5m lexai-thor-app-1 2>&1 \
+  | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task'
+```
+
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
 
 New spaces default to `WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20`. Change it in `.env` or `.env.tc232` before deployment if the default storage quota should be larger. This only affects spaces created after the change; existing spaces must be updated through the system admin bulk quota action or by updating `tenants.storage_quota`.
@@ -29,7 +36,7 @@ Wiki synthesis uses the same model as the knowledge base's main QA model by defa
 
 Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible models use `chat_template_kwargs.enable_thinking=false`. Ollama's native chat API uses `think=false`; Ollama OpenAI-compatible models should use `extra_config.thinking_control=reasoning_effort`, which sends `reasoning_effort=none`.
 
-Knowledge graph extraction, Wiki synthesis, document summaries, table summaries, VLM/OCR multimodal parsing, and generated-question postprocessing share the main QA model. Configure queue weights, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). On thor, use `VLLM_MAX_NUM_SEQS=8`, `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, and `WEKNORA_ASYNQ_QUEUE_QUESTION=2`.
+Knowledge graph extraction, Wiki synthesis, document summaries, table summaries, VLM/OCR multimodal parsing, and generated-question postprocessing share the main QA model. Configure queue weights, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). On thor, use `VLLM_MAX_MODEL_LEN=18000`, `VLLM_MAX_NUM_SEQS=7`, `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, and `WEKNORA_ASYNQ_QUEUE_QUESTION=2`.
 
 On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=8`; keep `WEKNORA_ASYNQ_CONCURRENCY=9` and `CONCURRENCY_POOL_SIZE=5` so document ingestion can use 5 embedding requests while interactive retrieval keeps about 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup; see [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
 

@@ -58,7 +58,7 @@ services:
       WEKNORA_ASYNQ_QUEUE_MULTIMODAL: ${WEKNORA_ASYNQ_QUEUE_MULTIMODAL:-3}
       WEKNORA_ASYNQ_QUEUE_GRAPH: ${WEKNORA_ASYNQ_QUEUE_GRAPH:-2}
       WEKNORA_ASYNQ_QUEUE_QUESTION: ${WEKNORA_ASYNQ_QUEUE_QUESTION:-2}
-      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-8}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-7}
       WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-3}
       WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-2}
       WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-2}
@@ -285,8 +285,8 @@ services:
           --attention-backend flashinfer \
           --moe-backend marlin \
           --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.45}" \
-          --max-model-len "${VLLM_MAX_MODEL_LEN:-20480}" \
-          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-8}" \
+          --max-model-len "${VLLM_MAX_MODEL_LEN:-18000}" \
+          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-7}" \
           --max-num-batched-tokens "${VLLM_MAX_NUM_BATCHED_TOKENS:-4096}" \
           --enable-chunked-prefill \
           --async-scheduling \
