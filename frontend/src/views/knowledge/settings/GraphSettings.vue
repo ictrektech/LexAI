@@ -383,7 +383,8 @@ const handleConfigChange = () => {
 }
 
 // 处理启用/禁用切换
-const handleEnabledChange = () => {
+const handleEnabledChange = (enabled: boolean) => {
+  localGraphExtract.value.enabled = enabled
   // 当关闭提取功能时，清空所有数据
   if (!localGraphExtract.value.enabled) {
     localGraphExtract.value.text = ''
