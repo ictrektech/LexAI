@@ -43,6 +43,7 @@ WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 BATCH_EMBED_SIZE=4
 CONCURRENCY_POOL_SIZE=9
+MAX_FILE_SIZE_MB=500
 ```
 
 See [CONCURRENCY.md](CONCURRENCY.md) for the detailed queue, background LLM limiter, model-server capacity, and embedding concurrency rules. Thor uses the 6-slot QA model profile and the 12-slot bge-m3 embedding profile from that document.
