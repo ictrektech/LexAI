@@ -310,6 +310,7 @@ import { useI18n } from 'vue-i18n'
 import { extractTextRelations, fabriText, fabriTag, type Node, type Relation } from '@/api/initialization'
 import { useEditorResourcesStore } from '@/stores/editorResources'
 import { useAuthStore } from '@/stores/auth'
+import { legalGraphPreset } from '@/config/legalGraphPreset'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -382,15 +383,20 @@ const handleConfigChange = () => {
   emit('update:graphExtract', localGraphExtract.value)
 }
 
+const hasGraphTemplate = () => {
+  return !!(
+    localGraphExtract.value.text ||
+    localGraphExtract.value.tags.length ||
+    localGraphExtract.value.nodes.length ||
+    localGraphExtract.value.relations.length
+  )
+}
+
 // 处理启用/禁用切换
 const handleEnabledChange = (enabled: boolean) => {
   localGraphExtract.value.enabled = enabled
-  // 当关闭提取功能时，清空所有数据
-  if (!localGraphExtract.value.enabled) {
-    localGraphExtract.value.text = ''
-    localGraphExtract.value.tags = []
-    localGraphExtract.value.nodes = []
-    localGraphExtract.value.relations = []
+  if (enabled && !hasGraphTemplate()) {
+    localGraphExtract.value = legalGraphPreset()
   }
   handleConfigChange()
 }
@@ -529,19 +535,7 @@ const handleExtract = async () => {
 
 // 默认示例
 const defaultExtractExample = () => {
-  localGraphExtract.value.text = `"Romeo and Juliet" is a tragedy written by William Shakespeare early in his career, and is one of the most frequently performed plays in world literature. The play follows two young lovers from feuding families in Verona, Italy — the Montagues and the Capulets. Written around 1594-1596, it was first published in quarto in 1597. The full title is "The Most Excellent and Lamentable Tragedy of Romeo and Juliet." The story has been adapted countless times for stage, film, and other media.`
-  localGraphExtract.value.tags = ['Author', 'Alias']
-  localGraphExtract.value.nodes = [
-    {name: 'Romeo and Juliet', attributes: ['One of the most frequently performed plays', 'Written around 1594-1596', 'A tragedy']},
-    {name: 'The Most Excellent and Lamentable Tragedy of Romeo and Juliet', attributes: ['Full title of Romeo and Juliet']},
-    {name: 'William Shakespeare', attributes: ['English playwright', 'Author of Romeo and Juliet']},
-    {name: 'Verona', attributes: ['City in Italy', 'Setting of the play']}
-  ]
-  localGraphExtract.value.relations = [
-    {node1: 'Romeo and Juliet', node2: 'The Most Excellent and Lamentable Tragedy of Romeo and Juliet', type: 'Alias'},
-    {node1: 'Romeo and Juliet', node2: 'William Shakespeare', type: 'Author'},
-    {node1: 'Romeo and Juliet', node2: 'Verona', type: 'Setting'}
-  ]
+  localGraphExtract.value = legalGraphPreset()
   handleNodesChange()
   MessagePlugin.success(t('graphSettings.exampleLoaded'))
 }
