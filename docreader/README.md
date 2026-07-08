@@ -201,6 +201,14 @@ docreader:
 
 检查 `MAX_FILE_SIZE_MB` 配置，确保限制足够大。同时需要确保前端和后端服务的文件大小限制保持一致。
 
+### 4. PDF 视觉正常但解析成乱码？
+
+有些 PDF 页面渲染正常，但内嵌文本层使用自定义编码，`pdftotext` / PDFium 会抽出 `!"#$%...` 这类乱码。DocReader 会检测高乱码比例文本层，并把该页按扫描页渲染成图片交给 Go App 侧 OCR/VLM 处理。相关阈值可通过环境变量调整：
+
+- `DOCREADER_PDF_GARBLED_TEXT_MIN_CHARS`：参与判断的最小字符数，默认 `80`。
+- `DOCREADER_PDF_GARBLED_TEXT_BAD_RATIO`：控制字符、符号、Latin-1 乱码字符比例阈值，默认 `0.18`。
+- `DOCREADER_PDF_GARBLED_TEXT_CJK_PUNCT_RATIO`：中文文本层里异常标点比例阈值，默认 `0.30`。
+
 ## 服务健康检查
 
 DocReader 服务配置了健康检查：

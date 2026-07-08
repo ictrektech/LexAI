@@ -175,6 +175,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 - 改 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)：同步文件后重启 `app` 服务，新建或重新保存知识库图谱配置后生效。
 - 改 [docker-compose.yml](deploy-template/docker-compose.yml)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 或 [docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)：重新执行对应 compose `up -d`。
 - 改 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts)：这是前端默认值，必须重新构建并部署 `lexai-ui` 镜像。
+- 改 `docreader/` 里的解析逻辑，例如 PDF 文本层乱码检测、扫描页渲染策略、文档格式解析器：必须重新构建并部署 `lexai-docreader` 镜像，再重建 `docreader` 容器；只重启旧镜像不会生效。
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
 
@@ -513,6 +514,8 @@ curl -X POST "$BASE_URL/api/v1/knowledge/$KNOWLEDGE_ID/reparse" \
 ```
 
 批量重新解析：
+
+文档页工具栏的「重新解析失败文档」只会扫描当前知识库中 `parse_status=failed` 的文档，并按知识库当前默认解析配置批量重新提交；`pending`、`processing`、`finalizing` 不会被这个按钮重跑。
 
 ```bash
 curl -X POST "$BASE_URL/api/v1/knowledge/batch-reparse" \

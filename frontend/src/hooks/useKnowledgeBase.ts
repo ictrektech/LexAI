@@ -96,9 +96,14 @@ export default function (knowledgeBaseId?: string) {
     return delKnowledgeDetails(item.id)
       .then(async (result: any) => {
         if (result.success) {
-          MessagePlugin.info(t('knowledgeBase.deleteSuccess'));
+          MessagePlugin.info(t('knowledgeBase.deleteSubmitted'));
+          const before = cardList.value.length;
+          cardList.value = cardList.value.filter((card: any) => card.id !== item.id);
+          if (cardList.value.length !== before) {
+            total.value = Math.max(0, total.value - (before - cardList.value.length));
+          }
           if (onSuccess) {
-            onSuccess();
+            await onSuccess();
           } else {
             // 后端已将单条删除放入异步队列，立即拉列表仍可能包含待删项；
             // 短轮询直到列表与后端一致或超时。

@@ -228,6 +228,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
   }
 
+  const restoreCompletedQuickAnswerPipeline = (item: ChatMessage) => {
+    if (isAgentStreamSession() || item.role !== 'assistant' || !item.is_completed) return
+    if (!item.isRagMode && !(item.knowledge_references as unknown[] | undefined)?.length) return
+    item.isRagMode = true
+    ensureRagPipelineHistoryStream(item as Parameters<typeof ensureRagPipelineHistoryStream>[0])
+  }
+
   const recomposeAgentAnswer = (message: ChatMessage) => {
     const stream = message.agentEventStream as Array<{
       type?: string
@@ -452,6 +459,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true
+      restoreCompletedQuickAnswerPipeline(message)
       onMessageUpdated?.(message, payload)
     } else {
       const entry = { ...payload }
@@ -464,6 +472,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         entry.knowledge_references = pendingKnowledgeReferences.slice()
         pendingKnowledgeReferences = []
       }
+      restoreCompletedQuickAnswerPipeline(entry)
       messagesList.push(entry)
       onMessageCreated?.(entry)
       onMessageUpdated?.(entry, payload)

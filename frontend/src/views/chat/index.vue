@@ -135,6 +135,7 @@ import { useStickyBottomOnResize } from '@/composables/useStickyBottomOnResize';
 import { clearCitationChunkCache } from '@/utils/citationChunkCache';
 import ChatReferencesDrawer from '@/components/ChatReferencesDrawer.vue';
 import { provideChatReferencesDrawer } from '@/composables/useChatReferencesDrawer';
+import { ensureRagPipelineHistoryStream } from '@/utils/rag-pipeline-history';
 
 const referencesDrawer = provideChatReferencesDrawer();
 const { visible: referencesDrawerVisible } = referencesDrawer;
@@ -493,6 +494,7 @@ const syncCompletedMessageReferences = (message, attempt = 0) => {
                 return;
             }
             message.knowledge_references = fresh.knowledge_references.slice();
+            ensureRagPipelineHistoryStream(message);
             refreshMessageRow(message);
         } catch (error) {
             console.warn('[References] failed to sync completed message references:', error);
