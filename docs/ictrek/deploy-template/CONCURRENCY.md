@@ -47,6 +47,7 @@ background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED
 ```dotenv
 WEKNORA_ASYNQ_CONCURRENCY=9
 WEKNORA_ASYNQ_QUEUE_CRITICAL=6
+WEKNORA_ASYNQ_QUEUE_PARSE=5
 WEKNORA_ASYNQ_QUEUE_DEFAULT=4
 WEKNORA_ASYNQ_QUEUE_LOW=2
 WEKNORA_ASYNQ_QUEUE_MULTIMODAL=2
@@ -55,6 +56,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
 `WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发。`WEKNORA_ASYNQ_QUEUE_*` 是队列调度权重，权重越高越容易被调度，但不是严格的每队列并发上限，不能用它代替后台 LLM limiter。
+
+在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径和 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 保证。文档入库主解析和批量重新解析调度走 `parse` 队列，默认权重高于 Graph/Wiki，确保新上传文档先完成文字解析、分块、向量化和可检索状态；Graph 抽取走 `graph` 队列，Wiki ingest 走 `low` 队列，作为解析后的后台增强慢慢补齐。
 
 小机器上不要把 Graph 和 Question 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。
 
@@ -78,11 +81,11 @@ BGE_VLLM_MAX_NUM_SEQS=8
 
 ## 推荐值
 
-| 机器类型 | LLM 服务并发 | 聊天保留 | Graph | Wiki map/reduce | Graph 队列 | Question 队列 | 说明 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Thor `192.168.1.81` | 8 | 3 | 2 | 2 / 2 | 2 | 2 | QA/Graph/Wiki/Question 共用 9B vLLM，后台 LLM 最多占 5 个槽位。 |
-| tc232 9B vLLM | 6 | 2 | 2 | 2 / 2 | 2 | 2 | 按 tc232 当前 6 并发模型容量保留 2 个聊天槽位。 |
-| 通用 4 并发主机 | 4 | 1 | 2 | 1 / 1 | 2 | 2 | 优先降低 Wiki 并发，不要先压缩聊天保留。 |
+| 机器类型 | LLM 服务并发 | 聊天保留 | Graph | Wiki map/reduce | Parse 队列 | Graph 队列 | Question 队列 | 说明 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Thor `192.168.1.81` | 8 | 3 | 2 | 2 / 2 | 5 | 2 | 2 | QA/Graph/Wiki/Question 共用 9B vLLM，后台 LLM 最多占 5 个槽位；文字解析先于 Graph/Wiki 后处理。 |
+| tc232 9B vLLM | 6 | 2 | 2 | 2 / 2 | 5 | 2 | 2 | 按 tc232 当前 6 并发模型容量保留 2 个聊天槽位。 |
+| 通用 4 并发主机 | 4 | 1 | 2 | 1 / 1 | 5 | 2 | 2 | 优先降低 Wiki 并发，不要先压缩聊天保留。 |
 
 Thor 的 bge-m3 vLLM 推荐值：
 
