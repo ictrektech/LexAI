@@ -104,17 +104,6 @@ export default function (knowledgeBaseId?: string) {
           }
           if (onSuccess) {
             await onSuccess();
-          } else {
-            // 后端已将单条删除放入异步队列，立即拉列表仍可能包含待删项；
-            // 短轮询直到列表与后端一致或超时。
-            const maxPolls = 30;
-            const delayMs = 400;
-            for (let i = 0; i < maxPolls; i++) {
-              await getKnowled();
-              const stillPresent = (cardList.value || []).some((c: any) => c.id === item.id);
-              if (!stillPresent) break;
-              await new Promise<void>((r) => setTimeout(r, delayMs));
-            }
           }
           return true;
         } else {

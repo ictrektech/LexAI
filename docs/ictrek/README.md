@@ -4,6 +4,10 @@
 
 开发、合并上游、构建镜像和 push 流程见 [开发文档](DEVELOPMENT.md)。
 
+## 机器资源评估入口
+
+任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台队列权重和 Embedding 并发的统一参考。
+
 ## 部署包范围
 
 部署目标机不需要整个 repo。按场景只同步必要文件：
@@ -467,6 +471,8 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-rec
 - 「Wiki 合成模型」：启用 Wiki 后可选；为空就使用 LLM 大语言模型。
 - 「知识图谱」里的实体、关系、示例文本：Graph 抽取使用它。
 - 索引策略里的 Wiki/Graph 开关：Wiki 必须启用 `wiki_enabled`；Graph 必须启用 `graph_enabled` 且 `extract_config.enabled=true`。
+
+法律 Graph 预设只提供实体、关系和示例文本默认值，不会强制每个知识库生成 Graph。每个知识库可以单独关闭 Wiki/Graph，只保留向量/关键词检索。
 
 保存知识库配置后，只影响后续上传和后续重新解析。已经解析过的文档不会自动重跑。
 

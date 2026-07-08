@@ -641,7 +641,7 @@ function createDefaultUIState(): UploadUIState {
     asrConfig: { enabled: false, modelId: '', language: '' },
     questionGenerationConfig: { enabled: true, questionCount: 3 },
     nodeExtractConfig: legalGraphPreset(),
-    graphEnabled: true,
+    graphEnabled: false,
     pdfForceScanned: false,
   }
 }
@@ -688,7 +688,7 @@ function initFromKbInfo(kb: any) {
       })),
       relations: kb.extract_config?.relations || [],
     } : legalGraphPreset(),
-    graphEnabled: true,
+    graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
     pdfForceScanned: false,
   }
 }
@@ -724,9 +724,9 @@ function buildProcessOverrides(): KnowledgeProcessOverrides {
       enabled: state.questionGenerationConfig.enabled,
       question_count: state.questionGenerationConfig.questionCount,
     },
-    graph_enabled: true,
+    graph_enabled: state.graphEnabled,
     extract_config: {
-      enabled: true,
+      enabled: state.graphEnabled,
       text: state.nodeExtractConfig.text,
       tags: state.nodeExtractConfig.tags,
       nodes: state.nodeExtractConfig.nodes,
@@ -783,7 +783,7 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
     if (ec.nodes) s.nodeExtractConfig.nodes = ec.nodes.map(n => ({ name: n.name, attributes: n.attributes || [] }))
     if (ec.relations) s.nodeExtractConfig.relations = ec.relations
   }
-  s.graphEnabled = true
+  if (o.graph_enabled != null) s.graphEnabled = o.graph_enabled
   if (o.parser_engine_overrides && o.parser_engine_overrides.pdf_force_scanned === 'true') {
     s.pdfForceScanned = true
   } else {

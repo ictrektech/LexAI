@@ -1219,21 +1219,7 @@ const closeCardMoreMenu = (index: number) => {
 
 const confirmDeleteKnowledge = (index: number, item: KnowledgeCard) => {
   closeCardMoreMenu(index);
-  const deletedId = item?.id;
   delKnowledge(index, item, async () => {
-    const maxPolls = 30;
-    const delayMs = 400;
-    for (let i = 0; i < maxPolls; i++) {
-      try {
-        const res: any = await getKnowledgeDetails(deletedId);
-        if (!res?.success) break;
-      } catch {
-        break;
-      }
-      await new Promise<void>((r) => setTimeout(r, delayMs));
-    }
-    resetPage();
-    await loadKnowledgeFiles(kbId.value);
     loadTags(kbId.value, true);
   });
 };
@@ -1868,15 +1854,6 @@ const confirmBatchDelete = async () => {
       clearSelection();
       batchMode.value = false;
       resetPage();
-      // 后端将批量删除放入异步队列，立刻拉列表仍可能包含待删项；短轮询直到列表与后端一致或超时
-      const maxPolls = 30;
-      const delayMs = 400;
-      for (let i = 0; i < maxPolls; i++) {
-        const checks = await Promise.allSettled(ids.map((id) => getKnowledgeDetails(id)));
-        const stillPresent = checks.some((check) => check.status === 'fulfilled' && (check.value as any)?.success);
-        if (!stillPresent) break;
-        await new Promise<void>((r) => setTimeout(r, delayMs));
-      }
       await loadKnowledgeFiles(kbId.value);
       loadTags(kbId.value, true);
     } else {

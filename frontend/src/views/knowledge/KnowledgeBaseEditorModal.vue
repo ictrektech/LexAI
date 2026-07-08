@@ -683,7 +683,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       vectorEnabled: true,
       keywordEnabled: true,
       wikiEnabled: false,
-      graphEnabled: true,
+      graphEnabled: false,
     },
     // Vector-store binding. Empty string means "use the env-configured
     // store"; create mode defaults to that, edit mode loads the
@@ -798,7 +798,7 @@ const loadKBData = async () => {
         vectorEnabled: kb.indexing_strategy?.vector_enabled ?? true,
         keywordEnabled: kb.indexing_strategy?.keyword_enabled ?? true,
         wikiEnabled: kb.indexing_strategy?.wiki_enabled ?? false,
-        graphEnabled: true,
+        graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
@@ -1139,7 +1139,7 @@ const buildSubmitData = () => {
       vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
       keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
       wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-      graph_enabled: true,
+      graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
     }
   }
 
@@ -1147,7 +1147,7 @@ const buildSubmitData = () => {
   // regardless of whether the graph indexing strategy is currently enabled.
   if (formData.value.nodeExtractConfig) {
     data.extract_config = {
-      enabled: true,
+      enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
       text: formData.value.nodeExtractConfig.text || '',
       tags: formData.value.nodeExtractConfig.tags || [],
       nodes: formData.value.nodeExtractConfig.nodes || [],
@@ -1234,7 +1234,7 @@ const doSubmit = async () => {
           vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
           keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
           wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-          graph_enabled: true,
+          graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
         }
       }
       await updateKnowledgeBase(props.kbId, {
