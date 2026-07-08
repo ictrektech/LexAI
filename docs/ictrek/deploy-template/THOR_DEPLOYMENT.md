@@ -162,9 +162,15 @@ curl -fsS http://127.0.0.1:30005/health
 curl -fsS http://127.0.0.1:32223/v1/models
 curl -fsS -X POST http://127.0.0.1:32223/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"bge-m3","input":["ping"]}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d["data"][0]["embedding"]))'
 curl -fsS http://127.0.0.1:32222/v1/models
+docker inspect lexai-thor-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
+docker inspect qwen35-9b-vllm --format '{{range .Config.Cmd}}{{println .}}{{end}}' | grep -E 'max-num-seqs|max-model-len|max-num-batched-tokens|gpu-memory-utilization'
+curl -sS http://127.0.0.1:32222/metrics | grep -E 'vllm:num_requests_(running|waiting)'
+curl -sS http://127.0.0.1:32223/metrics | grep -E 'vllm:num_requests_(running|waiting)'
 curl -I -s http://127.0.0.1:30080/ | sed -n '1,8p'
 curl -I -s http://127.0.0.1:30175/app/com.ictrek.model-hub/static/css/main.css | sed -n '1,10p'
 ```
+
+During ingestion, qwen running should usually stay at 5 background requests or below. It may rise above 5 when a user chat is active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
 
 Expected externally reachable URLs:
 

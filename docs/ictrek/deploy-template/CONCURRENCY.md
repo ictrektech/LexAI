@@ -104,4 +104,23 @@ BATCH_EMBED_SIZE=4
 | 卡在 embedding 阶段 | 先检查 bge-m3 服务是否 ready，再对比 `WEKNORA_ASYNQ_CONCURRENCY`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、`BGE_VLLM_MAX_NUM_SEQS`。 |
 | GPU 显存接近打满 | 先降低模型服务侧参数，例如 `VLLM_MAX_NUM_SEQS`、上下文长度或显存占用率，再把应用侧并发同步降下来。 |
 
+## 现场确认
+
+在目标机上看运行中的容器，不要只看 env 文件：
+
+```bash
+docker inspect lexai-thor-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
+
+docker inspect qwen35-9b-vllm --format '{{range .Config.Cmd}}{{println .}}{{end}}' \
+  | grep -E 'max-num-seqs|max-model-len|max-num-batched-tokens|gpu-memory-utilization'
+
+curl -sS http://127.0.0.1:32222/metrics \
+  | grep -E 'vllm:num_requests_(running|waiting)'
+curl -sS http://127.0.0.1:32223/metrics \
+  | grep -E 'vllm:num_requests_(running|waiting)'
+```
+
+Thor 当前配置下，后台 LLM 正常应长期压在 5 个以内；用户聊天同时发生时，qwen running 可以短时超过 5，但不应持续出现 `waiting > 0`。bge-m3 当前是 8 槽，文档 embedding 应用侧最多 5 个请求；如果 bge `waiting > 0`，先降 `CONCURRENCY_POOL_SIZE` 或后台 worker。
+
 修改后要同步 env、compose 里的模型服务参数和内置模型配置。只改 env 时，重新执行对应 compose `up -d` 即可让 app 读取新值。
