@@ -33,10 +33,10 @@ BGE_VLLM_MODEL_PATH=/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge
 BGE_VLLM_SERVED_MODEL_NAME=bge-m3
 BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
 BGE_VLLM_MAX_NUM_SEQS=8
-WEKNORA_ASYNQ_CONCURRENCY=9
+WEKNORA_ASYNQ_CONCURRENCY=4
 WEKNORA_ASYNQ_QUEUE_PARSE=5
 WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
-WEKNORA_ASYNQ_QUEUE_GRAPH=2
+WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=2
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7
 WEKNORA_CHAT_RESERVED_CONCURRENCY=3
@@ -44,11 +44,11 @@ WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 BATCH_EMBED_SIZE=4
-CONCURRENCY_POOL_SIZE=5
+CONCURRENCY_POOL_SIZE=4
 MAX_FILE_SIZE_MB=500
 ```
 
-See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, queue, background LLM limiter, model-server capacity, and embedding concurrency rules. Thor currently uses `VLLM_MAX_MODEL_LEN=18000`, `VLLM_MAX_NUM_SEQS=7`, 3 chat slots reserved, and the 8-slot bge-m3 embedding profile with 5 document embedding slots.
+See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, queue, background LLM limiter, model-server capacity, and embedding concurrency rules. Thor currently uses `VLLM_MAX_MODEL_LEN=18000`, `VLLM_MAX_NUM_SEQS=7`, 3 chat slots reserved, 4 background workers, and the 8-slot bge-m3 embedding profile with 4 document embedding slots.
 
 `VLLM_MODEL_PATH` must be a path that exists inside the vLLM container. Avoid host absolute symlinks such as `/data/ssd/ictrek/...` because the 9B container mounts `/data/ssd/ictrek/models` as `/data/models`, and the bge-m3 container mounts `/data/ssd/ictrek/model_hub` as `/data/model_hub`.
 
@@ -112,9 +112,9 @@ done
 
 `deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
 
-`.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. After every app container recreate, LexAI automatically resubmits `failed`, `pending`, `processing`, and `finalizing` knowledge rows to the batch reparse queue. This is part of the redeploy flow: model/vLLM restarts or interrupted Graph/Wiki/VLM work should recover without manual per-document retry.
+`.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true` and `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. After every app container recreate, LexAI waits for those model endpoints and then automatically resubmits `failed`, `pending`, `processing`, and `finalizing` knowledge rows to the batch reparse queue. This is part of the redeploy flow: model/vLLM restarts or interrupted Graph/Wiki/VLM work should recover without manual per-document retry.
 
-The deploy script also recreates `docreader` on every deploy by default. This does not rebuild the docreader image; it only replaces the running container so the long-lived parser process starts from a clean state. Then it recreates `app`, waits for health checks, and runs `trigger-reparse-incomplete.sh` to submit current incomplete knowledge through `POST /knowledge/batch-reparse`. Keep this default on Thor. Use `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only for a deliberate maintenance skip.
+The deploy script also recreates `docreader` on every deploy by default. This does not rebuild the docreader image; it only replaces the running container so the long-lived parser process starts from a clean state. Then it recreates `app`, waits for health checks, waits for `WEKNORA_REPARSE_WAIT_URLS`, and runs `trigger-reparse-incomplete.sh` to submit current incomplete knowledge through `POST /knowledge/batch-reparse`. Keep this default on Thor. Use `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only for a deliberate maintenance skip.
 
 The startup scan is intentionally submitted to the `critical` queue. The per-document retry still lands in `parse`, after stale queued/retry tasks for the same knowledge are removed. After every redeploy, verify the app startup hook and the deploy-script reparse trigger from logs:
 
@@ -134,11 +134,11 @@ The deployed and verified 81 plan uses these model roles:
 
 The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=18000`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
 
-Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=8`, `WEKNORA_ASYNQ_CONCURRENCY=9`, and `CONCURRENCY_POOL_SIZE=5` so document embedding can use 5 requests while interactive retrieval keeps about 3 service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
+Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=8`, `WEKNORA_ASYNQ_CONCURRENCY=4`, and `CONCURRENCY_POOL_SIZE=4` so document embedding can use 4 requests while interactive retrieval keeps about 3 service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
 
-Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 5 can consume the bge-m3 slots reserved for chat retrieval.
+Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 4 can consume the bge-m3 slots reserved for chat retrieval.
 
-VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7` and `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`; chat is the highest-priority path, and background LLM calls share only the remaining 4 slots. Keep `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, `WEKNORA_ASYNQ_QUEUE_QUESTION=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, so document text parsing is scheduled before VLM, and VLM before Graph/Wiki enrichment while background tasks still do not crowd out generated questions or chat. If another thor-class machine changes model capacity, update both `.env.thor` and the model-service `VLLM_MAX_NUM_SEQS` according to [CONCURRENCY.md](CONCURRENCY.md).
+VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`, and `WEKNORA_ASYNQ_CONCURRENCY=4`; chat is the highest-priority path, and background LLM calls share only the remaining 4 slots. Keep `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=1`, `WEKNORA_ASYNQ_QUEUE_QUESTION=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, so document text parsing is scheduled before VLM, and VLM before Graph/Wiki enrichment while background tasks still do not crowd out generated questions or chat. If another thor-class machine changes model capacity, update both `.env.thor` and the model-service `VLLM_MAX_NUM_SEQS` according to [CONCURRENCY.md](CONCURRENCY.md).
 
 Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters and set `wiki_config.extraction_granularity=focused`. A KB-level `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel` overrides the Thor env defaults; keep those at `1-2` unless the 9B model has spare capacity. Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
 
@@ -183,7 +183,7 @@ curl -I -s http://127.0.0.1:30080/ | sed -n '1,8p'
 curl -I -s http://127.0.0.1:30175/app/com.ictrek.model-hub/static/css/main.css | sed -n '1,10p'
 ```
 
-During ingestion, qwen running should usually stay at 5 background requests or below. It may rise above 5 when a user chat is active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
+During ingestion, qwen running should usually stay at 4 background requests or below. It may rise above 4 when a user chat is active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
 
 Expected externally reachable URLs:
 
