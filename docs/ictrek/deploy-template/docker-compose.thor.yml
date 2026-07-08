@@ -52,12 +52,12 @@ services:
       NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
-      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-9}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-5}
       WEKNORA_ASYNQ_CONCURRENCY: ${WEKNORA_ASYNQ_CONCURRENCY:-9}
       WEKNORA_ASYNQ_QUEUE_GRAPH: ${WEKNORA_ASYNQ_QUEUE_GRAPH:-2}
       WEKNORA_ASYNQ_QUEUE_QUESTION: ${WEKNORA_ASYNQ_QUEUE_QUESTION:-2}
-      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-6}
-      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-8}
+      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-3}
       WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-2}
       WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-2}
       WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-2}
@@ -283,7 +283,7 @@ services:
           --moe-backend marlin \
           --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.45}" \
           --max-model-len "${VLLM_MAX_MODEL_LEN:-20480}" \
-          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-6}" \
+          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-8}" \
           --max-num-batched-tokens "${VLLM_MAX_NUM_BATCHED_TOKENS:-4096}" \
           --enable-chunked-prefill \
           --async-scheduling \
@@ -333,7 +333,7 @@ services:
           --host 0.0.0.0 \
           --port 22223 \
           --trust-remote-code \
-          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-12}" \
+          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-8}" \
           --max-model-len "${BGE_VLLM_MAX_MODEL_LEN:-8192}" \
           --max-num-batched-tokens "${BGE_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
           --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.2}"

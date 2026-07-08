@@ -192,11 +192,12 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 详细说明见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。这份文档是 ictrek 部署包里的并发/队列配置入口，说明 Asynq 队列权重、后台 LLM 限流、vLLM/Ollama 模型服务并发、Embedding 并发之间的关系。
 
-Graph、Wiki、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。6 并发机器，如 Thor 和 tc232，按下面的值部署：
+Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。Thor 的 QA vLLM 按 8 并发、聊天保留 3 部署：
 
 ```dotenv
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=6
-WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+VLLM_MAX_NUM_SEQS=8
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8
+WEKNORA_CHAT_RESERVED_CONCURRENCY=3
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
@@ -204,7 +205,7 @@ WEKNORA_ASYNQ_QUEUE_GRAPH=2
 WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；Graph/Wiki/Question 只共享剩余槽位。6 并发机器上保留 2 个给聊天，后台最多吃 4 个；4 并发机器上保留 1 个给聊天，Wiki map/reduce 建议降到 1。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；Graph/Wiki/Question 只共享剩余槽位。Thor 8 并发上保留 3 个给聊天，后台最多吃 5 个；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
 
 Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`。
 
