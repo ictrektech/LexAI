@@ -112,6 +112,8 @@ done
 
 `deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
 
+`.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. After every app container recreate, LexAI automatically resubmits `failed`, `pending`, `processing`, and `finalizing` knowledge rows to the batch reparse queue. This is part of the redeploy flow: model/vLLM restarts or interrupted Graph/Wiki/VLM work should recover without manual per-document retry.
+
 The deployed and verified 81 plan uses these model roles:
 
 | Role | Model ID | Service |

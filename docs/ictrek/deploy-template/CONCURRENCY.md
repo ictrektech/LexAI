@@ -59,6 +59,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=2
 
 在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径和 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 保证。文档入库主解析和批量重新解析调度走 `parse` 队列，确保新上传文档先完成文字解析、分块、向量化和可检索状态；VLM/OCR 图片多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph 抽取走 `graph` 队列，Wiki ingest 走 `low` 队列，作为解析后的后台增强慢慢补齐。
 
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，`failed`、`pending`、`processing`、`finalizing` 状态的知识会被重新提交到批量重解析任务；这些任务同样走 `parse` 队列，所以仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
+
 小机器上不要把 Graph 和 Question 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。
 
 ## Embedding 并发

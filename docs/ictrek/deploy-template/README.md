@@ -17,6 +17,8 @@ Thor uses its dedicated script:
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
 
+These deployment templates set `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. Each app container start scans knowledge rows in `failed`, `pending`, `processing`, or `finalizing` and submits them to the existing batch reparse queue. This is intentional for redeploys: interrupted or failed parsing is retried automatically after the new app is healthy, without manually clicking reparse.
+
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
 
 New spaces default to `WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20`. Change it in `.env` or `.env.tc232` before deployment if the default storage quota should be larger. This only affects spaces created after the change; existing spaces must be updated through the system admin bulk quota action or by updating `tenants.storage_quota`.

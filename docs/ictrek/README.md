@@ -178,6 +178,8 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
 
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing`、`finalizing` 的知识条目，并通过已有批量重新解析任务重新触发解析；不需要手动逐条点重新解析。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
+
 ## Wiki/Graph 模型结论
 
 QA 模型配好以后，不代表所有已有知识库都会自动改用它。
