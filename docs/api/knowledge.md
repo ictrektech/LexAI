@@ -538,6 +538,7 @@ curl --location --request PUT 'http://localhost:8080/api/v1/knowledge/manual/5a3
 ## POST `/knowledge/:id/reparse` - 重新解析知识
 
 异步重新解析：删除现有分块/向量并按最新配置重新解析。常用于解析配置变更或上次解析失败重试的场景。
+如果后处理里的 `postprocess.graph.chunk[*]` 因模型服务暂时不可用（如 `connection refused`）失败，等模型服务恢复后调用本接口重跑该文档；仅保存知识库设置不会重试已失败任务。
 
 **请求**:
 

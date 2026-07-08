@@ -482,6 +482,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-rec
 ## 已有文档如何重新生成 Graph
 
 改了实体、关系、示例文本或模型后，已有文档要重新解析。
+如果处理流水线里单个 `postprocess.graph.chunk[*]` 失败，例如 vLLM 重启或尚未 ready 导致 `connection refused`，也等模型服务 ready 后重新解析该文档；只保存知识库设置不会自动重试已经失败的文档。
 
 前端操作：
 
