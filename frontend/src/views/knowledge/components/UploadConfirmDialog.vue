@@ -881,6 +881,7 @@ const handleQuestionGenerationUpdate = (config: { enabled: boolean; questionCoun
 
 const handleNodeExtractUpdate = (config: UploadUIState['nodeExtractConfig']) => {
   uiState.value.nodeExtractConfig = { ...config }
+  uiState.value.graphEnabled = !!config.enabled
 }
 
 const validateBeforeConfirm = (): boolean => {

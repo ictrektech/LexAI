@@ -986,6 +986,7 @@ const handleQuestionGenerationUpdate = (config: any) => {
 const handleNodeExtractUpdate = (config: any) => {
   if (formData.value) {
     formData.value.nodeExtractConfig = { ...config }
+    formData.value.indexingStrategy.graphEnabled = !!config.enabled
   }
 }
 
