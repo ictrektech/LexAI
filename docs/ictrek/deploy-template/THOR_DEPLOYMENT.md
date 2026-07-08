@@ -35,6 +35,7 @@ BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
 BGE_VLLM_MAX_NUM_SEQS=8
 WEKNORA_ASYNQ_CONCURRENCY=9
 WEKNORA_ASYNQ_QUEUE_PARSE=5
+WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
 WEKNORA_ASYNQ_QUEUE_GRAPH=2
 WEKNORA_ASYNQ_QUEUE_QUESTION=2
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8
@@ -126,7 +127,7 @@ Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm`
 
 Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 5 can consume the bge-m3 slots reserved for chat retrieval.
 
-Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8` and `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`; chat is the highest-priority path, and background LLM calls share only the remaining 5 slots. Keep `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, `WEKNORA_ASYNQ_QUEUE_QUESTION=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, so document text parsing is scheduled before Graph/Wiki enrichment while Graph + Wiki still do not crowd out generated questions or chat. If another thor-class machine changes model capacity, update both `.env.thor` and the model-service `VLLM_MAX_NUM_SEQS` according to [CONCURRENCY.md](CONCURRENCY.md).
+VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8` and `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`; chat is the highest-priority path, and background LLM calls share only the remaining 5 slots. Keep `WEKNORA_ASYNQ_QUEUE_PARSE=5`, `WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_ASYNQ_QUEUE_GRAPH=2`, `WEKNORA_ASYNQ_QUEUE_QUESTION=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`, so document text parsing is scheduled before VLM, and VLM before Graph/Wiki enrichment while background tasks still do not crowd out generated questions or chat. If another thor-class machine changes model capacity, update both `.env.thor` and the model-service `VLLM_MAX_NUM_SEQS` according to [CONCURRENCY.md](CONCURRENCY.md).
 
 Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters and set `wiki_config.extraction_granularity=focused`. A KB-level `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel` overrides the Thor env defaults; keep those at `1-2` unless the 9B model has spare capacity. Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
 

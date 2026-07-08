@@ -11,10 +11,8 @@ const (
 	QueueParse   = "parse"
 	QueueDefault = "default"
 	QueueLow     = "low"
-	// QueueMultimodal isolates high-volume, slow VLM image tasks (OCR + caption)
-	// so a single large scanned PDF (hundreds–thousands of page images) cannot
-	// saturate the shared worker pool and block user-facing document parsing in
-	// the default queue.
+	// QueueMultimodal isolates high-volume, slow VLM image tasks (OCR + caption).
+	// It sits below text parsing but above Graph/Wiki enrichment.
 	QueueMultimodal = "multimodal"
 	// QueueGraph isolates high-volume, slow graph-extraction tasks (one per
 	// chunk, LLM-backed, only when Neo4j is enabled). Same rationale as
