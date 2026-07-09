@@ -194,6 +194,8 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署脚本还会默认重建 `docreader` 容器，但不会重新构建 docreader 镜像；这是为了让常驻解析进程在每次部署/重启后从干净状态开始。随后脚本会重建 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready，并运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，即使只是 frontend-only 或配置更新，也会自动把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 
+后台 housekeeping 每 5 分钟还会清理已经没有待完成子任务的 `finalizing` 文档：如果 `pending_subtasks_count=0`，会自动推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。
+
 ## Wiki/Graph 模型结论
 
 QA 模型配好以后，不代表所有已有知识库都会自动改用它。
