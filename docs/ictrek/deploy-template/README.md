@@ -17,6 +17,15 @@ Thor uses its dedicated script:
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
 
+`./deploy.sh --platform l4t` resolves component tags from the Feishu `l4t` sheet. The Ollama service is GPU-backed in these templates: `model-hub-ollama` sets `runtime: nvidia`, `NVIDIA_VISIBLE_DEVICES=all`, and `NVIDIA_DRIVER_CAPABILITIES=compute,utility`. On Jetson/Orin hosts, verify a deployment with:
+
+```bash
+docker inspect model-hub-ollama --format 'runtime={{.HostConfig.Runtime}}'
+docker exec model-hub-ollama sh -lc 'ls /dev/nvhost-gpu /dev/nvmap /dev/nvhost-ctrl-gpu'
+```
+
+If `runtime` is empty or the GPU devices are missing, recreate the Ollama container from the updated compose file before testing model speed.
+
 These deployment templates set `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`. Each app container start scans knowledge rows in `failed`, `pending`, `processing`, or `finalizing` and submits them to the existing batch reparse queue. This is intentional for redeploys: interrupted or failed parsing is retried automatically after the new app is healthy, without manually clicking reparse.
 
 Startup reparse is a two-step flow. The startup scanner submits one batch task to the `critical` queue so it is not stuck behind stale document tasks from the previous container. Each knowledge item is then reopened through the normal reparse path, old queued/retry tasks for that knowledge are removed, and a fresh `document:process` task is submitted to the `parse` queue. Check it after every redeploy:

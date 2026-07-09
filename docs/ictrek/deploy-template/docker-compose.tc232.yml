@@ -172,6 +172,7 @@ services:
   model-hub-ollama:
     image: ${OLLAMA_SERVER_IMAGE:?set OLLAMA_SERVER_IMAGE in .env}
     ipc: host
+    runtime: nvidia
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -181,6 +182,8 @@ services:
       - "${OLLAMA_API_HOST_PORT:-31434}:11434"
       - "${OLLAMA_GATEWAY_HOST_PORT:-31535}:11535"
     environment:
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
       MODELS_BASE_DIR: /data
       MODELS_HOST_DIR: /data/ictrek_models
       OLLAMA_HOST: 0.0.0.0:11434

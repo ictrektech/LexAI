@@ -136,6 +136,13 @@ OLLAMA_SERVER_IMAGE
 
 脚本会把查到的镜像写回 `.env`、`.env.tc232` 或 `.env.thor`，然后执行对应 compose 文件的 `up -d`。
 
+`--platform l4t` 默认读取飞书表格里的 `l4t` sheet。全 Ollama 模板中的 `model-hub-ollama` 已显式配置 `runtime: nvidia`、`NVIDIA_VISIBLE_DEVICES=all` 和 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`，避免 Orin NX / Jetson 主机按 Docker 默认 `runc` 启动后模型落到 CPU。部署后可用下面命令确认：
+
+```bash
+docker inspect model-hub-ollama --format 'runtime={{.HostConfig.Runtime}}'
+docker exec model-hub-ollama sh -lc 'ls /dev/nvhost-gpu /dev/nvmap /dev/nvhost-ctrl-gpu'
+```
+
 ## 手动填写镜像部署
 
 如果目标机没有飞书凭据，或者要固定某一批镜像版本，不要运行 `deploy.sh` / `deploy-tc232.sh` / `deploy-thor.sh`。直接编辑对应 env，手动填入镜像：
