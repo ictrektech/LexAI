@@ -34,6 +34,7 @@ import {
   cancelKnowledgeParse,
   batchDeleteKnowledge,
   batchReparseKnowledge,
+  downKnowledgeDetails,
   getKnowledgeSpans,
   getKnowledgeDetails,
 } from "@/api/knowledge-base/index";
@@ -404,6 +405,8 @@ const selectedIds = ref<Set<string>>(new Set());
 let lastSelectedIndex = -1;
 const batchDeleting = ref(false);
 const batchReparsing = ref(false);
+const batchDownloading = ref(false);
+const downloadingKnowledgeBase = ref(false);
 const failedReparsing = ref(false);
 // IDs submitted for async batch reparse; hold optimistic pending until the worker updates DB.
 const pendingReparseAck = ref<Set<string>>(new Set());
@@ -444,7 +447,7 @@ const awaitBatchReparseReflection = async (ids: string[]) => {
 };
 
 const confirmBatchReparse = async () => {
-  if (batchReparsing.value || batchDeleting.value || selectedIds.value.size === 0) return;
+  if (batchReparsing.value || batchDeleting.value || batchDownloading.value || selectedIds.value.size === 0) return;
   const allIds = Array.from(selectedIds.value);
   const ids = allIds.filter((id) => {
     const item = cardList.value.find((c) => c.id === id);
@@ -479,7 +482,7 @@ const confirmBatchReparse = async () => {
 };
 
 const reparseFailedKnowledge = async () => {
-  if (!kbId.value || failedReparsing.value || batchDeleting.value || batchReparsing.value) return;
+  if (!kbId.value || failedReparsing.value || batchDeleting.value || batchReparsing.value || batchDownloading.value) return;
   failedReparsing.value = true;
   try {
     const ids: string[] = [];
@@ -515,6 +518,94 @@ const reparseFailedKnowledge = async () => {
     MessagePlugin.error(error?.message || t('knowledgeBase.reparseFailedDocumentsFailed'));
   } finally {
     failedReparsing.value = false;
+  }
+};
+
+const knowledgeDownloadName = (item: KnowledgeCard) =>
+  item.original_file_name || item.file_name || item.display_name || item.title || `${item.id}.bin`;
+
+const saveKnowledgeBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const downloadKnowledgeItems = async (items: KnowledgeCard[]) => {
+  let success = 0;
+  let failed = 0;
+  for (const item of items) {
+    try {
+      const blob = await downKnowledgeDetails(item.id);
+      saveKnowledgeBlob(blob, knowledgeDownloadName(item));
+      success += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { success, failed };
+};
+
+const loadAllKnowledgeFilesForDownload = async () => {
+  const items: KnowledgeCard[] = [];
+  const pageSize = 200;
+  for (let page = 1; page < 500; page++) {
+    const res: any = await listKnowledgeFiles(kbId.value, { page, page_size: pageSize });
+    const rows = Array.isArray(res?.data) ? res.data : [];
+    items.push(...rows);
+    if (items.length >= (res?.total || 0) || rows.length < pageSize) break;
+  }
+  return items;
+};
+
+const showDownloadResult = (result: { success: number; failed: number }, successKey: string) => {
+  if (result.success > 0) {
+    MessagePlugin.success(t(successKey, { count: result.success }));
+  }
+  if (result.failed > 0) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadPartialFailed', { count: result.failed }));
+  }
+};
+
+const downloadCurrentKnowledgeBaseFiles = async () => {
+  if (!kbId.value || downloadingKnowledgeBase.value || batchDownloading.value) return;
+  downloadingKnowledgeBase.value = true;
+  try {
+    const items = await loadAllKnowledgeFilesForDownload();
+    if (!items.length) {
+      MessagePlugin.info(t('knowledgeBase.noDownloadableDocuments'));
+      return;
+    }
+    const result = await downloadKnowledgeItems(items);
+    showDownloadResult(result, 'knowledgeBase.downloadKnowledgeBaseSuccess');
+  } catch (error: any) {
+    MessagePlugin.error(error?.message || t('knowledgeBase.downloadKnowledgeBaseFailed'));
+  } finally {
+    downloadingKnowledgeBase.value = false;
+  }
+};
+
+const confirmBatchDownload = async () => {
+  if (batchDownloading.value || selectedIds.value.size === 0) return;
+  const selected = new Set(selectedIds.value);
+  const items = cardList.value.filter((item: KnowledgeCard) => selected.has(item.id));
+  if (!items.length) {
+    MessagePlugin.info(t('knowledgeBase.noDownloadableDocuments'));
+    return;
+  }
+  batchDownloading.value = true;
+  try {
+    const result = await downloadKnowledgeItems(items);
+    showDownloadResult(result, 'knowledgeBase.batchDownloadSuccess');
+  } catch (error: any) {
+    MessagePlugin.error(error?.message || t('knowledgeBase.batchDownloadFailed'));
+  } finally {
+    batchDownloading.value = false;
   }
 };
 
@@ -1841,7 +1932,7 @@ const openKnowledgeItem = (item: KnowledgeCard) => {
 };
 
 const confirmBatchDelete = async () => {
-  if (batchDeleting.value || batchReparsing.value || selectedIds.value.size === 0) return;
+  if (batchDeleting.value || batchReparsing.value || batchDownloading.value || selectedIds.value.size === 0) return;
   const ids = Array.from(selectedIds.value);
   const deletedIdSet = new Set(ids);
   batchDeleting.value = true;
@@ -2228,9 +2319,15 @@ async function createNewSession(value: string): Promise<void> {
                 </div>
                 <div v-if="canEdit" class="doc-filter-actions">
                   <t-button variant="outline" size="medium" theme="danger" class="doc-reparse-failed-btn"
-                    :loading="failedReparsing" :disabled="batchDeleting || batchReparsing"
+                    :loading="failedReparsing" :disabled="batchDeleting || batchReparsing || batchDownloading || downloadingKnowledgeBase"
                     @click="reparseFailedKnowledge">
                     {{ $t('knowledgeBase.reparseFailedDocuments') }}
+                  </t-button>
+                  <t-button variant="outline" size="medium" theme="default" class="doc-download-kb-btn"
+                    :loading="downloadingKnowledgeBase" :disabled="batchDeleting || batchReparsing || batchDownloading || failedReparsing"
+                    @click="downloadCurrentKnowledgeBaseFiles">
+                    <template #icon><t-icon name="download" size="16px" /></template>
+                    {{ $t('knowledgeBase.downloadKnowledgeBaseDocuments') }}
                   </t-button>
                   <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
                     :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
@@ -2315,8 +2412,10 @@ async function createNewSession(value: string): Promise<void> {
               </div>
               <div class="doc-batch-bar-anchor" v-show="batchMode || selectedIds.size > 0">
                 <DocumentBatchBar :count="selectedIds.size" :delete-loading="batchDeleting"
-                  :reparse-loading="batchReparsing" :visible="batchMode || selectedIds.size > 0"
-                  @cancel="handleBatchCancel" @delete="confirmBatchDelete" @reparse="confirmBatchReparse" />
+                  :reparse-loading="batchReparsing" :download-loading="batchDownloading"
+                  :visible="batchMode || selectedIds.size > 0"
+                  @cancel="handleBatchCancel" @delete="confirmBatchDelete" @reparse="confirmBatchReparse"
+                  @download="confirmBatchDownload" />
               </div>
             </div>
           </div>
@@ -2853,7 +2952,8 @@ async function createNewSession(value: string): Promise<void> {
     align-items: center;
     gap: 8px;
 
-    .doc-reparse-failed-btn {
+    .doc-reparse-failed-btn,
+    .doc-download-kb-btn {
       height: 32px;
       white-space: nowrap;
     }
