@@ -1,4 +1,4 @@
-# LexAI 用户使用指南
+# ChatSwitch法律小助手用户使用指南
 
 本文面向普通使用者，说明如何创建知识库、配置模型和解析能力、上传文档、重新解析、下载文档，以及在对话中使用知识库引用。部署、并发和模型资源配置属于管理员工作，见 [部署说明](README.md)、[部署模板说明](deploy-template/README.md)、[并发配置说明](deploy-template/CONCURRENCY.md) 和 [法律知识图谱配置](legal-knowledge-graph-config.md)。
 
