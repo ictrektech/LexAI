@@ -107,6 +107,14 @@ func (s *processSyncKBService) GetRepository() interfaces.KnowledgeBaseRepositor
 func (s *processSyncKBService) ProcessKBDelete(context.Context, *asynq.Task) error {
 	return nil
 }
+func (s *processSyncKBService) CancelDisabledFeatureTasks(
+	context.Context, *types.KnowledgeBase, bool, bool,
+) error {
+	return nil
+}
+func (s *processSyncKBService) RecoverEnabledMultimodalTasks(context.Context, *types.KnowledgeBase) (int, error) {
+	return 0, nil
+}
 
 var _ interfaces.KnowledgeBaseService = (*processSyncKBService)(nil)
 

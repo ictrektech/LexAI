@@ -117,7 +117,9 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=2
 
 Asynq 采用严格优先级：`critical` > `parse` > `default` > `multimodal` > `question` > `graph` / `low`。`WEKNORA_ASYNQ_QUEUE_*` 仍作为优先级数值使用，但不是每队列并发上限。在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径和 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 保证。文档入库主解析和批量重新解析调度走 `parse` 队列，确保新上传文档先完成文字解析、分块、向量化和可检索状态；VLM/OCR 图片多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph 抽取走 `graph` 队列，Wiki ingest 走 `low` 队列，作为解析后的后台增强慢慢补齐。
 
-部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 `failed`、`pending`、`processing`、`finalizing` 状态的知识重新提交到批量重解析任务。启动扫描本身走 `critical` 队列，避免排在旧 `parse` 任务后面；每条知识真正重新解析前会先清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 `parse` 队列。所以它仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 `failed`、`pending`、`processing` 状态的知识重新提交到批量重解析任务；`finalizing` 只有在 `processed_at is null` 时才会整篇重解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的 `finalizing` 文档不会被整篇重跑，避免重复 docreader、分块和 embedding。启动扫描本身走 `critical` 队列，避免排在旧 `parse` 任务后面；每条知识真正重新解析前会先清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 `parse` 队列。所以它仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
+
+启动扫描还会按知识库当前配置清理已关闭功能的后台任务：如果知识库关闭了多模态识别，会删除/取消该知识库未完成的 VLM/OCR 多模态任务；如果关闭了知识图谱，会删除/取消未完成的 Graph 抽取任务。已经完成的识别和图谱结果保留。以后重新打开多模态识别时，app 会自动检查该知识库中已经完成文字解析、但最新 attempt 的 `multimodal` 阶段为 `skipped`、`cancelled` 或 `failed` 的文档，从文本 chunk 里的图片链接补发 `image:multimodal` 任务，不重跑全文解析。Graph 重新打开后仍按重新解析或后续专门恢复入口补跑。
 
 小机器上不要把 Graph 和 Question 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。
 

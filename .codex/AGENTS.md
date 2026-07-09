@@ -31,6 +31,12 @@ These repository-wide instructions apply to AI coding agents working in this che
 - Document the practical usage difference: commands, configuration keys, environment variables, API behavior, deployment steps, migration notes, or screenshots/examples when they are part of the changed workflow.
 - If no appropriate README exists, either create one in the affected submodule or explicitly tell the user why no README update was made.
 
+## Evidence Before Claims
+
+- Do not guess runtime causes from symptoms when a live repository, database, queue, log, or container state can answer the question.
+- Before saying a deployment, task, queue, model, feature flag, or UI behavior is working, inspect the current target state and report the concrete evidence used.
+- If evidence is not available yet, say that it is not verified instead of presenting an inference as fact.
+
 ## Instruction Maintenance
 
 - Keep this `.codex/` directory tracked in git. Do not add it to `.gitignore`.
