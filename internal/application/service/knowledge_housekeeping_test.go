@@ -258,6 +258,39 @@ func TestHousekeeping_PromotesDrainedFinalizing(t *testing.T) {
 	assert.Empty(t, errorMessage)
 }
 
+func TestHousekeeping_PreservesDrainedFinalizingWithOpenSpan(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	insertKnowledge(t, db, "kid-open-mm", types.ParseStatusFinalizing, time.Now().Add(-3*time.Hour))
+	insertSpan(t, db, "kid-open-mm", 1, "mm-1", types.SpanStatusRunning, time.Now())
+
+	svc.runSweep(context.Background())
+
+	var status string
+	require.NoError(t, db.Raw(
+		`SELECT parse_status FROM knowledges WHERE id = ?`, "kid-open-mm",
+	).Row().Scan(&status))
+	assert.Equal(t, types.ParseStatusFinalizing, status,
+		"open multimodal/postprocess span means the work is still valid, not drained")
+}
+
+func TestHousekeeping_PreservesDrainedFinalizingWithQueuedTask(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
+		queued: map[string]bool{"kid-queued-mm": true},
+	})
+	insertKnowledge(t, db, "kid-queued-mm", types.ParseStatusFinalizing, time.Now().Add(-3*time.Hour))
+
+	svc.runSweep(context.Background())
+
+	var status string
+	require.NoError(t, db.Raw(
+		`SELECT parse_status FROM knowledges WHERE id = ?`, "kid-queued-mm",
+	).Row().Scan(&status))
+	assert.Equal(t, types.ParseStatusFinalizing, status,
+		"queued task without an open span is still valid work and must not be swept")
+}
+
 func TestHousekeeping_RecoversDrainedSummary(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcForTest(db)
@@ -294,6 +327,47 @@ func TestHousekeeping_PreservesQueuedSummary(t *testing.T) {
 	).Row().Scan(&summaryStatus))
 	assert.Equal(t, types.SummaryStatusPending, summaryStatus,
 		"summary rows with queued subtasks must be left for the worker")
+}
+
+func TestHousekeeping_PreservesDrainedSummaryWithOpenSpan(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	require.NoError(t, db.Exec(
+		`INSERT INTO knowledges (id, parse_status, summary_status, pending_subtasks_count, updated_at)
+		 VALUES (?, ?, ?, 0, ?)`,
+		"kid-summary-open", types.ParseStatusCompleted, types.SummaryStatusPending, time.Now(),
+	).Error)
+	insertSpan(t, db, "kid-summary-open", 1, "mm-1", types.SpanStatusRunning, time.Now())
+
+	svc.runSweep(context.Background())
+
+	var summaryStatus string
+	require.NoError(t, db.Raw(
+		`SELECT summary_status FROM knowledges WHERE id = ?`, "kid-summary-open",
+	).Row().Scan(&summaryStatus))
+	assert.Equal(t, types.SummaryStatusPending, summaryStatus,
+		"open current-attempt span means the summary state must not be swept as drained")
+}
+
+func TestHousekeeping_PreservesDrainedSummaryWithQueuedTask(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
+		queued: map[string]bool{"kid-summary-queued-no-span": true},
+	})
+	require.NoError(t, db.Exec(
+		`INSERT INTO knowledges (id, parse_status, summary_status, pending_subtasks_count, updated_at)
+		 VALUES (?, ?, ?, 0, ?)`,
+		"kid-summary-queued-no-span", types.ParseStatusCompleted, types.SummaryStatusPending, time.Now(),
+	).Error)
+
+	svc.runSweep(context.Background())
+
+	var summaryStatus string
+	require.NoError(t, db.Raw(
+		`SELECT summary_status FROM knowledges WHERE id = ?`, "kid-summary-queued-no-span",
+	).Row().Scan(&summaryStatus))
+	assert.Equal(t, types.SummaryStatusPending, summaryStatus,
+		"queued summary work must not be swept just because no span has started yet")
 }
 
 // TestHousekeeping_QueueProbeError_FailsSafe confirms the fail-safe

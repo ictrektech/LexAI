@@ -194,7 +194,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署脚本还会默认重建 `docreader` 容器，但不会重新构建 docreader 镜像；这是为了让常驻解析进程在每次部署/重启后从干净状态开始。随后脚本会重建 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready，并运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，即使只是 frontend-only 或配置更新，也会自动把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 
-后台 housekeeping 每 5 分钟还会清理已经没有待完成子任务的残留状态：`finalizing + pending_subtasks_count=0` 会自动推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」；`completed + pending_subtasks_count=0 + summary_status in (pending, processing)` 会把摘要状态标记为 `failed`，避免没有摘要任务可跑时页面长期显示「生成摘要中」。
+后台 housekeeping 每 5 分钟还会清理已经没有待完成工作的残留状态：`finalizing + pending_subtasks_count=0` 只有在最新 attempt 没有 `pending/running` span、并且 Asynq 队列里也没有该知识的 queued/active 任务时，才会推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。同理，`completed + pending_subtasks_count=0 + summary_status in (pending, processing)` 也只有在没有 open span 和 queued/active 任务时，才会把摘要状态标记为 `failed`，避免没有摘要任务可跑时页面长期显示「生成摘要中」。仍在排队或运行的多模态、Graph、Wiki、摘要任务不会被 housekeeping 清掉。
 
 ## Wiki/Graph 模型结论
 
