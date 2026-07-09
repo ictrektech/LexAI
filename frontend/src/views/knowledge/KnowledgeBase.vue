@@ -1111,6 +1111,7 @@ type KnowledgeCard = {
   title?: string;
   type?: string;
   updated_at?: string;
+  processed_at?: string;
   file_type?: string;
   isMore?: boolean;
   metadata?: any;
@@ -1158,7 +1159,8 @@ const updateStatus = (analyzeList: KnowledgeCard[]) => {
 
           if (cardList.value[index].parse_status !== parseStatus ||
             cardList.value[index].summary_status !== item.summary_status ||
-            cardList.value[index].description !== item.description) {
+            cardList.value[index].description !== item.description ||
+            cardList.value[index].processed_at !== item.processed_at) {
             shouldRefreshWikiStatus ||= shouldRefreshWikiStatusAfterKnowledgePoll(
               cardList.value[index],
               { ...item, parse_status: parseStatus },
@@ -1168,6 +1170,7 @@ const updateStatus = (analyzeList: KnowledgeCard[]) => {
             cardList.value[index].parse_status = parseStatus;
             cardList.value[index].summary_status = item.summary_status;
             cardList.value[index].description = item.description;
+            cardList.value[index].processed_at = item.processed_at;
             delete traceAvailableById[item.id];
             hasChanges = true;
           }

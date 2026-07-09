@@ -26,7 +26,9 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
   | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task'
 ```
 
-`deploy.sh` also runs `trigger-reparse-incomplete.sh` after compose is healthy. This covers frontend-only or config-only redeploys where the app startup hook would not run. By default the deploy script recreates `docreader`, waits for it to become healthy, recreates `app`, waits for model URLs in `WEKNORA_REPARSE_WAIT_URLS`, then submits current `failed` / `pending` / `processing` / `finalizing` knowledge rows through `POST /knowledge/batch-reparse`. Set `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping those steps.
+`deploy.sh` also runs `trigger-reparse-incomplete.sh` after compose is healthy. This covers frontend-only or config-only redeploys where the app startup hook would not run. By default the deploy script recreates `docreader`, waits for it to become healthy, recreates `app`, waits for model URLs in `WEKNORA_REPARSE_WAIT_URLS`, then submits current `failed` / `pending` / `processing` / `finalizing` knowledge rows through `POST /knowledge/batch-reparse`. This is a full-document retry, not a stage-only retry: it can repeat text parsing for documents whose text was already indexed. Set `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping those steps.
+
+Old trace attempts that still show `running` are historical rows after a newer attempt superseded them. Do not wait for old attempts; judge current progress by the latest attempt plus Asynq queue state. Stage-only recovery such as "rerun only multimodal" or "rerun only graph" requires a backend recovery entrypoint; do not describe shell-only deploys as stage-only recovery.
 
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.
 

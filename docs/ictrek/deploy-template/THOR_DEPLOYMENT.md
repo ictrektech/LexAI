@@ -114,7 +114,7 @@ done
 
 `.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true` and `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. After every app container recreate, LexAI waits for those model endpoints and then automatically resubmits `failed`, `pending`, `processing`, and `finalizing` knowledge rows to the batch reparse queue. This is part of the redeploy flow: model/vLLM restarts or interrupted Graph/Wiki/VLM work should recover without manual per-document retry.
 
-The deploy script also recreates `docreader` on every deploy by default. This does not rebuild the docreader image; it only replaces the running container so the long-lived parser process starts from a clean state. Then it recreates `app`, waits for health checks, waits for `WEKNORA_REPARSE_WAIT_URLS`, and runs `trigger-reparse-incomplete.sh` to submit current incomplete knowledge through `POST /knowledge/batch-reparse`. Keep this default on Thor. Use `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only for a deliberate maintenance skip.
+The deploy script also recreates `docreader` on every deploy by default. This does not rebuild the docreader image; it only replaces the running container so the long-lived parser process starts from a clean state. Then it recreates `app`, waits for health checks, waits for `WEKNORA_REPARSE_WAIT_URLS`, and runs `trigger-reparse-incomplete.sh` to submit current incomplete knowledge through `POST /knowledge/batch-reparse`. This is a full-document retry, not a stage-only retry: it can repeat text parsing for documents whose text was already indexed. Keep this default on Thor until a backend stage-recovery API exists. Use `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only for a deliberate maintenance skip.
 
 The startup scan is intentionally submitted to the `critical` queue. The per-document retry still lands in `parse`, after stale queued/retry tasks for the same knowledge are removed. After every redeploy, verify the app startup hook and the deploy-script reparse trigger from logs:
 
@@ -122,6 +122,8 @@ The startup scan is intentionally submitted to the `critical` queue. The per-doc
 docker logs --since 5m lexai-thor-app-1 2>&1 \
   | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task|Batch knowledge reparse'
 ```
+
+Old trace attempts that still show `running` are historical rows after a newer attempt superseded them. Do not wait for old attempts; judge current progress by the latest attempt plus Asynq queue state. Stage-only recovery such as "rerun only multimodal" or "rerun only graph" requires a backend recovery entrypoint; do not describe shell-only deploys as stage-only recovery.
 
 The deployed and verified 81 plan uses these model roles:
 
