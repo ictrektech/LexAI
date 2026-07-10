@@ -92,11 +92,13 @@ RUN set -eux; \
         arm64) docker_arch="aarch64" ;; \
         *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_VERSION}.tgz" -o /tmp/docker.tgz; \
+    curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_VERSION}.tgz" -o /tmp/docker.tgz; \
     tar -xzf /tmp/docker.tgz -C /tmp; \
     mv /tmp/docker/docker /usr/local/bin/docker; \
     mkdir -p /usr/local/lib/docker/cli-plugins; \
-    curl -fsSL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    compose_url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}"; \
+    curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
+        curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
     chmod +x /usr/local/bin/docker /usr/local/lib/docker/cli-plugins/docker-compose; \
     rm -rf /tmp/docker /tmp/docker.tgz
 
