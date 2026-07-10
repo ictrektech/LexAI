@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_URL="${LEXAI_DEPLOY_REPO:-https://github.com/ictrektech/LexAI.git}"
 REPO_REF="${LEXAI_DEPLOY_REF:-main}"
+CLONE_TIMEOUT_SECONDS="${LEXAI_DEPLOY_CLONE_TIMEOUT_SECONDS:-60}"
 PLATFORM="${PLATFORM:-}"
 DRY_RUN=0
 CHECK_ONLY=0
@@ -19,6 +20,7 @@ script. Intended for a future "update deployment" web button.
 Environment:
   LEXAI_DEPLOY_REPO  Git repo to pull from, default https://github.com/ictrektech/LexAI.git
   LEXAI_DEPLOY_REF   Git ref to pull, default main
+  LEXAI_DEPLOY_CLONE_TIMEOUT_SECONDS  Clone timeout, default 60
   PLATFORM           Alternative to --platform
 EOF
 }
@@ -48,13 +50,13 @@ clone_repo() {
   local ref="$2"
   local dest="$3"
   local fast
-  if git clone --quiet --filter=blob:none --sparse --depth 1 --branch "$ref" "$url" "$dest"; then
+  if timeout "$CLONE_TIMEOUT_SECONDS" git clone --quiet --filter=blob:none --sparse --depth 1 --branch "$ref" "$url" "$dest"; then
     return 0
   fi
   fast="$(ghfast_url "$url")"
   [[ -n "$fast" ]] || return 1
   log "normal GitHub clone failed; retrying via ghfast.top"
-  git clone --quiet --filter=blob:none --sparse --depth 1 --branch "$ref" "$fast" "$dest"
+  timeout "$CLONE_TIMEOUT_SECONDS" git clone --quiet --filter=blob:none --sparse --depth 1 --branch "$ref" "$fast" "$dest"
 }
 
 deploy_args=()
