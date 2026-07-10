@@ -13,6 +13,26 @@ Thor uses its dedicated script:
 ./deploy-thor.sh
 ```
 
+For an existing deployment, use the one-step updater from the deploy directory:
+
+```bash
+./update-and-deploy.sh --platform thor
+./update-and-deploy.sh --platform amd
+./update-and-deploy.sh --platform l4t
+```
+
+It pulls the latest `docs/ictrek` from `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF`,
+syncs `deploy-template` into the current directory while preserving local
+`.env`, `.env.tc232`, and `.env.thor`, then runs the matching deploy script to
+look up the latest Feishu image tags and recreate services.
+
+If deployment files are unchanged and the pulled image digests match the
+running containers, the updater exits without recreating anything. When an
+update is needed, it only recreates managed LexAI/model services; database
+services such as Postgres, Redis, and Neo4j are intentionally excluded. If a
+vLLM model service is recreated, the follow-up reparse step waits for the model
+URLs in `WEKNORA_REPARSE_WAIT_URLS` before submitting unfinished work.
+
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
@@ -35,7 +55,7 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
   | grep -E 'startup-reparse|Start re-parsing knowledge|Enqueued reparse task'
 ```
 
-`deploy.sh` also runs `trigger-reparse-incomplete.sh` after compose is healthy. This covers frontend-only or config-only redeploys where the app startup hook would not run. By default the deploy script recreates `docreader`, waits for it to become healthy, recreates `app`, waits for model URLs in `WEKNORA_REPARSE_WAIT_URLS`, then submits current `failed` / `pending` / `processing` knowledge rows, plus `finalizing` rows whose `processed_at is null`, through `POST /knowledge/batch-reparse`. This is a full-document retry for genuinely unfinished text parsing, not a stage-only retry for documents whose text has already been indexed. Set `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` or `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping those steps.
+`deploy.sh` also runs `trigger-reparse-incomplete.sh` after affected services are healthy. This covers app, docreader, model, or config redeploys where unfinished parsing must recover after the new service set is ready. The deploy script recreates `docreader` only when the docreader image or deployment config changed, waits for changed health-checked services, waits for model URLs in `WEKNORA_REPARSE_WAIT_URLS`, then submits current `failed` / `pending` / `processing` knowledge rows, plus `finalizing` rows whose `processed_at is null`, through `POST /knowledge/batch-reparse`. This is a full-document retry for genuinely unfinished text parsing, not a stage-only retry for documents whose text has already been indexed. Set `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping that recovery step.
 
 Housekeeping runs every 5 minutes in the app container. It only treats a row as drained when `pending_subtasks_count=0`, the latest attempt has no `pending/running` span, and Asynq has no queued/active task for that knowledge. Only then does it promote `finalizing` rows to `completed`, or mark drained `summary_status=pending/processing` rows as `failed` when the knowledge row is already `completed`. Valid queued or running multimodal, Graph, Wiki, summary, or question tasks are not cleaned.
 

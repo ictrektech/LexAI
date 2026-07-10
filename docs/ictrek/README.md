@@ -109,6 +109,18 @@ cd /data/jhu/lexai-deploy
 ./deploy.sh --platform amd --dry-run
 ```
 
+已有部署目录的一键更新：
+
+```bash
+./update-and-deploy.sh --platform thor
+./update-and-deploy.sh --platform amd
+./update-and-deploy.sh --platform l4t
+```
+
+[update-and-deploy.sh](deploy-template/update-and-deploy.sh) 会从 `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF` 拉取最新 `docs/ictrek`，把其中的 `deploy-template` 同步到当前部署目录，但保留本机 `.env`、`.env.tc232`、`.env.thor`，然后调用对应部署脚本读取飞书最新镜像并替换部署。该脚本是后续网站“一键更新”按钮应调用的入口。
+
+它会 `docker pull` 飞书表格解析出的镜像并比较本地运行容器的 image digest；部署文件和镜像 digest 都没变化时直接返回“无需更新”，不会重建容器。需要替换时只处理受管 LexAI / model_hub / vLLM / ollama 服务，不重启 Postgres、Redis、Neo4j 等数据库服务；如果替换了 vLLM 模型服务，会在触发未完成解析前等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型接口可用。
+
 tc232 专用部署：
 
 ```bash
@@ -192,7 +204,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing` 的知识条目；`finalizing` 只有在 `processed_at is null` 时才会整篇重新解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会重复跑 docreader、分块和 embedding。启动扫描走 `critical` 队列，每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
 
-部署脚本还会默认重建 `docreader` 容器，但不会重新构建 docreader 镜像；这是为了让常驻解析进程在每次部署/重启后从干净状态开始。随后脚本会重建 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready，并运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，即使只是 frontend-only 或配置更新，也会自动把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
+部署脚本只重建镜像 digest 或部署配置发生变化的受管服务，不重启 Postgres、Redis、Neo4j 等数据库服务。`docreader` 只有在 docreader 镜像或部署配置变化时才重建；`app` 变化时等待 app health；vLLM 变化时等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready。随后脚本运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 
 后台 housekeeping 每 5 分钟还会清理已经没有待完成工作的残留状态：`finalizing + pending_subtasks_count=0` 只有在最新 attempt 没有 `pending/running` span、并且 Asynq 队列里也没有该知识的 queued/active 任务时，才会推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。同理，`completed + pending_subtasks_count=0 + summary_status in (pending, processing)` 也只有在没有 open span 和 queued/active 任务时，才会把摘要状态标记为 `failed`，避免没有摘要任务可跑时页面长期显示「生成摘要中」。仍在排队或运行的多模态、Graph、Wiki、摘要任务不会被 housekeeping 清掉。
 
@@ -338,7 +350,7 @@ rsync -az docs/ictrek/deploy-template/config/ \
 ```bash
 ssh tc232
 cd /data/jhu/lexai-tc232-deploy
-./deploy-tc232.sh
+./update-and-deploy.sh --platform amd
 ```
 
 如果 tag 没变但镜像 digest 变了，强制重建 LexAI 三个容器：
@@ -382,7 +394,7 @@ rsync -az docs/ictrek/deploy-template/config/ \
 ```bash
 ssh ictrek@192.168.1.81
 cd /home/ictrek/lexai-thor-deploy
-./deploy-thor.sh
+./update-and-deploy.sh --platform thor
 ```
 
 如果只更新 LexAI 前端或后端镜像，按需强制重建对应服务：

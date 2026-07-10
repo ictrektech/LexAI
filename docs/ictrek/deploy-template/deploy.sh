@@ -12,13 +12,15 @@ COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
 PLATFORM=""
 SHEET_TITLE=""
 DRY_RUN=0
+CONFIG_CHANGED="${LEXAI_DEPLOY_CONFIG_CHANGED:-0}"
 
 usage() {
   cat <<'EOF'
 Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--dry-run]
 
 Looks up the latest LexAI, model_hub, and ollama_server image tags in Feishu,
-writes them to .env, then runs docker compose up -d.
+writes them to .env, pulls the images, and recreates only managed services whose
+running image digest or deployment config changed.
 
 Environment:
   FEISHU_READ_CONFIG_FILE  Defaults to ~/.feishu.components.json for read-only lookup
@@ -26,6 +28,7 @@ Environment:
   FEISHU_SPREADSHEET_TOKEN Defaults to the ictrek release sheet token
   ENV_FILE                 Defaults to ./deploy-template/.env
   COMPOSE_FILE             Defaults to ./deploy-template/docker-compose.yml
+  LEXAI_DEPLOY_CONFIG_CHANGED=1 applies changed compose/config files without touching DB services
 EOF
 }
 
@@ -40,6 +43,38 @@ compose_has_service() {
   local service="$1"
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services \
     | grep -qx "$service"
+}
+
+service_cid() {
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
+}
+
+pull_image_if_needed() {
+  local image="$1"
+  log "pull ${image}"
+  docker pull "$image" >/dev/null
+}
+
+service_needs_image_update() {
+  local service="$1"
+  local image="$2"
+  local cid current target
+  compose_has_service "$service" || return 1
+  pull_image_if_needed "$image"
+  cid="$(service_cid "$service")"
+  target="$(docker image inspect "$image" --format '{{.Id}}')"
+  [[ -n "$cid" ]] || return 0
+  current="$(docker inspect "$cid" --format '{{.Image}}')"
+  [[ "$current" != "$target" ]]
+}
+
+append_service_once() {
+  local service="$1"
+  local existing
+  for existing in "${UPDATE_SERVICES[@]:-}"; do
+    [[ "$existing" == "$service" ]] && return 0
+  done
+  UPDATE_SERVICES+=("$service")
 }
 
 wait_service_healthy() {
@@ -376,21 +411,47 @@ write_env_value MODEL_HUB_FRONTEND_IMAGE "$MODEL_HUB_FRONTEND_IMAGE" "$ENV_FILE"
 write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
+UPDATE_SERVICES=()
+if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
+if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
+if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
+if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
+if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
+if service_needs_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
+if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
 
-if [[ "${WEKNORA_RECREATE_DOCREADER_ON_DEPLOY:-true}" != "false" ]] && compose_has_service docreader; then
-  log "recreating docreader to clear stale parser process state"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate docreader
-  wait_service_healthy docreader 180
-
-  if compose_has_service app; then
-    log "recreating app after docreader is healthy"
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate app
-    wait_service_healthy app 180
-  fi
+if [[ "$CONFIG_CHANGED" == "1" ]]; then
+  for service in frontend app docreader model-hub-frontend model-hub-backend model-hub-bootstrap model-hub-ollama qwen35-9b-vllm bge-m3-vllm; do
+    compose_has_service "$service" && append_service_once "$service"
+  done
 fi
 
-if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
+if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
+  log "no update needed: deploy files and pulled image digests match running containers"
+  exit 0
+fi
+
+log "updating services: ${UPDATE_SERVICES[*]}"
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
+
+if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]] && compose_has_service docreader; then
+  wait_service_healthy docreader 180
+fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] && compose_has_service app; then
+  wait_service_healthy app 180
+fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-backend "* ]] && compose_has_service model-hub-backend; then
+  wait_service_healthy model-hub-backend 180
+fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-ollama "* ]] && compose_has_service model-hub-ollama; then
+  wait_service_healthy model-hub-ollama 180
+fi
+
+if [[ " ${UPDATE_SERVICES[*]} " == *" qwen35-9b-vllm "* || " ${UPDATE_SERVICES[*]} " == *" bge-m3-vllm "* ]]; then
+  log "model service changed; waiting for model readiness before reparse"
+fi
+
+if [[ (" ${UPDATE_SERVICES[*]} " == *" app "* || " ${UPDATE_SERVICES[*]} " == *" docreader "* || " ${UPDATE_SERVICES[*]} " == *" qwen35-9b-vllm "* || " ${UPDATE_SERVICES[*]} " == *" bge-m3-vllm "* || "$CONFIG_CHANGED" == "1") && "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
   log "triggering full-document reparse for incomplete knowledge"
   ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
 fi
