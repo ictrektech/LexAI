@@ -79,11 +79,15 @@ services:
       WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models}
       WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
       WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+      WEKNORA_DEPLOY_UPDATER_CONTAINER: ${DEPLOY_UPDATER_CONTAINER:-lexai-thor-deploy-updater}
+      WEKNORA_DEPLOY_PLATFORM: thor
+      WEKNORA_RUN_AS_ROOT: "true"
     volumes:
       - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/files:/data/files
       - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/docreader:/tmp/docreader:ro
       - ./config/builtin_models.thor.yaml:/app/config/builtin_models.yaml:ro
       - ./config/legal_graph_preset.json:/app/config/legal_graph_preset.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -105,6 +109,22 @@ services:
         condition: service_started
       qwen35-9b-vllm:
         condition: service_started
+    networks:
+      - lexai
+    restart: unless-stopped
+
+  deploy-updater:
+    image: ${LEXAI_APP_IMAGE:?set LEXAI_APP_IMAGE in .env.thor}
+    container_name: ${DEPLOY_UPDATER_CONTAINER:-lexai-thor-deploy-updater}
+    entrypoint: ["bash", "-lc", "sleep infinity"]
+    environment:
+      FEISHU_CONFIG_FILE: /root/.feishu.json
+      FEISHU_READ_CONFIG_FILE: /root/.feishu.components.json
+      WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE: "true"
+    volumes:
+      - ./:/lexai-deploy
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${FEISHU_CONFIG_HOST_FILE:-/home/ictrek/.feishu.json}:/root/.feishu.json:ro
     networks:
       - lexai
     restart: unless-stopped

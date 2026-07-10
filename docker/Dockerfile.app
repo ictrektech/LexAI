@@ -53,6 +53,9 @@ FROM debian:12.12-slim
 WORKDIR /app
 
 ARG APK_MIRROR_ARG
+ARG TARGETARCH
+ARG DOCKER_VERSION=28.5.2
+ARG DOCKER_COMPOSE_VERSION=v2.40.3
 
 # Create a non-root user first
 RUN useradd -m -s /bin/bash appuser
@@ -68,7 +71,7 @@ RUN if [ -n "$APK_MIRROR_ARG" ]; then \
     fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        build-essential postgresql-client default-mysql-client tzdata sed curl bash vim wget \
+        build-essential postgresql-client default-mysql-client tzdata sed curl bash vim wget git rsync \
         libsqlite3-0 \
         python3 python3-pip python3-dev libffi-dev libssl-dev \
         nodejs npm \
@@ -82,6 +85,20 @@ RUN if [ -n "$APK_MIRROR_ARG" ]; then \
     chmod +x /usr/local/bin/uvx && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+        amd64) docker_arch="x86_64" ;; \
+        arm64) docker_arch="aarch64" ;; \
+        *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_VERSION}.tgz" -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /tmp; \
+    mv /tmp/docker/docker /usr/local/bin/docker; \
+    mkdir -p /usr/local/lib/docker/cli-plugins; \
+    curl -fsSL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    chmod +x /usr/local/bin/docker /usr/local/lib/docker/cli-plugins/docker-compose; \
+    rm -rf /tmp/docker /tmp/docker.tgz
 
 # Create data directories and set permissions
 RUN mkdir -p /data/files && \

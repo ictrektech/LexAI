@@ -39,14 +39,22 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
+docker_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
+
 compose_has_service() {
   local service="$1"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services \
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services \
     | grep -qx "$service"
 }
 
 service_cid() {
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
 }
 
 pull_image_if_needed() {
@@ -81,7 +89,7 @@ wait_service_healthy() {
   local service="$1"
   local timeout="${2:-180}"
   local cid status deadline
-  cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
+  cid="$(docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
   [[ -n "$cid" ]] || die "service not running: $service"
 
   if ! docker inspect "$cid" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' >/dev/null 2>&1; then
@@ -419,11 +427,15 @@ if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; th
 if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
 if service_needs_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
 if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
+if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
 
 if [[ "$CONFIG_CHANGED" == "1" ]]; then
   for service in frontend app docreader model-hub-frontend model-hub-backend model-hub-bootstrap model-hub-ollama qwen35-9b-vllm bge-m3-vllm; do
     compose_has_service "$service" && append_service_once "$service"
   done
+  if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && compose_has_service deploy-updater; then
+    append_service_once deploy-updater
+  fi
 fi
 
 if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
@@ -432,7 +444,7 @@ if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
 fi
 
 log "updating services: ${UPDATE_SERVICES[*]}"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
+docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
 
 if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]] && compose_has_service docreader; then
   wait_service_healthy docreader 180

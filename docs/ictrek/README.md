@@ -121,6 +121,8 @@ cd /data/jhu/lexai-deploy
 
 它会 `docker pull` 飞书表格解析出的镜像并比较本地运行容器的 image digest；部署文件和镜像 digest 都没变化时直接返回“无需更新”，不会重建容器。需要替换时只处理受管 LexAI / model_hub / vLLM / ollama 服务，不重启 Postgres、Redis、Neo4j 等数据库服务；如果替换了 vLLM 模型服务，会在触发未完成解析前等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型接口可用。
 
+界面上的“检查并更新部署”按钮通过 `WEKNORA_DEPLOY_UPDATER_CONTAINER` 固定调用 `deploy-updater` sidecar，不接收前端传入的脚本路径、compose 文件或服务名，避免匹配错容器。sidecar 使用当前部署目录的 `/lexai-deploy/update-and-deploy.sh`，日志写入部署目录的 `update-and-deploy.log`。确保 `.env*` 里的 `DEPLOY_UPDATER_CONTAINER` 唯一，`FEISHU_CONFIG_HOST_FILE` 指向宿主机可读的飞书凭据文件。
+
 tc232 专用部署：
 
 ```bash

@@ -33,6 +33,15 @@ services such as Postgres, Redis, and Neo4j are intentionally excluded. If a
 vLLM model service is recreated, the follow-up reparse step waits for the model
 URLs in `WEKNORA_REPARSE_WAIT_URLS` before submitting unfinished work.
 
+The system-info page update button does not run arbitrary host commands. The
+app container only starts the fixed `deploy-updater` sidecar named by
+`DEPLOY_UPDATER_CONTAINER`; that sidecar mounts the deploy directory at
+`/lexai-deploy`, mounts `/var/run/docker.sock`, and runs
+`/lexai-deploy/update-and-deploy.sh`. Progress is appended to
+`update-and-deploy.log` in the deploy directory. Keep
+`FEISHU_CONFIG_HOST_FILE` pointed at the host Feishu credential file used for
+image lookup.
+
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
