@@ -66,7 +66,10 @@ pull_image_if_needed() {
 
 remote_image_digest() {
   local image="$1"
-  docker manifest inspect "$image" 2>/dev/null | python3 -c '
+  local manifest
+  manifest="$(docker manifest inspect "$image" 2>/dev/null || true)"
+  [[ -n "$manifest" ]] || return 0
+  printf '%s' "$manifest" | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
 digest = data.get("Descriptor", {}).get("digest") or data.get("config", {}).get("digest") or ""
@@ -86,13 +89,26 @@ running_image_digest() {
   echo "${repo_digest##*@}"
 }
 
+running_image_ref() {
+  local service="$1"
+  local cid
+  cid="$(service_cid "$service")"
+  [[ -n "$cid" ]] || return 0
+  docker inspect "$cid" --format '{{.Config.Image}}' 2>/dev/null || true
+}
+
 service_needs_remote_image_update() {
   local service="$1"
   local image="$2"
-  local cid remote current
+  local cid current_ref remote current
   compose_has_service "$service" || return 1
   cid="$(service_cid "$service")"
   [[ -n "$cid" ]] || return 0
+  current_ref="$(running_image_ref "$service")"
+  if [[ -n "$current_ref" && "$current_ref" != "$image" ]]; then
+    log "service ${service} image changed: ${current_ref} -> ${image}"
+    return 0
+  fi
   remote="$(remote_image_digest "$image")"
   current="$(running_image_digest "$service")"
   [[ -n "$remote" && -n "$current" ]] || return 0

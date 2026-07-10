@@ -75,12 +75,12 @@ export interface DeployUpdateCheckResult {
 }
 
 export async function checkDeployUpdate(): Promise<DeployUpdateCheckResult> {
-  const response = await get('/api/v1/system/admin/deploy/update/check')
+  const response = await get('/api/v1/system/admin/deploy/update/check', { timeout: 6 * 60 * 1000 })
   return response as unknown as DeployUpdateCheckResult
 }
 
 export async function runDeployUpdate(): Promise<DeployUpdateResult> {
-  const response = await post('/api/v1/system/admin/deploy/update')
+  const response = await post('/api/v1/system/admin/deploy/update', {}, { timeout: 60 * 1000 })
   return response as unknown as DeployUpdateResult
 }
 
