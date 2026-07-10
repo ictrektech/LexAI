@@ -66,6 +66,19 @@ export interface DeployUpdateResult {
   duration: string
 }
 
+export interface DeployUpdateCheckResult {
+  update_available: boolean
+  config_changed: boolean
+  services: string[]
+  output: string
+  duration: string
+}
+
+export async function checkDeployUpdate(): Promise<DeployUpdateCheckResult> {
+  const response = await get('/api/v1/system/admin/deploy/update/check')
+  return response as unknown as DeployUpdateCheckResult
+}
+
 export async function runDeployUpdate(): Promise<DeployUpdateResult> {
   const response = await post('/api/v1/system/admin/deploy/update')
   return response as unknown as DeployUpdateResult

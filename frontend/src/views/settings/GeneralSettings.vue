@@ -149,18 +149,6 @@
         </template>
       </t-alert>
 
-      <!-- 自动下载更新开关 (Lite edition only) -->
-      <div class="setting-row" v-if="authStore.isLiteMode">
-        <div class="setting-info">
-          <label>{{ $t('settings.autoCheckUpdate') }}</label>
-          <p class="desc">{{ $t('settings.autoCheckUpdateDesc') }}</p>
-        </div>
-        <div class="setting-control">
-          <t-switch
-            v-model="isAutoCheckUpdateEnabled"
-          />
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -170,7 +158,6 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/settings'
-import { useAuthStore } from '@/stores/auth'
 import { getSystemInfo } from '@/api/system'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import {
@@ -186,7 +173,6 @@ import {
 
 const { t, locale } = useI18n()
 const settingsStore = useSettingsStore()
-const authStore = useAuthStore()
 const { currentTheme, setTheme } = useTheme()
 const {
   currentSans,
@@ -243,21 +229,6 @@ const isNeo4jAvailable = computed(() => {
 // 触发路径统一走 @change → handleMemoryChange，避免 v-model setter 二次调用）。
 const isMemoryEnabled = computed(() => settingsStore.isMemoryEnabled)
 const memorySaving = ref(false)
-
-// 自动检查更新状态
-const isAutoCheckUpdateEnabled = computed({
-  get: () => settingsStore.isAutoCheckUpdateEnabled,
-  set: (val) => {
-    settingsStore.toggleAutoCheckUpdate(val)
-    if (val) {
-      // @ts-ignore
-      if (window.go && window.go.main && window.go.main.App && window.go.main.App.AutoCheckForUpdates) {
-        // @ts-ignore
-        window.go.main.App.AutoCheckForUpdates()
-      }
-    }
-  }
-})
 
 // 初始化加载
 onMounted(async () => {

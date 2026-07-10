@@ -220,25 +220,100 @@ type RunDeployUpdateResponse struct {
 	Duration string `json:"duration"`
 }
 
+type CheckDeployUpdateResponse struct {
+	UpdateAvailable bool     `json:"update_available"`
+	ConfigChanged   bool     `json:"config_changed"`
+	Services        []string `json:"services"`
+	Output          string   `json:"output"`
+	Duration        string   `json:"duration"`
+}
+
+func deployUpdateTargetFromEnv() (container, platform string, err error) {
+	container = strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_UPDATER_CONTAINER"))
+	platform = strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_PLATFORM"))
+	if container == "" {
+		return "", "", errors.New("WEKNORA_DEPLOY_UPDATER_CONTAINER is not configured")
+	}
+	if platform == "" {
+		return "", "", errors.New("WEKNORA_DEPLOY_PLATFORM is not configured")
+	}
+	switch platform {
+	case "amd", "l4t", "thor":
+		return container, platform, nil
+	default:
+		return "", "", errors.New("unsupported WEKNORA_DEPLOY_PLATFORM")
+	}
+}
+
+func parseDeployCheckOutput(output string) (available bool, configChanged bool, services []string) {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "UPDATE_AVAILABLE=1":
+			available = true
+		case line == "CONFIG_CHANGED=1":
+			configChanged = true
+		case strings.HasPrefix(line, "UPDATE_SERVICES="):
+			raw := strings.TrimSpace(strings.TrimPrefix(line, "UPDATE_SERVICES="))
+			if raw != "" {
+				services = strings.Fields(raw)
+			}
+		}
+	}
+	if configChanged {
+		available = true
+	}
+	return available, configChanged, services
+}
+
+// CheckDeployUpdate runs the deployment updater in read-only mode and returns
+// the concrete managed services/config state that would change.
+func (h *SystemHandler) CheckDeployUpdate(c *gin.Context) {
+	ctx := logger.CloneContext(c.Request.Context())
+	container, platform, err := deployUpdateTargetFromEnv()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	timeout := 5 * time.Minute
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	start := time.Now()
+	script := fmt.Sprintf(`cd /lexai-deploy && ./update-and-deploy.sh --platform %s --check-only`, platform)
+	cmd := exec.CommandContext(runCtx, "docker", "exec", container, "bash", "-lc", script)
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+	if len(output) > 12000 {
+		output = output[len(output)-12000:]
+	}
+	if runCtx.Err() == context.DeadlineExceeded {
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "deployment update check timed out", "output": output})
+		return
+	}
+	if err != nil {
+		logger.Errorf(ctx, "deployment update check failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "output": output})
+		return
+	}
+	available, configChanged, services := parseDeployCheckOutput(output)
+	c.JSON(http.StatusOK, CheckDeployUpdateResponse{
+		UpdateAvailable: available,
+		ConfigChanged:   configChanged,
+		Services:        services,
+		Output:          output,
+		Duration:        time.Since(start).Round(time.Second).String(),
+	})
+}
+
 // RunDeployUpdate starts the fixed deploy-updater sidecar. It intentionally
 // accepts no command or service names from the client; the script owns compose
 // project/service selection.
 func (h *SystemHandler) RunDeployUpdate(c *gin.Context) {
 	ctx := logger.CloneContext(c.Request.Context())
-	container := strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_UPDATER_CONTAINER"))
-	platform := strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_PLATFORM"))
-	if container == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "WEKNORA_DEPLOY_UPDATER_CONTAINER is not configured"})
-		return
-	}
-	if platform == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "WEKNORA_DEPLOY_PLATFORM is not configured"})
-		return
-	}
-	switch platform {
-	case "amd", "l4t", "thor":
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported WEKNORA_DEPLOY_PLATFORM"})
+	container, platform, err := deployUpdateTargetFromEnv()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

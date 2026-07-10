@@ -12,11 +12,12 @@ COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
 PLATFORM=""
 SHEET_TITLE=""
 DRY_RUN=0
+CHECK_ONLY=0
 CONFIG_CHANGED="${LEXAI_DEPLOY_CONFIG_CHANGED:-0}"
 
 usage() {
   cat <<'EOF'
-Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--dry-run]
+Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--check-only] [--dry-run]
 
 Looks up the latest LexAI, model_hub, and ollama_server image tags in Feishu,
 writes them to .env, pulls the images, and recreates only managed services whose
@@ -61,6 +62,41 @@ pull_image_if_needed() {
   local image="$1"
   log "pull ${image}"
   docker pull "$image" >/dev/null
+}
+
+remote_image_digest() {
+  local image="$1"
+  docker manifest inspect "$image" 2>/dev/null | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+digest = data.get("Descriptor", {}).get("digest") or data.get("config", {}).get("digest") or ""
+print(digest)
+'
+}
+
+running_image_digest() {
+  local service="$1"
+  local cid image repo_digest
+  cid="$(service_cid "$service")"
+  [[ -n "$cid" ]] || return 0
+  image="$(docker inspect "$cid" --format '{{.Config.Image}}' 2>/dev/null || true)"
+  [[ -n "$image" ]] || return 0
+  repo_digest="$(docker image inspect "$image" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | head -n 1 || true)"
+  [[ -n "$repo_digest" ]] || return 0
+  echo "${repo_digest##*@}"
+}
+
+service_needs_remote_image_update() {
+  local service="$1"
+  local image="$2"
+  local cid remote current
+  compose_has_service "$service" || return 1
+  cid="$(service_cid "$service")"
+  [[ -n "$cid" ]] || return 0
+  remote="$(remote_image_digest "$image")"
+  current="$(running_image_digest "$service")"
+  [[ -n "$remote" && -n "$current" ]] || return 0
+  [[ "$remote" != "$current" ]]
 }
 
 service_needs_image_update() {
@@ -362,6 +398,10 @@ while [[ $# -gt 0 ]]; do
       COMPOSE_FILE="$2"
       shift 2
       ;;
+    --check-only)
+      CHECK_ONLY=1
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -411,6 +451,17 @@ fi
 
 require_cmd docker
 
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  tmp_env="$(mktemp)"
+  trap 'rm -f "$tmp_env"' EXIT
+  if [[ -f "$ENV_FILE" ]]; then
+    cp "$ENV_FILE" "$tmp_env"
+  else
+    : > "$tmp_env"
+  fi
+  ENV_FILE="$tmp_env"
+fi
+
 write_env_value LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" "$ENV_FILE"
 write_env_value LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" "$ENV_FILE"
 write_env_value LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" "$ENV_FILE"
@@ -420,14 +471,25 @@ write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
 UPDATE_SERVICES=()
-if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
-if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
-if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
-if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
-if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
-if service_needs_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
-if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
-if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  if service_needs_remote_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
+  if service_needs_remote_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
+  if service_needs_remote_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
+  if service_needs_remote_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
+  if service_needs_remote_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
+  if service_needs_remote_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
+  if service_needs_remote_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
+  if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_remote_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
+else
+  if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
+  if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
+  if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
+  if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
+  if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
+  if service_needs_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
+  if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
+  if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
+fi
 
 if [[ "$CONFIG_CHANGED" == "1" ]]; then
   for service in frontend app docreader model-hub-frontend model-hub-backend model-hub-bootstrap model-hub-ollama qwen35-9b-vllm bge-m3-vllm; do
@@ -439,7 +501,19 @@ if [[ "$CONFIG_CHANGED" == "1" ]]; then
 fi
 
 if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
+  if [[ "$CHECK_ONLY" == "1" ]]; then
+    echo "UPDATE_AVAILABLE=0"
+    echo "CONFIG_CHANGED=${CONFIG_CHANGED}"
+    echo "UPDATE_SERVICES="
+  fi
   log "no update needed: deploy files and pulled image digests match running containers"
+  exit 0
+fi
+
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  echo "UPDATE_AVAILABLE=1"
+  echo "CONFIG_CHANGED=${CONFIG_CHANGED}"
+  echo "UPDATE_SERVICES=${UPDATE_SERVICES[*]}"
   exit 0
 fi
 

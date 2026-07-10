@@ -882,6 +882,7 @@ func RegisterSystemAdminRoutes(
 			"/tenants/apply-default-storage-quota",
 			handler.ApplyDefaultStorageQuotaToAllTenants,
 		)
+		adminRoutes.GET("/deploy/update/check", handler.CheckDeployUpdate)
 		adminRoutes.POST("/deploy/update", handler.RunDeployUpdate)
 
 		// Platform-wide audit feed (tenant_id=0 rows). Covers

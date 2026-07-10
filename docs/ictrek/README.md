@@ -112,16 +112,17 @@ cd /data/jhu/lexai-deploy
 已有部署目录的一键更新：
 
 ```bash
+./update-and-deploy.sh --platform thor --check-only
 ./update-and-deploy.sh --platform thor
 ./update-and-deploy.sh --platform amd
 ./update-and-deploy.sh --platform l4t
 ```
 
-[update-and-deploy.sh](deploy-template/update-and-deploy.sh) 会从 `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF` 拉取最新 `docs/ictrek`，把其中的 `deploy-template` 同步到当前部署目录，但保留本机 `.env`、`.env.tc232`、`.env.thor`，然后调用对应部署脚本读取飞书最新镜像并替换部署。该脚本是后续网站“一键更新”按钮应调用的入口。
+[update-and-deploy.sh](deploy-template/update-and-deploy.sh) 会从 `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF` 拉取最新 `docs/ictrek`，把其中的 `deploy-template` 同步到当前部署目录，但保留本机 `.env`、`.env.tc232`、`.env.thor`，然后调用对应部署脚本读取飞书最新镜像并替换部署。`--check-only` 只检测配置和镜像差异，输出 `UPDATE_AVAILABLE`、`CONFIG_CHANGED`、`UPDATE_SERVICES`，不写入部署文件、不重建容器。
 
-它会 `docker pull` 飞书表格解析出的镜像并比较本地运行容器的 image digest；部署文件和镜像 digest 都没变化时直接返回“无需更新”，不会重建容器。需要替换时只处理受管 LexAI / model_hub / vLLM / ollama 服务，不重启 Postgres、Redis、Neo4j 等数据库服务；如果替换了 vLLM 模型服务，会在触发未完成解析前等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型接口可用。
+实际更新时，它会 `docker pull` 飞书表格解析出的镜像并比较本地运行容器的 image digest；部署文件和镜像 digest 都没变化时直接返回“无需更新”，不会重建容器。需要替换时只处理受管 LexAI / model_hub / vLLM / ollama 服务，不重启 Postgres、Redis、Neo4j 等数据库服务；如果替换了 vLLM 模型服务，会在触发未完成解析前等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型接口可用。
 
-界面上的“检查并更新部署”按钮通过 `WEKNORA_DEPLOY_UPDATER_CONTAINER` 固定调用 `deploy-updater` sidecar，不接收前端传入的脚本路径、compose 文件或服务名，避免匹配错容器。sidecar 使用当前部署目录的 `/lexai-deploy/update-and-deploy.sh`，日志写入部署目录的 `update-and-deploy.log`。确保 `.env*` 里的 `DEPLOY_UPDATER_CONTAINER` 唯一，`FEISHU_CONFIG_HOST_FILE` 指向宿主机可读的飞书凭据文件。
+界面右上角的“检测更新”按钮通过 `WEKNORA_DEPLOY_UPDATER_CONTAINER` 固定调用 `deploy-updater` sidecar，先执行 `--check-only` 并向用户列出将替换的服务；用户确认后才启动后台更新。不接收前端传入的脚本路径、compose 文件或服务名，避免匹配错容器。sidecar 使用当前部署目录的 `/lexai-deploy/update-and-deploy.sh`，日志写入部署目录的 `update-and-deploy.log`。更新会拉取镜像并替换服务，前端或后端替换期间页面可能短暂不可用，用户应等待一段时间后手动刷新页面。确保 `.env*` 里的 `DEPLOY_UPDATER_CONTAINER` 唯一，`FEISHU_CONFIG_HOST_FILE` 指向宿主机可读的飞书凭据文件。
 
 tc232 专用部署：
 

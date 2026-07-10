@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, reactive, computed, nextTick } from "vue";
-import { MessagePlugin } from "tdesign-vue-next";
+import { DialogPlugin, MessagePlugin } from "tdesign-vue-next";
 import DocContent from "@/components/doc-content.vue";
 import useKnowledgeBase from '@/hooks/useKnowledgeBase';
 import { useRoute, useRouter } from 'vue-router';
@@ -59,6 +59,7 @@ import { listMoveTargets, moveKnowledge, getKnowledgeMoveProgress } from '@/api/
 import { useI18n } from 'vue-i18n';
 import { useMarqueeSelect } from '@/hooks/useMarqueeSelect';
 import type { ParserEngineInfo } from '@/api/system';
+import { checkDeployUpdate, getSystemInfo, runDeployUpdate } from '@/api/system';
 const route = useRoute();
 const { t } = useI18n();
 const kbId = computed(() => (route.params as any).kbId as string || '');
@@ -81,6 +82,12 @@ const wikiStatus = ref<{ pendingTasks: number; isActive: boolean; pendingIssues:
   isActive: false,
   pendingIssues: 0,
 })
+const deployUpdaterEnabled = ref(false)
+const checkingDeployUpdate = ref(false)
+const updatingDeploy = ref(false)
+const showDeployUpdateButton = computed(() =>
+  !!deployUpdaterEnabled.value && authStore.isSystemAdmin
+)
 const wikiIsIndexing = computed(() => wikiStatus.value.isActive || wikiStatus.value.pendingTasks > 0)
 const wikiIndexingTip = computed(() => {
   if (!wikiIsIndexing.value) return ''
@@ -925,6 +932,79 @@ const handleKnowledgeTagChange = async (knowledgeId: string, tagIds: string[]) =
   }
 };
 
+const loadDeployUpdaterState = async () => {
+  if (!authStore.isSystemAdmin) {
+    deployUpdaterEnabled.value = false
+    return
+  }
+  try {
+    const res = await getSystemInfo()
+    deployUpdaterEnabled.value = !!res?.data?.deploy_updater_enabled
+  } catch (_) {
+    deployUpdaterEnabled.value = false
+  }
+}
+
+const serviceLabel = (service: string) => {
+  const labels: Record<string, string> = {
+    frontend: '前端',
+    app: '后端',
+    docreader: '文档解析服务',
+    'model-hub-frontend': 'Model Hub 前端',
+    'model-hub-backend': 'Model Hub 后端',
+    'model-hub-bootstrap': 'Model Hub 初始化',
+    'model-hub-ollama': 'Ollama 服务',
+    'deploy-updater': '部署更新服务',
+    'qwen35-9b-vllm': 'QA 模型服务',
+    'bge-m3-vllm': 'Embedding 模型服务',
+  }
+  return labels[service] || service
+}
+
+const handleDeployUpdateCheck = async () => {
+  if (checkingDeployUpdate.value || updatingDeploy.value) return
+  checkingDeployUpdate.value = true
+  try {
+    const result = await checkDeployUpdate()
+    if (!result.update_available) {
+      MessagePlugin.success(t('system.deployUpdateNoUpdate'))
+      return
+    }
+    const services = (result.services || []).map(serviceLabel)
+    const lines = [
+      result.config_changed ? t('system.deployUpdateConfirmConfigChanged') : '',
+      services.length ? t('system.deployUpdateConfirmServices', { services: services.join('、') }) : '',
+      t('system.deployUpdateConfirmProgressHint'),
+      t('system.deployUpdateConfirmRefreshHint'),
+    ].filter(Boolean)
+    const dialog = DialogPlugin.confirm({
+      header: t('system.deployUpdateConfirmTitle'),
+      body: lines.join('\n'),
+      confirmBtn: { content: t('system.deployUpdateConfirmButton'), theme: 'primary' },
+      cancelBtn: t('common.cancel'),
+      onConfirm: async () => {
+        if (updatingDeploy.value) return
+        updatingDeploy.value = true
+        try {
+          await runDeployUpdate()
+          MessagePlugin.success(t('system.deployUpdateStarted'))
+          dialog.hide()
+        } catch (err: any) {
+          const output = err?.response?.data?.output || err?.output
+          MessagePlugin.error(output || err?.message || t('system.deployUpdateFailed'))
+        } finally {
+          updatingDeploy.value = false
+        }
+      },
+    })
+  } catch (err: any) {
+    const output = err?.response?.data?.output || err?.output
+    MessagePlugin.error(output || err?.message || t('system.deployUpdateCheckFailed'))
+  } finally {
+    checkingDeployUpdate.value = false
+  }
+}
+
 const loadKnowledgeBaseInfo = async (targetKbId: string, force = false) => {
   if (!targetKbId) {
     kbInfo.value = null;
@@ -1152,6 +1232,7 @@ const handleOpenKnowledgeEvent = (e: Event) => {
 
 onMounted(() => {
   loadKnowledgeList();
+  loadDeployUpdaterState();
   editorResources.ensureParserEngines();
 
   window.addEventListener('knowledgeFileUploaded', handleFileUploaded as EventListener);
@@ -2129,6 +2210,16 @@ async function createNewSession(value: string): Promise<void> {
             </h2>
             <!-- 标题行右侧的动作锚点：聚拢"信息"和"设置"两个圆形按钮。 -->
             <div class="kb-title-actions">
+              <t-button
+                v-if="showDeployUpdateButton"
+                size="medium"
+                variant="outline"
+                :loading="checkingDeployUpdate || updatingDeploy"
+                @click="handleDeployUpdateCheck"
+              >
+                <template #icon><t-icon name="refresh" size="16px" /></template>
+                {{ $t('system.deployUpdateCheckButton') }}
+              </t-button>
               <KBInfoPopover v-if="kbInfo && !authStore.isLiteMode" :kb-info="kbInfo"
                 :supported-file-types="[...supportedFileTypes]" />
               <t-tooltip v-if="canManage" :content="$t('knowledgeBase.settings')" placement="top">
@@ -3130,6 +3221,8 @@ async function createNewSession(value: string): Promise<void> {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    width: 100%;
+    min-width: 0;
   }
 
   .document-title-row {
@@ -3144,7 +3237,7 @@ async function createNewSession(value: string): Promise<void> {
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: auto;
   }
 
   .document-breadcrumb {

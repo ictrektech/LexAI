@@ -6,10 +6,11 @@ REPO_URL="${LEXAI_DEPLOY_REPO:-git@github.com:ictrektech/LexAI.git}"
 REPO_REF="${LEXAI_DEPLOY_REF:-main}"
 PLATFORM="${PLATFORM:-}"
 DRY_RUN=0
+CHECK_ONLY=0
 
 usage() {
   cat <<'EOF'
-Usage: ./update-and-deploy.sh --platform amd|l4t|thor [deploy.sh args...]
+Usage: ./update-and-deploy.sh --platform amd|l4t|thor [--check-only] [deploy.sh args...]
 
 Pulls the latest docs/ictrek deployment files, syncs deploy-template into this
 directory while preserving local .env files, then runs the platform deploy
@@ -64,6 +65,11 @@ while [[ $# -gt 0 ]]; do
       deploy_args+=("$1" "$2")
       shift 2
       ;;
+    --check-only)
+      CHECK_ONLY=1
+      deploy_args+=("$1")
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       deploy_args+=("$1")
@@ -105,17 +111,27 @@ changes="$(rsync -az --delete --dry-run --itemize-changes \
 if [[ -n "$changes" ]]; then
   export LEXAI_DEPLOY_CONFIG_CHANGED=1
   log "deployment files changed"
-  rsync -az --delete \
-    --exclude='.env' \
-    --exclude='.env.tc232' \
-    --exclude='.env.thor' \
-    "$tmp/repo/docs/ictrek/deploy-template/" "$ROOT_DIR/"
+  if [[ "$CHECK_ONLY" != "1" ]]; then
+    rsync -az --delete \
+      --exclude='.env' \
+      --exclude='.env.tc232' \
+      --exclude='.env.thor' \
+      "$tmp/repo/docs/ictrek/deploy-template/" "$ROOT_DIR/"
+  fi
 else
   export LEXAI_DEPLOY_CONFIG_CHANGED=0
   log "deployment files unchanged"
 fi
 
 chmod +x "$ROOT_DIR"/*.sh
+
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  case "$PLATFORM" in
+    thor) exec "$ROOT_DIR/deploy-thor.sh" "${deploy_args[@]}" ;;
+    amd) exec "$ROOT_DIR/deploy-tc232.sh" "${deploy_args[@]}" ;;
+    l4t) exec "$ROOT_DIR/deploy.sh" --platform "$PLATFORM" "${deploy_args[@]}" ;;
+  esac
+fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
   log "dry-run: config_changed=${LEXAI_DEPLOY_CONFIG_CHANGED}; deploy args: ${deploy_args[*]}"

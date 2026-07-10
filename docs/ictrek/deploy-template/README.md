@@ -16,6 +16,7 @@ Thor uses its dedicated script:
 For an existing deployment, use the one-step updater from the deploy directory:
 
 ```bash
+./update-and-deploy.sh --platform thor --check-only
 ./update-and-deploy.sh --platform thor
 ./update-and-deploy.sh --platform amd
 ./update-and-deploy.sh --platform l4t
@@ -25,22 +26,25 @@ It pulls the latest `docs/ictrek` from `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF`,
 syncs `deploy-template` into the current directory while preserving local
 `.env`, `.env.tc232`, and `.env.thor`, then runs the matching deploy script to
 look up the latest Feishu image tags and recreate services.
+`--check-only` only reports `UPDATE_AVAILABLE`, `CONFIG_CHANGED`, and
+`UPDATE_SERVICES`; it does not sync files or recreate containers.
 
-If deployment files are unchanged and the pulled image digests match the
-running containers, the updater exits without recreating anything. When an
-update is needed, it only recreates managed LexAI/model services; database
-services such as Postgres, Redis, and Neo4j are intentionally excluded. If a
-vLLM model service is recreated, the follow-up reparse step waits for the model
-URLs in `WEKNORA_REPARSE_WAIT_URLS` before submitting unfinished work.
+If deployment files are unchanged and image digests match the running
+containers, the updater exits without recreating anything. During an actual
+update it pulls the latest images and only recreates managed LexAI/model
+services; database services such as Postgres, Redis, and Neo4j are intentionally
+excluded. If a vLLM model service is recreated, the follow-up reparse step waits
+for the model URLs in `WEKNORA_REPARSE_WAIT_URLS` before submitting unfinished
+work.
 
-The system-info page update button does not run arbitrary host commands. The
-app container only starts the fixed `deploy-updater` sidecar named by
-`DEPLOY_UPDATER_CONTAINER`; that sidecar mounts the deploy directory at
-`/lexai-deploy`, mounts `/var/run/docker.sock`, and runs
-`/lexai-deploy/update-and-deploy.sh`. Progress is appended to
-`update-and-deploy.log` in the deploy directory. Keep
-`FEISHU_CONFIG_HOST_FILE` pointed at the host Feishu credential file used for
-image lookup.
+The UI update button does not run arbitrary host commands. It appears as
+"检测更新" in the knowledge-base page header, calls the fixed `deploy-updater`
+sidecar named by `DEPLOY_UPDATER_CONTAINER`, shows the services/config that
+would change, and starts the update only after user confirmation. That sidecar
+mounts the deploy directory at `/lexai-deploy`, mounts `/var/run/docker.sock`,
+and runs `/lexai-deploy/update-and-deploy.sh`. Progress is appended to
+`update-and-deploy.log` in the deploy directory. Keep `FEISHU_CONFIG_HOST_FILE`
+pointed at the host Feishu credential file used for image lookup.
 
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 
