@@ -15,6 +15,9 @@ export default {
     clearMessages: "메시지 지우기",
     clearMessagesSuccess: "메시지가 지워졌습니다",
     clearMessagesFailed: "메시지 지우기 실패, 나중에 다시 시도해 주세요",
+    renameSession: "제목 수정",
+    renameSessionSuccess: "제목이 업데이트되었습니다",
+    renameSessionFailed: "제목 수정 실패, 나중에 다시 시도해 주세요",
     batchManage: "일괄 관리",
     newSession: "새 세션",
     pin: "고정",
@@ -2170,6 +2173,13 @@ export default {
       configureAction: "구성",
       sharedNotReadyContact: "공유한 조직 관리자에게 구성을 요청하세요",
       capabilitiesSection: "능력",
+      webSearchCapability: "웹 검색",
+      imageUploadCapability: "이미지 업로드",
+      capabilityEnabled: "켜짐",
+      capabilityDisabled: "꺼짐",
+      capabilitySupported: "지원",
+      capabilityUnsupported: "미지원",
+      capabilityUnconfigured: "미구성",
     },
     // 내장 에이전트 정보
     builtinInfo: {
@@ -2466,6 +2476,9 @@ export default {
         asynq: {
           concurrency: "비동기 작업 워커 동시 처리 수",
         },
+        model: {
+          max_concurrency: "모델 기본 동시 처리 상한",
+        },
       },
       keyDescriptions: {
         auth: {
@@ -2485,6 +2498,10 @@ export default {
         asynq: {
           concurrency:
             "비동기 작업 worker 동시 처리 수(asynq 스레드 풀 크기)입니다. 문서 파싱·임베딩 등은 대부분 I/O 대기이므로 값을 올리면 대량 업로드 대기 시간을 줄일 수 있습니다. 적용하려면 서비스 프로세스를 재시작해야 합니다.",
+        },
+        model: {
+          max_concurrency:
+            "백그라운드 작업(문서 색인/보강)이 단일 모델에 대해 갖는 기본 동시 호출 상한이며, 모델 ID 기준으로 모든 복제본이 공유합니다. 매 호출마다 실시간으로 읽고 재시작 없이 즉시 적용됩니다. 0 또는 음수는 기본 상한을 해제합니다(각 모델은 모델 관리에서 설정한 자체 상한을 계속 준수함). 백그라운드 작업에만 영향을 주며 대화형 채팅에는 영향을 주지 않습니다.",
         },
       },
       enumLabels: {
@@ -2755,6 +2772,9 @@ export default {
       dimensionOverrideDesc: "제공자 문서에서 이 모델이 dimensions 매개변수를 지원한다고 확인한 경우에만 켜세요.",
       supportsVisionLabel: "비전/멀티모달 지원",
       supportsVisionDesc: "모델의 이미지 등 멀티모달 입력 지원 여부",
+      maxConcurrencyLabel: "백그라운드 동시 실행 상한",
+      maxConcurrencyPlaceholder: "0이면 전역 기본값 사용",
+      maxConcurrencyDesc: "문서 인덱싱/보강 등 백그라운드 작업이 이 모델을 호출하는 동시 실행 수를 제한합니다(모델별로 모든 복제본이 공유). 0 또는 비워 두면 전역 기본값을 사용하며, 대화형 채팅에는 영향을 주지 않습니다.",
       thinkingControlLabel: "사고 모드 매개변수 형식",
       thinkingControlDesc:
         "에이전트 「사고 모드」 켜기/끄기 시 API에 어떻게 기록할지 결정합니다. 벤더/모델에 따라 미리 선택되며, 실제 API와 다르면 문서에 맞게 수정하세요. 「전송 안 함」을 선택하면 에이전트 「사고 모드」 스위치가 효과가 없습니다.",
@@ -3158,6 +3178,7 @@ export default {
     },
     menu: {
       viewDetails: "세부 사항을 확인하세요",
+      duplicate: "복제",
     },
     pin: {
       pin: "상단 고정",
@@ -3203,10 +3224,13 @@ export default {
       knowledgeGraph: "지식 그래프 활성화됨",
       multimodal: "멀티모달 활성화됨",
       questionGeneration: "질문 생성 활성화됨",
+      wiki: "Wiki",
     },
     messages: {
       deleted: "삭제됨",
       deleteFailed: "삭제 실패",
+      duplicateSuccess: "지식베이스 복제본이 생성되었습니다(콘텐츠 제외)",
+      duplicateFailed: "지식베이스 복제본 생성 실패",
       file: "파일",
       knowledgeBase: "지식베이스",
       noResult: "결과 없음",

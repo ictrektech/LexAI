@@ -15,6 +15,9 @@ export default {
     clearMessages: "清空消息",
     clearMessagesSuccess: "消息已清空",
     clearMessagesFailed: "清空消息失败，请稍后再试",
+    renameSession: "修改标题",
+    renameSessionSuccess: "标题已更新",
+    renameSessionFailed: "修改标题失败，请稍后再试",
     batchManage: "批量管理",
     newSession: "新会话",
     pin: "置顶",
@@ -2184,6 +2187,13 @@ export default {
       configureAction: "去配置",
       sharedNotReadyContact: "请联系分享方管理员完成配置",
       capabilitiesSection: "能力",
+      webSearchCapability: "网络搜索",
+      imageUploadCapability: "图片上传",
+      capabilityEnabled: "开启",
+      capabilityDisabled: "关闭",
+      capabilitySupported: "支持",
+      capabilityUnsupported: "不支持",
+      capabilityUnconfigured: "未配置",
     },
     // 内置智能体信息
     builtinInfo: {
@@ -2487,6 +2497,9 @@ export default {
         asynq: {
           concurrency: "异步任务并发数",
         },
+        model: {
+          max_concurrency: "模型默认并发上限",
+        },
       },
       keyDescriptions: {
         auth: {
@@ -2513,6 +2526,12 @@ export default {
             "异步任务 worker 并发数（asynq 线程池大小）。" +
             "文档解析、嵌入等任务多为 I/O 等待，适当提高可缩短批量上传排队时间。" +
             "修改后需重启服务进程方可生效。",
+        },
+        model: {
+          max_concurrency:
+            "后台任务（文档入库/富化）对单个模型的默认并发上限，按模型 ID 全副本共享。" +
+            "每次调用实时读取，修改后立即生效、无需重启。0 或负数表示关闭默认限制" +
+            "（各模型仍会尊重自身在模型管理里配置的上限）。仅影响后台任务，不影响交互式对话。",
         },
       },
       enumLabels: {
@@ -2795,6 +2814,9 @@ export default {
       dimensionOverrideDesc: "仅在确认该模型支持 dimensions 参数时开启；默认只使用检测到的实际维度。",
       supportsVisionLabel: "支持视觉/多模态",
       supportsVisionDesc: "模型是否支持图片等多模态输入",
+      maxConcurrencyLabel: "后台并发上限",
+      maxConcurrencyPlaceholder: "0 表示使用全局默认",
+      maxConcurrencyDesc: "限制文档入库/富化等后台任务对该模型的并发调用数（按模型全副本共享）。0 或留空表示沿用全局默认；不影响交互式对话。",
       thinkingControlLabel: "思考模式参数格式",
       thinkingControlDesc:
         "决定智能体「思考模式」开/关时如何写入 API。已尝试按厂商/模型预选，若与实际情况不符请按 API 文档手动修改；选「不写入」时，智能体「思考模式」开关不生效。",
@@ -3195,6 +3217,7 @@ export default {
     },
     menu: {
       viewDetails: "查看详情",
+      duplicate: "创建副本",
     },
     pin: {
       pin: "置顶",
@@ -3240,10 +3263,13 @@ export default {
       knowledgeGraph: "知识图谱",
       multimodal: "多模态",
       questionGeneration: "问题生成",
+      wiki: "Wiki",
     },
     messages: {
       deleted: "已删除",
       deleteFailed: "删除失败",
+      duplicateSuccess: "知识库副本已创建（不包含知识内容）",
+      duplicateFailed: "创建知识库副本失败",
       file: "文件",
       knowledgeBase: "知识库",
       noResult: "无结果",

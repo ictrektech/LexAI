@@ -12,6 +12,9 @@ export default {
     clearMessages: 'Очистить сообщения',
     clearMessagesSuccess: 'Сообщения очищены',
     clearMessagesFailed: 'Не удалось очистить сообщения, попробуйте позже',
+    renameSession: 'Переименовать',
+    renameSessionSuccess: 'Название обновлено',
+    renameSessionFailed: 'Не удалось обновить название, попробуйте позже',
     batchManage: 'Пакетное управление',
     newSession: 'Новый диалог',
     pin: 'Закрепить',
@@ -1069,6 +1072,13 @@ export default {
       configureAction: 'Configure',
       sharedNotReadyContact: 'Ask the sharing organization admin to finish setup',
       capabilitiesSection: 'Возможности',
+      webSearchCapability: 'Web search',
+      imageUploadCapability: 'Image upload',
+      capabilityEnabled: 'On',
+      capabilityDisabled: 'Off',
+      capabilitySupported: 'Supported',
+      capabilityUnsupported: 'Unsupported',
+      capabilityUnconfigured: 'Not set',
     },
     builtinInfo: {
       quickAnswer: {
@@ -2164,6 +2174,9 @@ export default {
         asynq: {
           concurrency: 'Параллелизм воркеров асинхронных задач',
         },
+        model: {
+          max_concurrency: 'Лимит параллелизма модели по умолчанию',
+        },
       },
       keyDescriptions: {
         auth: {
@@ -2183,6 +2196,10 @@ export default {
         asynq: {
           concurrency:
             'Параллелизм воркеров асинхронных задач (размер пула потоков asynq). Парсинг документов, эмбеддинги и подобные задачи в основном ждут I/O, поэтому увеличение значения сокращает очередь при массовой загрузке. Для применения требуется перезапуск процесса сервиса.',
+        },
+        model: {
+          max_concurrency:
+            'Лимит по умолчанию на количество одновременных фоновых вызовов (индексация/обогащение) к одной модели, привязанный к ID модели и общий для всех реплик. Читается при каждом вызове и применяется сразу без перезапуска. 0 или отрицательное значение отключает лимит по умолчанию (каждая модель всё равно соблюдает собственный лимит, заданный в управлении моделями). Влияет только на фоновые задачи, не на интерактивный чат.',
         },
       },
       enumLabels: {
@@ -2453,6 +2470,9 @@ export default {
       dimensionOverrideDesc: 'Включайте только если документация провайдера подтверждает поддержку параметра dimensions.',
       supportsVisionLabel: 'Поддержка визуального / мультимодального ввода',
       supportsVisionDesc: 'Поддерживает ли модель изображения и другой мультимодальный ввод',
+      maxConcurrencyLabel: 'Лимит фоновой параллельности',
+      maxConcurrencyPlaceholder: '0 — использовать глобальное значение',
+      maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
       thinkingControlLabel: 'Формат параметров режима размышления',
       thinkingControlDesc:
         'Определяет, как переключатель «Режим размышления» агента записывается в API. При возможности выбирается по поставщику/модели; при несоответствии измените по документации API. При выборе «Не отправлять» переключатель «Режим размышления» агента не действует.',
@@ -2645,6 +2665,8 @@ export default {
     messages: {
       deleted: 'База знаний удалена',
       deleteFailed: 'Не удалось удалить базу знаний',
+      duplicateSuccess: 'Дубликат базы знаний создан (без содержимого)',
+      duplicateFailed: 'Не удалось создать дубликат базы знаний',
       file: '文件',
       knowledgeBase: '知识库',
       noResult: '无结果'
@@ -2652,7 +2674,8 @@ export default {
     features: {
       knowledgeGraph: 'Граф знаний включен',
       multimodal: 'Мультимодальность включена',
-      questionGeneration: 'Генерация вопросов включена'
+      questionGeneration: 'Генерация вопросов включена',
+      wiki: 'Wiki',
     },
     processing: 'Обработка задачи импорта',
     processingDocuments: 'Обработка {count} документов',
@@ -2686,7 +2709,8 @@ export default {
     },
     emptyShared: 'No collaborative knowledge bases yet. Join a shared space to access knowledge bases from others.',
     menu: {
-      viewDetails: 'View Details'
+      viewDetails: 'View Details',
+      duplicate: 'Duplicate'
     },
     detail: {
       title: 'Shared Knowledge Base',
