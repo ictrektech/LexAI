@@ -39,6 +39,8 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
 
 Housekeeping runs every 5 minutes in the app container. It only treats a row as drained when `pending_subtasks_count=0`, the latest attempt has no `pending/running` span, and Asynq has no queued/active task for that knowledge. Only then does it promote `finalizing` rows to `completed`, or mark drained `summary_status=pending/processing` rows as `failed` when the knowledge row is already `completed`. Valid queued or running multimodal, Graph, Wiki, summary, or question tasks are not cleaned.
 
+Before feature recovery and startup reparse, the app reconciles Asynq once: stale tasks from older attempts and byte-identical duplicate tasks are removed, then disabled-feature cleanup runs, and only genuinely missing multimodal work is recovered. Wiki trigger tasks are debounced with Asynq uniqueness while the durable per-document operations remain in `task_pending_ops`. Verify the reconciliation after a restart with `docker logs <app-container> 2>&1 | grep startup-task-reconcile`. Housekeeping only repairs document state; queue reconciliation owns stale and duplicate task removal.
+
 Old trace attempts that still show `running` are historical rows after a newer attempt superseded them. Do not wait for old attempts; judge current progress by the latest attempt plus Asynq queue state. Stage-only recovery such as "rerun only multimodal" or "rerun only graph" requires a backend recovery entrypoint; do not describe shell-only deploys as stage-only recovery.
 
 By default these compose templates enable `WEKNORA_SINGLE_USER_MODE=true`, so the web UI auto-creates the fixed default user space and enters the app without showing the login page. Set it to `false` to restore normal login.

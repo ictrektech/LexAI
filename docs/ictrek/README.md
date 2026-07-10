@@ -196,6 +196,8 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 后台 housekeeping 每 5 分钟还会清理已经没有待完成工作的残留状态：`finalizing + pending_subtasks_count=0` 只有在最新 attempt 没有 `pending/running` span、并且 Asynq 队列里也没有该知识的 queued/active 任务时，才会推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。同理，`completed + pending_subtasks_count=0 + summary_status in (pending, processing)` 也只有在没有 open span 和 queued/active 任务时，才会把摘要状态标记为 `failed`，避免没有摘要任务可跑时页面长期显示「生成摘要中」。仍在排队或运行的多模态、Graph、Wiki、摘要任务不会被 housekeeping 清掉。
 
+app 启动时会先对 Asynq 队列做一次对账：删除已经被新 attempt 替代的任务和完全相同的重复任务，再清理已关闭功能的任务，最后才恢复确实缺失的多模态任务和未完成文字解析。多模态恢复检测到同一文档已有多模态任务时不会重复入队；Wiki 触发器按知识库和延迟窗口去重。可通过 `docker logs <app容器> | grep startup-task-reconcile` 查看本次删除和取消数量。Housekeeping 只处理文档状态，不负责制造、重跑或批量删除队列任务。
+
 ## Wiki/Graph 模型结论
 
 QA 模型配好以后，不代表所有已有知识库都会自动改用它。
@@ -228,7 +230,7 @@ WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析调度走 `parse` 队列，先完成可检索的文字解析、分块和向量化；VLM/OCR 多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph/Wiki/Question 只共享剩余后台槽位。Asynq 使用严格优先级，且 `WEKNORA_ASYNQ_CONCURRENCY` 必须小于等于 `主模型并发 - 聊天预留`，否则后台增强任务会先占住 worker，文字解析仍会排队。Thor 7 并发上保留 3 个给聊天，后台 worker 最多 4 个；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析调度走 `parse` 队列，先完成可检索的文字解析、分块和向量化；VLM/OCR 多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph/Wiki/Question 只共享剩余后台槽位。Asynq 解析池使用严格优先级，Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制两个池的后台模型调用，必须小于等于 `主模型并发 - 聊天预留`。Thor 7 并发上保留 3 个给聊天，`WEKNORA_MODEL_MAX_CONCURRENCY=4`、解析 worker 4、Wiki worker 2；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
 
 Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`。
 

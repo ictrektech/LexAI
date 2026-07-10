@@ -8,7 +8,8 @@
 
 | 层级 | 作用 | 主要变量 |
 | --- | --- | --- |
-| Asynq 后台任务池 | 控制后台任务 worker 总数，以及不同任务队列的调度权重。 | `WEKNORA_ASYNQ_CONCURRENCY`、`WEKNORA_ASYNQ_QUEUE_*` |
+| Asynq 后台任务池 | 控制解析 worker、独立 Wiki worker，以及不同任务队列的调度权重。 | `WEKNORA_ASYNQ_CONCURRENCY`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY`、`WEKNORA_ASYNQ_QUEUE_*` |
+| 后台模型总并发 | 对 Graph、Wiki、摘要、问题生成和 VLM 的模型调用做统一上限，避免独立 worker 池合计超过聊天预留。 | `WEKNORA_MODEL_MAX_CONCURRENCY` |
 | 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
 | 模型服务容量 | 控制 vLLM、Ollama 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `VLLM_MAX_NUM_SEQS`、`BGE_VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、`OLLAMA_NUM_PARALLEL` |
 
@@ -104,6 +105,8 @@ background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED
 
 ```dotenv
 WEKNORA_ASYNQ_CONCURRENCY=4
+WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
+WEKNORA_MODEL_MAX_CONCURRENCY=4
 WEKNORA_ASYNQ_QUEUE_CRITICAL=6
 WEKNORA_ASYNQ_QUEUE_PARSE=5
 WEKNORA_ASYNQ_QUEUE_DEFAULT=4
@@ -114,6 +117,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
 `WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发，必须小于等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`。如果设得更高，Graph/Wiki/Question 任务会先占住 worker 并阻塞在模型限流上，导致新的文字解析拿不到 worker。
+
+Wiki 使用独立 worker 池后，`WEKNORA_ASYNQ_CONCURRENCY` 与 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 不再互相包含。真正保护聊天的是 `WEKNORA_MODEL_MAX_CONCURRENCY`：同机共用主模型时，将它设为 `主模型并发 - 聊天预留`，Thor 即 `7 - 3 = 4`。Wiki worker 只决定排队吞吐，Thor 保持 2，避免大量 Wiki 调用同时阻塞在模型闸门前。
 
 Asynq 采用严格优先级：`critical` > `parse` > `default` > `multimodal` > `question` > `graph` / `low`。`WEKNORA_ASYNQ_QUEUE_*` 仍作为优先级数值使用，但不是每队列并发上限。在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径和 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 保证。文档入库主解析和批量重新解析调度走 `parse` 队列，确保新上传文档先完成文字解析、分块、向量化和可检索状态；VLM/OCR 图片多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph 抽取走 `graph` 队列，Wiki ingest 走 `low` 队列，作为解析后的后台增强慢慢补齐。
 

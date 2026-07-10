@@ -49,7 +49,6 @@ const router = createRouter({
       path: "/login",
       name: "login",
       redirect: "/platform/knowledge-bases",
-      component: () => import("../views/auth/Login.vue"),
       meta: { requiresAuth: false, requiresInit: false }
     },
     // Embed chat is a separate entry (embed.html + embed-main.ts), not this SPA.
