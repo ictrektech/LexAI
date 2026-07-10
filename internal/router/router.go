@@ -824,6 +824,9 @@ func RegisterSystemRoutes(r *gin.RouterGroup, handler *handler.SystemHandler, g 
 		systemRoutes.POST("/docreader/reconnect", g.Admin(), handler.ReconnectDocReader)
 		systemRoutes.GET("/storage-engine-status", g.Viewer(), handler.GetStorageEngineStatus)
 		systemRoutes.POST("/storage-engine-check", g.Admin(), handler.CheckStorageEngine)
+		systemRoutes.GET("/deploy/update/check", g.Admin(), handler.CheckDeployUpdate)
+		systemRoutes.GET("/deploy/update/log", g.Admin(), handler.GetDeployUpdateLog)
+		systemRoutes.POST("/deploy/update", g.Admin(), handler.RunDeployUpdate)
 	}
 }
 
@@ -883,6 +886,7 @@ func RegisterSystemAdminRoutes(
 			handler.ApplyDefaultStorageQuotaToAllTenants,
 		)
 		adminRoutes.GET("/deploy/update/check", handler.CheckDeployUpdate)
+		adminRoutes.GET("/deploy/update/log", handler.GetDeployUpdateLog)
 		adminRoutes.POST("/deploy/update", handler.RunDeployUpdate)
 
 		// Platform-wide audit feed (tenant_id=0 rows). Covers

@@ -61,7 +61,7 @@ service_cid() {
 pull_image_if_needed() {
   local image="$1"
   log "pull ${image}"
-  docker pull "$image" >/dev/null
+  docker pull "$image"
 }
 
 remote_image_digest() {
@@ -95,6 +95,28 @@ running_image_ref() {
   cid="$(service_cid "$service")"
   [[ -n "$cid" ]] || return 0
   docker inspect "$cid" --format '{{.Config.Image}}' 2>/dev/null || true
+}
+
+env_value() {
+  local key="$1"
+  local file="$2"
+  [[ -f "$file" ]] || return 0
+  python3 - "$key" "$file" <<'PY'
+import sys
+key, path = sys.argv[1], sys.argv[2]
+prefix = key + "="
+for line in open(path, encoding="utf-8"):
+    line = line.strip()
+    if line.startswith(prefix):
+        print(line[len(prefix):])
+        break
+PY
+}
+
+image_tag() {
+  local image="$1"
+  [[ "$image" == *:* ]] || return 0
+  echo "${image##*:}"
 }
 
 service_needs_remote_image_update() {
@@ -135,6 +157,44 @@ append_service_once() {
     [[ "$existing" == "$service" ]] && return 0
   done
   UPDATE_SERVICES+=("$service")
+}
+
+append_detail_once() {
+  local service="$1"
+  local current="$2"
+  local latest="$3"
+  local reason="$4"
+  local existing detail
+  detail="${service}|${current:-unknown}|${latest}|${reason}"
+  for existing in "${UPDATE_DETAILS[@]:-}"; do
+    [[ "$existing" == "$detail" ]] && return 0
+  done
+  UPDATE_DETAILS+=("$detail")
+}
+
+check_image_version_update() {
+  local service="$1"
+  local env_key="$2"
+  local image="$3"
+  local current_image current_tag latest_tag current_digest remote_digest
+  compose_has_service "$service" || return 1
+  current_image="$(env_value "$env_key" "$ENV_FILE")"
+  [[ -n "$current_image" ]] || current_image="$(running_image_ref "$service")"
+  current_tag="$(image_tag "$current_image")"
+  latest_tag="$(image_tag "$image")"
+  if [[ -z "$current_tag" || "$current_tag" != "$latest_tag" ]]; then
+    append_service_once "$service"
+    append_detail_once "$service" "$current_tag" "$latest_tag" "version"
+    return 0
+  fi
+  remote_digest="$(remote_image_digest "$image")"
+  current_digest="$(running_image_digest "$service")"
+  if [[ -n "$remote_digest" && -n "$current_digest" && "$remote_digest" != "$current_digest" ]]; then
+    append_service_once "$service"
+    append_detail_once "$service" "$current_tag" "$latest_tag" "same-tag-digest"
+    return 0
+  fi
+  return 1
 }
 
 wait_service_healthy() {
@@ -442,24 +502,27 @@ resolve_feishu_reader
 LEXAI_APP_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai)"
 LEXAI_UI_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-ui)"
 LEXAI_DOCREADER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-docreader)"
-MODEL_HUB_BACKEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_backend)"
-MODEL_HUB_FRONTEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_frontend)"
-OLLAMA_SERVER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" ollama_server)"
 
 LEXAI_APP_IMAGE="$(image_with_tag "${REGISTRY}/lexai" "$LEXAI_APP_TAG")"
 LEXAI_UI_IMAGE="$(image_with_tag "${REGISTRY}/lexai-ui" "$LEXAI_UI_TAG")"
 LEXAI_DOCREADER_IMAGE="$(image_with_tag "${REGISTRY}/lexai-docreader" "$LEXAI_DOCREADER_TAG")"
-MODEL_HUB_BACKEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-backend" "$MODEL_HUB_BACKEND_TAG")"
-MODEL_HUB_FRONTEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-frontend" "$MODEL_HUB_FRONTEND_TAG")"
-OLLAMA_SERVER_IMAGE="$(image_with_tag "${REGISTRY}/ollama_server" "$OLLAMA_SERVER_TAG")"
 
 log "sheet=${SHEET_TITLE}"
 log "LEXAI_APP_IMAGE=${LEXAI_APP_IMAGE} tag=${LEXAI_APP_TAG}"
 log "LEXAI_UI_IMAGE=${LEXAI_UI_IMAGE} tag=${LEXAI_UI_TAG}"
 log "LEXAI_DOCREADER_IMAGE=${LEXAI_DOCREADER_IMAGE} tag=${LEXAI_DOCREADER_TAG}"
-log "MODEL_HUB_BACKEND_IMAGE=${MODEL_HUB_BACKEND_IMAGE} tag=${MODEL_HUB_BACKEND_TAG}"
-log "MODEL_HUB_FRONTEND_IMAGE=${MODEL_HUB_FRONTEND_IMAGE} tag=${MODEL_HUB_FRONTEND_TAG}"
-log "OLLAMA_SERVER_IMAGE=${OLLAMA_SERVER_IMAGE} tag=${OLLAMA_SERVER_TAG}"
+
+if [[ "$CHECK_ONLY" != "1" ]]; then
+  MODEL_HUB_BACKEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_backend)"
+  MODEL_HUB_FRONTEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_frontend)"
+  OLLAMA_SERVER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" ollama_server)"
+  MODEL_HUB_BACKEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-backend" "$MODEL_HUB_BACKEND_TAG")"
+  MODEL_HUB_FRONTEND_IMAGE="$(image_with_tag "${REGISTRY}/model-hub-frontend" "$MODEL_HUB_FRONTEND_TAG")"
+  OLLAMA_SERVER_IMAGE="$(image_with_tag "${REGISTRY}/ollama_server" "$OLLAMA_SERVER_TAG")"
+  log "MODEL_HUB_BACKEND_IMAGE=${MODEL_HUB_BACKEND_IMAGE} tag=${MODEL_HUB_BACKEND_TAG}"
+  log "MODEL_HUB_FRONTEND_IMAGE=${MODEL_HUB_FRONTEND_IMAGE} tag=${MODEL_HUB_FRONTEND_TAG}"
+  log "OLLAMA_SERVER_IMAGE=${OLLAMA_SERVER_IMAGE} tag=${OLLAMA_SERVER_TAG}"
+fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
@@ -467,80 +530,91 @@ fi
 
 require_cmd docker
 
-if [[ "$CHECK_ONLY" == "1" ]]; then
-  tmp_env="$(mktemp)"
-  trap 'rm -f "$tmp_env"' EXIT
-  if [[ -f "$ENV_FILE" ]]; then
-    cp "$ENV_FILE" "$tmp_env"
-  else
-    : > "$tmp_env"
-  fi
-  ENV_FILE="$tmp_env"
+if [[ "$CHECK_ONLY" != "1" ]]; then
+  write_env_value LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" "$ENV_FILE"
+  write_env_value LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" "$ENV_FILE"
+  write_env_value LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" "$ENV_FILE"
+  write_env_value MODEL_HUB_BACKEND_IMAGE "$MODEL_HUB_BACKEND_IMAGE" "$ENV_FILE"
+  write_env_value MODEL_HUB_FRONTEND_IMAGE "$MODEL_HUB_FRONTEND_IMAGE" "$ENV_FILE"
+  write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 fi
-
-write_env_value LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" "$ENV_FILE"
-write_env_value LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" "$ENV_FILE"
-write_env_value LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" "$ENV_FILE"
-write_env_value MODEL_HUB_BACKEND_IMAGE "$MODEL_HUB_BACKEND_IMAGE" "$ENV_FILE"
-write_env_value MODEL_HUB_FRONTEND_IMAGE "$MODEL_HUB_FRONTEND_IMAGE" "$ENV_FILE"
-write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
 UPDATE_SERVICES=()
+UPDATE_DETAILS=()
 if [[ "$CHECK_ONLY" == "1" ]]; then
-  if service_needs_remote_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
-  if service_needs_remote_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
-  if service_needs_remote_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
-  if service_needs_remote_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
-  if service_needs_remote_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
-  if service_needs_remote_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
-  if service_needs_remote_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
-  if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_remote_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
+  check_image_version_update frontend LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" || true
+  check_image_version_update app LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" || true
+  check_image_version_update docreader LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" || true
+  if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] \
+    && [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] \
+    && compose_has_service deploy-updater; then
+    append_service_once deploy-updater
+  fi
 else
   if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
   if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
   if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
-  if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
-  if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
-  if service_needs_image_update model-hub-bootstrap "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-bootstrap; fi
-  if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
   if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
 fi
 
 if [[ "$CONFIG_CHANGED" == "1" ]]; then
-  for service in frontend app docreader model-hub-frontend model-hub-backend model-hub-bootstrap model-hub-ollama qwen35-9b-vllm bge-m3-vllm; do
-    compose_has_service "$service" && append_service_once "$service"
-  done
-  if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && compose_has_service deploy-updater; then
-    append_service_once deploy-updater
+  if [[ "$CHECK_ONLY" != "1" ]]; then
+    for service in frontend app docreader; do
+      compose_has_service "$service" && append_service_once "$service"
+    done
+    if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && compose_has_service deploy-updater; then
+      append_service_once deploy-updater
+    fi
   fi
 fi
 
 if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
   if [[ "$CHECK_ONLY" == "1" ]]; then
     echo "UPDATE_AVAILABLE=0"
-    echo "CONFIG_CHANGED=${CONFIG_CHANGED}"
+    echo "CONFIG_CHANGED=0"
     echo "UPDATE_SERVICES="
+    echo "UPDATE_DETAILS="
   fi
-  log "no update needed: deploy files and pulled image digests match running containers"
+  log "no update needed: Feishu lexai image versions and remote digests match running containers"
   exit 0
 fi
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
   echo "UPDATE_AVAILABLE=1"
-  echo "CONFIG_CHANGED=${CONFIG_CHANGED}"
+  echo "CONFIG_CHANGED=0"
   echo "UPDATE_SERVICES=${UPDATE_SERVICES[*]}"
+  echo "UPDATE_DETAILS=${UPDATE_DETAILS[*]}"
   exit 0
 fi
 
 log "updating services: ${UPDATE_SERVICES[*]}"
-docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
+FRONTEND_DEFERRED=0
+COMPOSE_UP_SERVICES=("${UPDATE_SERVICES[@]}")
+if [[ " ${UPDATE_SERVICES[*]} " == *" app "* && " ${UPDATE_SERVICES[*]} " == *" frontend "* ]]; then
+  FRONTEND_DEFERRED=1
+  COMPOSE_UP_SERVICES=()
+  for service in "${UPDATE_SERVICES[@]}"; do
+    [[ "$service" == "frontend" ]] && continue
+    COMPOSE_UP_SERVICES+=("$service")
+  done
+fi
+
+if [[ "${#COMPOSE_UP_SERVICES[@]}" -gt 0 ]]; then
+  log "recreate services: ${COMPOSE_UP_SERVICES[*]}"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${COMPOSE_UP_SERVICES[@]}"
+fi
 
 if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]] && compose_has_service docreader; then
   wait_service_healthy docreader 180
 fi
 if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] && compose_has_service app; then
   wait_service_healthy app 180
+fi
+if [[ "$FRONTEND_DEFERRED" == "1" ]]; then
+  log "app is healthy; updating frontend"
+  log "recreate services: frontend"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps frontend
 fi
 if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-backend "* ]] && compose_has_service model-hub-backend; then
   wait_service_healthy model-hub-backend 180

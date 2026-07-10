@@ -70,17 +70,28 @@ export interface DeployUpdateCheckResult {
   update_available: boolean
   config_changed: boolean
   services: string[]
+  details?: string[]
   output: string
   duration: string
 }
 
+export interface DeployUpdateLogResult {
+  running: boolean
+  output: string
+}
+
 export async function checkDeployUpdate(): Promise<DeployUpdateCheckResult> {
-  const response = await get('/api/v1/system/admin/deploy/update/check', { timeout: 6 * 60 * 1000 })
+  const response = await get('/api/v1/system/deploy/update/check', { timeout: 6 * 60 * 1000 })
   return response as unknown as DeployUpdateCheckResult
 }
 
+export async function getDeployUpdateLog(): Promise<DeployUpdateLogResult> {
+  const response = await get('/api/v1/system/deploy/update/log', { timeout: 30 * 1000 })
+  return response as unknown as DeployUpdateLogResult
+}
+
 export async function runDeployUpdate(): Promise<DeployUpdateResult> {
-  const response = await post('/api/v1/system/admin/deploy/update', {}, { timeout: 60 * 1000 })
+  const response = await post('/api/v1/system/deploy/update', {}, { timeout: 60 * 1000 })
   return response as unknown as DeployUpdateResult
 }
 

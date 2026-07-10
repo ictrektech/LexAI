@@ -22,29 +22,36 @@ For an existing deployment, use the one-step updater from the deploy directory:
 ./update-and-deploy.sh --platform l4t
 ```
 
-It pulls the latest `docs/ictrek` from `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF`,
-syncs `deploy-template` into the current directory while preserving local
-`.env`, `.env.tc232`, and `.env.thor`, then runs the matching deploy script to
-look up the latest Feishu image tags and recreate services.
-`--check-only` only reports `UPDATE_AVAILABLE`, `CONFIG_CHANGED`, and
-`UPDATE_SERVICES`; it does not sync files or recreate containers.
+`--check-only` is deliberately narrow: it only reads Feishu for the three LexAI
+images (`lexai`, `lexai-ui`, `lexai-docreader`). If a Feishu tag is newer than
+the local deployment, it reports the current tag and target tag. If the tag is
+the same, it compares the remote image digest with the running container image
+digest and reports a same-version image update only when the digest differs.
+It does not clone the repo, sync deployment files, write `.env`, pull images, or
+recreate containers.
 
-If deployment files are unchanged and image digests match the running
-containers, the updater exits without recreating anything. During an actual
-update it pulls the latest images and only recreates managed LexAI/model
-services; database services such as Postgres, Redis, and Neo4j are intentionally
-excluded. If a vLLM model service is recreated, the follow-up reparse step waits
-for the model URLs in `WEKNORA_REPARSE_WAIT_URLS` before submitting unfinished
-work.
+After the user confirms an available image update, the updater pulls the latest
+`docs/ictrek` from `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF`, syncs
+`deploy-template` into the current directory while preserving local `.env`,
+`.env.tc232`, and `.env.thor`, then pulls changed images and recreates only
+managed LexAI services. Database services such as Postgres, Redis, and Neo4j are
+intentionally excluded. If a vLLM model service is recreated, the follow-up
+reparse step waits for the model URLs in `WEKNORA_REPARSE_WAIT_URLS` before
+submitting unfinished work.
 
 The UI update button does not run arbitrary host commands. It appears as
 "检测更新" in the knowledge-base page header, calls the fixed `deploy-updater`
-sidecar named by `DEPLOY_UPDATER_CONTAINER`, shows the services/config that
-would change, and starts the update only after user confirmation. That sidecar
-mounts the deploy directory at `/lexai-deploy`, mounts `/var/run/docker.sock`,
-and runs `/lexai-deploy/update-and-deploy.sh`. Progress is appended to
-`update-and-deploy.log` in the deploy directory. Keep `FEISHU_CONFIG_HOST_FILE`
-pointed at the host Feishu credential file used for image lookup.
+sidecar named by `DEPLOY_UPDATER_CONTAINER`, and starts the update only after
+user confirmation. `--check-only` only reads Feishu for the three LexAI images
+(`lexai`, `lexai-ui`, `lexai-docreader`) and compares same-tag remote image
+digests; it does not clone the repo, sync deployment files, write `.env`, or
+recreate containers. After confirmation, the sidecar pulls `docs/ictrek`,
+syncs this deploy template, pulls changed images, and replaces only managed
+LexAI services. If app and frontend are both updated, app is recreated and
+waited healthy before frontend is recreated. Docker pull output and recreate
+steps are appended to `update-and-deploy.log` and surfaced in the web dialog.
+Keep `FEISHU_CONFIG_HOST_FILE` pointed at the host Feishu credential file used
+for image lookup.
 
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 

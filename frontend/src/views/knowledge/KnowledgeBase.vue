@@ -59,7 +59,7 @@ import { listMoveTargets, moveKnowledge, getKnowledgeMoveProgress } from '@/api/
 import { useI18n } from 'vue-i18n';
 import { useMarqueeSelect } from '@/hooks/useMarqueeSelect';
 import type { ParserEngineInfo } from '@/api/system';
-import { checkDeployUpdate, runDeployUpdate } from '@/api/system';
+import { checkDeployUpdate, getDeployUpdateLog, runDeployUpdate } from '@/api/system';
 const route = useRoute();
 const { t } = useI18n();
 const kbId = computed(() => (route.params as any).kbId as string || '');
@@ -84,6 +84,9 @@ const wikiStatus = ref<{ pendingTasks: number; isActive: boolean; pendingIssues:
 })
 const checkingDeployUpdate = ref(false)
 const updatingDeploy = ref(false)
+const deployProgressVisible = ref(false)
+const deployUpdateLog = ref('')
+let deployUpdateLogTimer: ReturnType<typeof setInterval> | null = null
 const showDeployUpdateButton = computed(() => true)
 const wikiIsIndexing = computed(() => wikiStatus.value.isActive || wikiStatus.value.pendingTasks > 0)
 const wikiIndexingTip = computed(() => {
@@ -945,6 +948,41 @@ const serviceLabel = (service: string) => {
   return labels[service] || service
 }
 
+const deployUpdateDetailLabel = (detail: string) => {
+  const [service, current, latest, reason] = detail.split('|')
+  const suffix = reason === 'same-tag-digest' ? t('system.deployUpdateSameVersionChanged') : ''
+  return `${serviceLabel(service)}: ${current || 'unknown'} -> ${latest || 'unknown'}${suffix}`
+}
+
+const stopDeployUpdateLogPolling = () => {
+  if (deployUpdateLogTimer) {
+    clearInterval(deployUpdateLogTimer)
+    deployUpdateLogTimer = null
+  }
+}
+
+const pollDeployUpdateLog = async () => {
+  try {
+    const result = await getDeployUpdateLog()
+    deployUpdateLog.value = result.output || ''
+    if (!result.running) {
+      stopDeployUpdateLogPolling()
+    }
+  } catch (err: any) {
+    deployUpdateLog.value = err?.response?.data?.output || err?.message || t('system.deployUpdateLogFailed')
+    stopDeployUpdateLogPolling()
+  }
+}
+
+const startDeployUpdateLogPolling = () => {
+  deployProgressVisible.value = true
+  void pollDeployUpdateLog()
+  stopDeployUpdateLogPolling()
+  deployUpdateLogTimer = setInterval(() => {
+    void pollDeployUpdateLog()
+  }, 3000)
+}
+
 const handleDeployUpdateCheck = async () => {
   if (checkingDeployUpdate.value || updatingDeploy.value) return
   checkingDeployUpdate.value = true
@@ -955,8 +993,10 @@ const handleDeployUpdateCheck = async () => {
       return
     }
     const services = (result.services || []).map(serviceLabel)
+    const details = (result.details || []).map(deployUpdateDetailLabel)
     const lines = [
       result.config_changed ? t('system.deployUpdateConfirmConfigChanged') : '',
+      details.length ? t('system.deployUpdateConfirmVersions', { versions: details.join('；') }) : '',
       services.length ? t('system.deployUpdateConfirmServices', { services: services.join('、') }) : '',
       t('system.deployUpdateConfirmProgressHint'),
       t('system.deployUpdateConfirmRefreshHint'),
@@ -972,6 +1012,7 @@ const handleDeployUpdateCheck = async () => {
         try {
           await runDeployUpdate()
           MessagePlugin.success(t('system.deployUpdateStarted'))
+          startDeployUpdateLogPolling()
           dialog.hide()
         } catch (err: any) {
           const output = err?.response?.data?.output || err?.output
@@ -988,6 +1029,8 @@ const handleDeployUpdateCheck = async () => {
     checkingDeployUpdate.value = false
   }
 }
+
+onUnmounted(stopDeployUpdateLogPolling)
 
 const loadKnowledgeBaseInfo = async (targetKbId: string, force = false) => {
   if (!targetKbId) {
@@ -2150,6 +2193,15 @@ async function createNewSession(value: string): Promise<void> {
           {{ $t('system.deployUpdateCheckButton') }}
         </t-button>
       </div>
+      <t-dialog
+        v-model:visible="deployProgressVisible"
+        :header="$t('system.deployUpdateProgressTitle')"
+        :footer="false"
+        width="720px"
+      >
+        <p class="deploy-update-progress-hint">{{ $t('system.deployUpdateProgressHint') }}</p>
+        <pre class="deploy-update-log">{{ deployUpdateLog || $t('system.deployUpdateProgressWaiting') }}</pre>
+      </t-dialog>
       <div class="document-header">
         <div class="document-header-title">
           <div class="document-title-row">
@@ -3372,6 +3424,27 @@ async function createNewSession(value: string): Promise<void> {
   top: 20px;
   right: 72px;
   z-index: 10;
+}
+
+.deploy-update-progress-hint {
+  margin: 0 0 12px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+}
+
+.deploy-update-log {
+  max-height: 420px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--td-component-border);
+  border-radius: 6px;
+  background: var(--td-bg-color-container-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 

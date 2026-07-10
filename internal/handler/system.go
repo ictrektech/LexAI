@@ -224,8 +224,14 @@ type CheckDeployUpdateResponse struct {
 	UpdateAvailable bool     `json:"update_available"`
 	ConfigChanged   bool     `json:"config_changed"`
 	Services        []string `json:"services"`
+	Details         []string `json:"details"`
 	Output          string   `json:"output"`
 	Duration        string   `json:"duration"`
+}
+
+type DeployUpdateLogResponse struct {
+	Running bool   `json:"running"`
+	Output  string `json:"output"`
 }
 
 func deployUpdateTargetFromEnv() (container, platform string, err error) {
@@ -245,7 +251,7 @@ func deployUpdateTargetFromEnv() (container, platform string, err error) {
 	}
 }
 
-func parseDeployCheckOutput(output string) (available bool, configChanged bool, services []string) {
+func parseDeployCheckOutput(output string) (available bool, configChanged bool, services []string, details []string) {
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		switch {
@@ -258,12 +264,17 @@ func parseDeployCheckOutput(output string) (available bool, configChanged bool, 
 			if raw != "" {
 				services = strings.Fields(raw)
 			}
+		case strings.HasPrefix(line, "UPDATE_DETAILS="):
+			raw := strings.TrimSpace(strings.TrimPrefix(line, "UPDATE_DETAILS="))
+			if raw != "" {
+				details = strings.Fields(raw)
+			}
 		}
 	}
 	if configChanged {
 		available = true
 	}
-	return available, configChanged, services
+	return available, configChanged, services, details
 }
 
 // CheckDeployUpdate runs the deployment updater in read-only mode and returns
@@ -296,13 +307,49 @@ func (h *SystemHandler) CheckDeployUpdate(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "output": output})
 		return
 	}
-	available, configChanged, services := parseDeployCheckOutput(output)
+	available, configChanged, services, details := parseDeployCheckOutput(output)
 	c.JSON(http.StatusOK, CheckDeployUpdateResponse{
 		UpdateAvailable: available,
 		ConfigChanged:   configChanged,
 		Services:        services,
+		Details:         details,
 		Output:          output,
 		Duration:        time.Since(start).Round(time.Second).String(),
+	})
+}
+
+// GetDeployUpdateLog returns the recent sidecar update log so the web UI can
+// show pull/recreate progress after starting a background deployment update.
+func (h *SystemHandler) GetDeployUpdateLog(c *gin.Context) {
+	ctx := logger.CloneContext(c.Request.Context())
+	container, _, err := deployUpdateTargetFromEnv()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	script := `cd /lexai-deploy && { if [ -d .update-and-deploy.lock ]; then echo "__RUNNING__=1"; else echo "__RUNNING__=0"; fi; tail -n 160 update-and-deploy.log 2>/dev/null || true; }`
+	cmd := exec.CommandContext(ctx, "docker", "exec", container, "bash", "-lc", script)
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+	if len(output) > 20000 {
+		output = output[len(output)-20000:]
+	}
+	if err != nil {
+		logger.Errorf(ctx, "deployment update log read failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "output": output})
+		return
+	}
+
+	running := false
+	lines := strings.Split(output, "\n")
+	if len(lines) > 0 {
+		running = strings.TrimSpace(lines[0]) == "__RUNNING__=1"
+		output = strings.Join(lines[1:], "\n")
+	}
+	c.JSON(http.StatusOK, DeployUpdateLogResponse{
+		Running: running,
+		Output:  output,
 	})
 }
 

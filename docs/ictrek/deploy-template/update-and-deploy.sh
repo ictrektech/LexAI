@@ -97,6 +97,14 @@ esac
 require_cmd git
 require_cmd rsync
 
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  case "$PLATFORM" in
+    thor) exec "$ROOT_DIR/deploy-thor.sh" "${deploy_args[@]}" ;;
+    amd) exec "$ROOT_DIR/deploy-tc232.sh" "${deploy_args[@]}" ;;
+    l4t) exec "$ROOT_DIR/deploy.sh" --platform "$PLATFORM" "${deploy_args[@]}" ;;
+  esac
+fi
+
 tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT
@@ -132,14 +140,6 @@ else
 fi
 
 chmod +x "$ROOT_DIR"/*.sh
-
-if [[ "$CHECK_ONLY" == "1" ]]; then
-  case "$PLATFORM" in
-    thor) exec "$ROOT_DIR/deploy-thor.sh" "${deploy_args[@]}" ;;
-    amd) exec "$ROOT_DIR/deploy-tc232.sh" "${deploy_args[@]}" ;;
-    l4t) exec "$ROOT_DIR/deploy.sh" --platform "$PLATFORM" "${deploy_args[@]}" ;;
-  esac
-fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
   log "dry-run: config_changed=${LEXAI_DEPLOY_CONFIG_CHANGED}; deploy args: ${deploy_args[*]}"
