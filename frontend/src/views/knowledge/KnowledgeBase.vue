@@ -86,7 +86,7 @@ const deployUpdaterEnabled = ref(false)
 const checkingDeployUpdate = ref(false)
 const updatingDeploy = ref(false)
 const showDeployUpdateButton = computed(() =>
-  !!deployUpdaterEnabled.value && authStore.isSystemAdmin
+  !!deployUpdaterEnabled.value
 )
 const wikiIsIndexing = computed(() => wikiStatus.value.isActive || wikiStatus.value.pendingTasks > 0)
 const wikiIndexingTip = computed(() => {
