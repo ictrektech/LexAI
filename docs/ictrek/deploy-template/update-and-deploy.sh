@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_URL="${LEXAI_DEPLOY_REPO:-git@github.com:ictrektech/LexAI.git}"
+REPO_URL="${LEXAI_DEPLOY_REPO:-https://github.com/ictrektech/LexAI.git}"
 REPO_REF="${LEXAI_DEPLOY_REF:-main}"
 PLATFORM="${PLATFORM:-}"
 DRY_RUN=0
@@ -17,7 +17,7 @@ directory while preserving local .env files, then runs the platform deploy
 script. Intended for a future "update deployment" web button.
 
 Environment:
-  LEXAI_DEPLOY_REPO  Git repo to pull from, default git@github.com:ictrektech/LexAI.git
+  LEXAI_DEPLOY_REPO  Git repo to pull from, default https://github.com/ictrektech/LexAI.git
   LEXAI_DEPLOY_REF   Git ref to pull, default main
   PLATFORM           Alternative to --platform
 EOF
@@ -103,10 +103,13 @@ log "pulling docs/ictrek from ${REPO_URL}@${REPO_REF}"
 clone_repo "$REPO_URL" "$REPO_REF" "$tmp/repo"
 git -C "$tmp/repo" sparse-checkout set docs/ictrek
 
-changes="$(rsync -az --delete --dry-run --itemize-changes \
+changes="$(rsync -rci --delete --dry-run --itemize-changes \
   --exclude='.env' \
   --exclude='.env.tc232' \
   --exclude='.env.thor' \
+  --exclude='.env*.bak.*' \
+  --exclude='.DS_Store' \
+  --exclude='._*' \
   "$tmp/repo/docs/ictrek/deploy-template/" "$ROOT_DIR/" || true)"
 if [[ -n "$changes" ]]; then
   export LEXAI_DEPLOY_CONFIG_CHANGED=1
@@ -116,6 +119,9 @@ if [[ -n "$changes" ]]; then
       --exclude='.env' \
       --exclude='.env.tc232' \
       --exclude='.env.thor' \
+      --exclude='.env*.bak.*' \
+      --exclude='.DS_Store' \
+      --exclude='._*' \
       "$tmp/repo/docs/ictrek/deploy-template/" "$ROOT_DIR/"
   fi
 else

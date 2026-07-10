@@ -115,11 +115,13 @@ services:
     environment:
       FEISHU_CONFIG_FILE: /root/.feishu.json
       FEISHU_READ_CONFIG_FILE: /root/.feishu.components.json
+      LEXAI_DEPLOY_REPO: ${LEXAI_DEPLOY_REPO:-https://github.com/ictrektech/LexAI.git}
       WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE: "true"
     volumes:
       - ./:/lexai-deploy
       - /var/run/docker.sock:/var/run/docker.sock
       - ${FEISHU_CONFIG_HOST_FILE:-/home/jhu/.feishu.json}:/root/.feishu.json:ro
+      - ${FEISHU_READ_CONFIG_HOST_FILE:-/home/jhu/.feishu.components.json}:/root/.feishu.components.json:ro
     networks:
       - lexai
     restart: unless-stopped
