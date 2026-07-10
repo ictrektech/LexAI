@@ -59,7 +59,7 @@ import { listMoveTargets, moveKnowledge, getKnowledgeMoveProgress } from '@/api/
 import { useI18n } from 'vue-i18n';
 import { useMarqueeSelect } from '@/hooks/useMarqueeSelect';
 import type { ParserEngineInfo } from '@/api/system';
-import { checkDeployUpdate, getSystemInfo, runDeployUpdate } from '@/api/system';
+import { checkDeployUpdate, runDeployUpdate } from '@/api/system';
 const route = useRoute();
 const { t } = useI18n();
 const kbId = computed(() => (route.params as any).kbId as string || '');
@@ -82,12 +82,9 @@ const wikiStatus = ref<{ pendingTasks: number; isActive: boolean; pendingIssues:
   isActive: false,
   pendingIssues: 0,
 })
-const deployUpdaterEnabled = ref(false)
 const checkingDeployUpdate = ref(false)
 const updatingDeploy = ref(false)
-const showDeployUpdateButton = computed(() =>
-  !!deployUpdaterEnabled.value
-)
+const showDeployUpdateButton = computed(() => true)
 const wikiIsIndexing = computed(() => wikiStatus.value.isActive || wikiStatus.value.pendingTasks > 0)
 const wikiIndexingTip = computed(() => {
   if (!wikiIsIndexing.value) return ''
@@ -932,19 +929,6 @@ const handleKnowledgeTagChange = async (knowledgeId: string, tagIds: string[]) =
   }
 };
 
-const loadDeployUpdaterState = async () => {
-  if (!authStore.isSystemAdmin) {
-    deployUpdaterEnabled.value = false
-    return
-  }
-  try {
-    const res = await getSystemInfo()
-    deployUpdaterEnabled.value = !!res?.data?.deploy_updater_enabled
-  } catch (_) {
-    deployUpdaterEnabled.value = false
-  }
-}
-
 const serviceLabel = (service: string) => {
   const labels: Record<string, string> = {
     frontend: '前端',
@@ -1232,7 +1216,6 @@ const handleOpenKnowledgeEvent = (e: Event) => {
 
 onMounted(() => {
   loadKnowledgeList();
-  loadDeployUpdaterState();
   editorResources.ensureParserEngines();
 
   window.addEventListener('knowledgeFileUploaded', handleFileUploaded as EventListener);
@@ -2155,6 +2138,18 @@ async function createNewSession(value: string): Promise<void> {
 <template>
   <template v-if="!isFAQ">
     <div class="knowledge-layout">
+      <div class="deploy-update-anchor" style="--wails-draggable: no-drag">
+        <t-button
+          v-if="showDeployUpdateButton"
+          size="medium"
+          variant="outline"
+          :loading="checkingDeployUpdate || updatingDeploy"
+          @click="handleDeployUpdateCheck"
+        >
+          <template #icon><t-icon name="refresh" size="16px" /></template>
+          {{ $t('system.deployUpdateCheckButton') }}
+        </t-button>
+      </div>
       <div class="document-header">
         <div class="document-header-title">
           <div class="document-title-row">
@@ -2210,16 +2205,6 @@ async function createNewSession(value: string): Promise<void> {
             </h2>
             <!-- 标题行右侧的动作锚点：聚拢"信息"和"设置"两个圆形按钮。 -->
             <div class="kb-title-actions">
-              <t-button
-                v-if="showDeployUpdateButton"
-                size="medium"
-                variant="outline"
-                :loading="checkingDeployUpdate || updatingDeploy"
-                @click="handleDeployUpdateCheck"
-              >
-                <template #icon><t-icon name="refresh" size="16px" /></template>
-                {{ $t('system.deployUpdateCheckButton') }}
-              </t-button>
               <KBInfoPopover v-if="kbInfo && !authStore.isLiteMode" :kb-info="kbInfo"
                 :supported-file-types="[...supportedFileTypes]" />
               <t-tooltip v-if="canManage" :content="$t('knowledgeBase.settings')" placement="top">
@@ -2596,6 +2581,7 @@ async function createNewSession(value: string): Promise<void> {
 </style>
 <style scoped lang="less">
 .knowledge-layout {
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: 0 16px 0 4px;
@@ -3379,6 +3365,13 @@ async function createNewSession(value: string): Promise<void> {
       white-space: nowrap;
     }
   }
+}
+
+.deploy-update-anchor {
+  position: absolute;
+  top: 20px;
+  right: 72px;
+  z-index: 10;
 }
 
 

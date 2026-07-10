@@ -4,6 +4,17 @@
       :count-mine="kbs.length" :count-by-org="effectiveSharedCountByOrg" :count-favorites="kbFavoritesCount"
       :count-recents="kbRecentsCount" />
     <div class="kb-list-content">
+      <div class="deploy-update-anchor" style="--wails-draggable: no-drag">
+        <t-button
+          size="medium"
+          variant="outline"
+          :loading="checkingDeployUpdate || updatingDeploy"
+          @click="handleDeployUpdateCheck"
+        >
+          <template #icon><t-icon name="refresh" size="16px" /></template>
+          {{ $t('system.deployUpdateCheckButton') }}
+        </t-button>
+      </div>
       <div class="header" style="--wails-draggable: drag">
         <div class="header-title" style="--wails-draggable: drag">
           <div class="title-row" style="--wails-draggable: drag">
@@ -782,7 +793,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { MessagePlugin, Icon as TIcon } from 'tdesign-vue-next'
+import { DialogPlugin, MessagePlugin, Icon as TIcon } from 'tdesign-vue-next'
 import { deleteKnowledgeBase, duplicateKnowledgeBase, togglePinKnowledgeBase } from '@/api/knowledge-base'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { formatStringDate } from '@/utils/index'
@@ -803,6 +814,7 @@ import { useTenantModelReadiness } from '@/composables/useTenantModelReadiness'
 import { useI18n } from 'vue-i18n'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
+import { checkDeployUpdate, runDeployUpdate } from '@/api/system'
 
 const router = useRouter()
 const route = useRoute()
@@ -812,6 +824,68 @@ const { loaded: modelsReadyLoaded, isReadyForDocumentKb } = useTenantModelReadin
 const orgStore = useOrganizationStore()
 const chatResources = useChatResourcesStore()
 const { t } = useI18n()
+const checkingDeployUpdate = ref(false)
+const updatingDeploy = ref(false)
+
+const serviceLabel = (service: string) => {
+  const labels: Record<string, string> = {
+    frontend: '前端',
+    app: '后端',
+    docreader: '文档解析服务',
+    'model-hub-frontend': 'Model Hub 前端',
+    'model-hub-backend': 'Model Hub 后端',
+    'model-hub-bootstrap': 'Model Hub 初始化',
+    'model-hub-ollama': 'Ollama 服务',
+    'deploy-updater': '部署更新服务',
+    'qwen35-9b-vllm': 'QA 模型服务',
+    'bge-m3-vllm': 'Embedding 模型服务',
+  }
+  return labels[service] || service
+}
+
+const handleDeployUpdateCheck = async () => {
+  if (checkingDeployUpdate.value || updatingDeploy.value) return
+  checkingDeployUpdate.value = true
+  try {
+    const result = await checkDeployUpdate()
+    if (!result.update_available) {
+      MessagePlugin.success(t('system.deployUpdateNoUpdate'))
+      return
+    }
+    const services = (result.services || []).map(serviceLabel)
+    const lines = [
+      result.config_changed ? t('system.deployUpdateConfirmConfigChanged') : '',
+      services.length ? t('system.deployUpdateConfirmServices', { services: services.join('、') }) : '',
+      t('system.deployUpdateConfirmProgressHint'),
+      t('system.deployUpdateConfirmRefreshHint'),
+    ].filter(Boolean)
+    const dialog = DialogPlugin.confirm({
+      header: t('system.deployUpdateConfirmTitle'),
+      body: lines.join('\n'),
+      confirmBtn: { content: t('system.deployUpdateConfirmButton'), theme: 'primary' },
+      cancelBtn: t('common.cancel'),
+      onConfirm: async () => {
+        if (updatingDeploy.value) return
+        updatingDeploy.value = true
+        try {
+          await runDeployUpdate()
+          MessagePlugin.success(t('system.deployUpdateStarted'))
+          dialog.hide()
+        } catch (err: any) {
+          const output = err?.response?.data?.output || err?.output
+          MessagePlugin.error(output || err?.message || t('system.deployUpdateFailed'))
+        } finally {
+          updatingDeploy.value = false
+        }
+      },
+    })
+  } catch (err: any) {
+    const output = err?.response?.data?.output || err?.output
+    MessagePlugin.error(output || err?.message || t('system.deployUpdateCheckFailed'))
+  } finally {
+    checkingDeployUpdate.value = false
+  }
+}
 
 // 左侧空间选择：默认根据当前角色决定。
 // Viewer 在该租户里通常 0 KB owned，"我的"会显示空状态、又把共享 KB 藏起来，
@@ -1803,6 +1877,14 @@ const handleUploadFinishedEvent = (event: Event) => {
   flex-direction: column;
   min-width: 0;
   padding: 20px 0 0 28px;
+  position: relative;
+}
+
+.deploy-update-anchor {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  z-index: 10;
 }
 
 .header {
@@ -1834,7 +1916,6 @@ const handleUploadFinishedEvent = (event: Event) => {
   }
 
 }
-
 .kb-create-btn {
   background: linear-gradient(135deg, var(--td-brand-color) 0%, #00a67e 100%);
   border: none;
