@@ -15,6 +15,23 @@
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。
 
+## Thor 当前参数：每个数字限制什么
+
+Thor 不是把所有并发都限制为 `1`。下表是 `192.168.1.81` 当前部署的完整分工，避免把 worker 数、vLLM 接收上限和后台模型限流混为一谈。
+
+| 配置 | 当前值 | 实际限制对象 | 不限制什么 | 设置目的 |
+| --- | ---: | --- | --- | --- |
+| `VLLM_MAX_MODEL_LEN` / `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | `18432` | QA vLLM 和应用侧 RAG prompt 的总上下文窗口 | 模型服务并发 | 两处必须严格相同；应用按输出预算和安全余量裁剪检索内容，避免 vLLM 返回 context-length 400。 |
+| `VLLM_MAX_NUM_SEQS` / `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` | `7` | QA vLLM 最多可接收的序列数、LexAI 主模型请求入口 | 满上下文下实际可长期并行的请求数 | `7` 是调度上限，不等于 18,432 token 下有 7 个真实 KV 槽。 |
+| `WEKNORA_CHAT_RESERVED_CONCURRENCY` | `3` | LexAI 为在线聊天保留的目标容量 | Embedding 服务、文字解析 worker | 后台 LLM 任务不能把 QA 模型全部占满；这是应用侧规则，不是 vLLM 的物理隔离。 |
+| `WEKNORA_MODEL_MAX_CONCURRENCY` | `1` | **全部后台任务同时进入主 QA 模型的总数**：Graph、Wiki、摘要、自动问题、需要主 QA 的 VLM | 在线聊天、bge-m3 embedding、文字解析/分块/向量化 worker | 将后台主模型调用串行化，防止多个 worker 同时向 9B vLLM 发长请求。 |
+| `WEKNORA_GRAPH_LLM_CONCURRENCY` | `1` | 单个文档内 Graph chunk 的 LLM 并发 | 其他类型任务、在线聊天 | 防止一个 Graph 任务自己拆出多条并行 LLM 请求；仍受上面的全局 `MODEL_MAX=1` 约束。 |
+| `WEKNORA_ASYNQ_CONCURRENCY` | `4` | core=2、enrichment=1、maintenance=1 的后台 worker 数 | 主 QA 模型请求数 | 让文字解析/embedding 继续推进，同时增强任务只有一个 worker。 |
+| `WEKNORA_WIKI_ASYNQ_CONCURRENCY` | `2` | Wiki worker 数 | 主 QA 模型请求数 | Wiki 排队、准备和落库可并行；真正调用主 QA 时仍受 `MODEL_MAX=1` 限制。 |
+| `BGE_VLLM_MAX_NUM_SEQS` / `CONCURRENCY_POOL_SIZE` | `8` / `4` | bge-m3 服务并发 / 文档 embedding 请求并发 | QA vLLM 槽位 | 文档入库最多使用 4 个 embedding 请求，给在线检索保留余量。 |
+
+因此，`1` 的目的不是降低聊天并发，而是把后台对 **同一个 QA vLLM** 的长请求合并成单通道。聊天请求不经过这个后台闸门；文字解析、分块和 embedding 也不经过它。它是应用侧保护，仍要用 vLLM `waiting` 指标回验；如果聊天时持续出现 `waiting > 0`，应继续降低后台模型负载或上下文，而不是提高 worker 数。
+
 ## 机器资源评估流程
 
 给一台新机器定模型、上下文、模型并发和聊天预留时，按下面顺序做，不要只按显存大小或 `max-num-seqs` 猜。
@@ -96,17 +113,17 @@ WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 Maximum concurrency for <context> tokens per request: <n>x
 ```
 
-`WEKNORA_MODEL_MAX_CONCURRENCY` 应按 `floor(<n>) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 设置，至少保留 1 个后台槽位。Thor 在 `18432` 上下文下实测约 `3.96x`，聊天保留 3，因此后台主模型并发是 1。
+`WEKNORA_MODEL_MAX_CONCURRENCY` 是**后台主模型的硬闸门**，不是 `VLLM_MAX_NUM_SEQS` 的别名。它应先按 `floor(<n>) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 估算，再以聊天期间的 vLLM `waiting` 指标回验。Thor 在 `18432` 上下文下实测约 `3.96x`，`7 - 3 = 4` 这个调度差值不能当作真实后台容量；因此当前把所有后台主模型调用收紧为 `1`，让 3 个聊天请求有可用余量。
 
 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 必须和 vLLM `--max-model-len` 一致；应用会按 `上下文窗口 - 输出 token - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` 裁剪 RAG 检索上下文，避免检索内容把 prompt 顶到模型硬限制。
 
-`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的最低并发，不让后台 LLM 任务占用。它是 LexAI 应用侧的后台 LLM 限流，不是 vLLM 自带的硬隔离；所有文档后处理、Graph、Wiki、自动问题生成等后台 LLM 调用都必须走 `acquireBackgroundLLMSlot`，否则会绕过预留直接占满模型服务。后台 LLM 可用槽位近似为：
+`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的目标并发，不让后台 LLM 任务占用。它是 LexAI 应用侧的后台 LLM 限流，不是 vLLM 自带的硬隔离；所有文档后处理、Graph、Wiki、自动问题生成等后台 LLM 调用都必须走 `acquireBackgroundLLMSlot`，否则会绕过预留直接占满模型服务。下面的值仅表示**入口调度差值**，不能替代 vLLM 满上下文实测值，也不能替代 `WEKNORA_MODEL_MAX_CONCURRENCY`：
 
 ```text
 background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY
 ```
 
-如果两个值都大于 0，且 `main <= reserved`，LexAI 仍会保留 1 个后台槽位，避免 Graph/Wiki/Question 完全不执行。如果任意一个值为空或为 `0`，后台 LLM 限流不会启用。
+如果两个值都大于 0，且 `main <= reserved`，LexAI 仍会保留 1 个后台槽位，避免 Graph/Wiki/Question 完全不执行。如果任意一个值为空或为 `0`，后台 LLM 限流不会启用。Thor 的最终后台上限仍以 `WEKNORA_MODEL_MAX_CONCURRENCY=1` 为准。
 
 `WEKNORA_GRAPH_LLM_CONCURRENCY` 限制单个文档 Graph 抽取中的 LLM 并发。
 
@@ -220,3 +237,28 @@ curl -sS http://127.0.0.1:32223/metrics \
 Thor 当前配置下，后台主模型调用正常应长期压在 1 个以内；用户聊天同时发生时，qwen running 可以短时超过 1，但不应持续出现 `waiting > 0`。bge-m3 当前是 8 槽，文档 embedding 应用侧最多 4 个请求；如果 bge `waiting > 0`，先降 `CONCURRENCY_POOL_SIZE` 或后台 worker。
 
 修改后要同步 env、compose 里的模型服务参数和内置模型配置。只改 env 时，重新执行对应 compose `up -d` 即可让 app 读取新值。
+
+## 2026-07-12 变更说明
+
+本次 Thor 配置与前端行为需要一起理解：
+
+1. QA vLLM 上下文统一为精确值 `18432`，不使用近似值 `18000`。`WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18432`、vLLM `--max-model-len 18432` 与应用侧 prompt 安全余量 `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768` 必须同时生效；否则 RAG 即使问题很短，也可能因检索文本过长触发 context-length 400。
+2. Thor 保持 `VLLM_MAX_NUM_SEQS=7`、聊天预留 `3`，但后台主模型调用固定为 `WEKNORA_MODEL_MAX_CONCURRENCY=1`。这不是把系统总并发降到 1，而是阻止 Graph/Wiki/摘要/VLM 同时占用 QA vLLM。
+3. worker 池保持 core=2、enrichment=1、maintenance=1、wiki=2。文字解析、分块和 embedding 优先进入 core；VLM/OCR、Graph、摘要和自动问题在 enrichment；Wiki 有独立队列，但所有需要 QA 模型的后台阶段仍经过同一个后台模型闸门。
+4. 前端在流式回答期间收到历史消息刷新时，会保留正在回复行的 `id/request_id`，后续带引用的 SSE 事件仍更新同一行。这样不会因数据库消息 ID 与流式 request ID 不同而显示两条相同回答。该修复属于前端消息合并逻辑，不改变模型并发或任务队列。
+
+部署后至少执行下面三项确认，不能只看 env 文件：
+
+```bash
+# 1) app 实际读取的限流值
+docker inspect lexai-thor-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_CHAT_MODEL_CONTEXT_TOKENS)='
+
+# 2) QA vLLM 实际启动参数
+docker inspect qwen35-9b-vllm --format '{{range .Config.Cmd}}{{println .}}{{end}}' \
+  | grep -E 'max-model-len|max-num-seqs|max-num-batched-tokens|gpu-memory-utilization'
+
+# 3) 文档后台任务运行时，聊天是否仍在排队
+curl -sS http://127.0.0.1:32222/metrics \
+  | grep -E 'vllm:num_requests_(running|waiting)'
+```

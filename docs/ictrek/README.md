@@ -6,7 +6,7 @@
 
 ## 机器资源评估入口
 
-任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。
+任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。Thor 部署尤其先看其中「Thor 当前参数：每个数字限制什么」和「2026-07-12 变更说明」：`7` 是 QA vLLM 接收上限，`3` 是聊天目标预留，`1` 只限制后台进入主 QA 模型的总并发，不限制在线聊天或 embedding。
 
 ## 部署包范围
 
