@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"strings"
 
 	"github.com/Tencent/WeKnora/internal/models/limiter"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -36,13 +35,13 @@ func (w *concurrencyChat) GetModelName() string { return w.inner.GetModelName() 
 func (w *concurrencyChat) GetModelID() string   { return w.inner.GetModelID() }
 
 func (w *concurrencyChat) Chat(ctx context.Context, messages []Message, opts *ChatOptions) (*types.ChatResponse, error) {
-	release := limiter.GateN(ctx, modelLimiterKey(w.inner), w.limit)
+	release := limiter.GateNamedN(ctx, w.inner.GetModelID(), w.inner.GetModelName(), w.limit)
 	defer release()
 	return w.inner.Chat(ctx, messages, opts)
 }
 
 func (w *concurrencyChat) ChatStream(ctx context.Context, messages []Message, opts *ChatOptions) (<-chan types.StreamResponse, error) {
-	release := limiter.GateN(ctx, modelLimiterKey(w.inner), w.limit)
+	release := limiter.GateNamedN(ctx, w.inner.GetModelID(), w.inner.GetModelName(), w.limit)
 	ch, err := w.inner.ChatStream(ctx, messages, opts)
 	if err != nil || ch == nil {
 		release()
@@ -80,16 +79,4 @@ func wrapChatConcurrency(c Chat, limit int, err error) (Chat, error) {
 		return c, err
 	}
 	return &concurrencyChat{inner: c, limit: limit}, nil
-}
-
-func modelLimiterKey(c Chat) string {
-	if c == nil {
-		return ""
-	}
-	if keyed, ok := c.(interface{ GetLimiterKey() string }); ok {
-		if key := strings.TrimSpace(keyed.GetLimiterKey()); key != "" {
-			return key
-		}
-	}
-	return c.GetModelID()
 }

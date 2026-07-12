@@ -50,7 +50,7 @@ func (p *PluginChatCompletion) OnEvent(
 	pipelineInfo(ctx, "Completion", "messages_ready", map[string]interface{}{
 		"message_count": len(chatManage.History) + 2,
 	})
-	chatMessages := prepareMessagesWithHistory(chatManage)
+	chatMessages := prepareMessagesWithHistory(chatManage, opt)
 
 	// Call the chat model to generate response
 	pipelineInfo(ctx, "Completion", "model_call", map[string]interface{}{

@@ -6,7 +6,7 @@
 
 ## 机器资源评估入口
 
-任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台队列权重和 Embedding 并发的统一参考。
+任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。
 
 ## 部署包范围
 
@@ -48,10 +48,6 @@ WEKNORA_CHAT_RESERVED_CONCURRENCY=1
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
-WEKNORA_ASYNQ_QUEUE_PARSE=5
-WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
-WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=2
 MAX_FILE_SIZE_MB=500
 WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB=20
 ENABLE_GRAPH_RAG=true
@@ -205,7 +201,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
 
-部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing` 的知识条目；`finalizing` 只有在 `processed_at is null` 时才会整篇重新解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会重复跑 docreader、分块和 embedding。启动扫描走 `critical` 队列，每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing` 的知识条目；`finalizing` 只有在 `processed_at is null` 时才会整篇重新解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会重复跑 docreader、分块和 embedding。每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 core worker 池。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
 
 部署脚本只重建镜像 digest 或部署配置发生变化的受管服务，不重启 Postgres、Redis、Neo4j 等数据库服务。`docreader` 只有在 docreader 镜像或部署配置变化时才重建；`app` 变化时等待 app health；vLLM 变化时等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready。随后脚本运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 
@@ -232,20 +228,17 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。Thor 的 QA vLLM 按 18k 上下文、7 并发、聊天保留 3 部署：
 
 ```dotenv
-VLLM_MAX_MODEL_LEN=18000
+VLLM_MAX_MODEL_LEN=18432
 VLLM_MAX_NUM_SEQS=7
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7
 WEKNORA_CHAT_RESERVED_CONCURRENCY=3
-WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_MODEL_MAX_CONCURRENCY=1
+WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
-WEKNORA_ASYNQ_QUEUE_PARSE=5
-WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
-WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的实际并发上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析调度走 `parse` 队列，先完成可检索的文字解析、分块和向量化；VLM/OCR 多模态走 `multimodal` 队列，排在文字解析之后、Graph/Wiki 之前；Graph/Wiki/Question 只共享剩余后台槽位。Asynq 解析池使用严格优先级，Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制两个池的后台模型调用，必须小于等于 `主模型并发 - 聊天预留`。Thor 7 并发上保留 3 个给聊天，`WEKNORA_MODEL_MAX_CONCURRENCY=4`、解析 worker 4、Wiki worker 2；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的请求数上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析走 core worker 池，先完成可检索的文字解析、分块和向量化；VLM/OCR、Graph、摘要和自动问题生成走 enrichment worker 池；Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制两个池的后台模型调用。Thor 不能按 `VLLM_MAX_NUM_SEQS - 聊天预留` 直接算后台 qwen 并发：`18432` 上下文下 vLLM 启动日志显示满长有效并发约 `3.96x`，所以保留 3 个聊天槽位时后台主模型并发必须设为 `1`；upstream worker 仍为 4，会拆成 core=2、enrichment=1、maintenance=1；Wiki worker 2。tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
 
 Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`。
 

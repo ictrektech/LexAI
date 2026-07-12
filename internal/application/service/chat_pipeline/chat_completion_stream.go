@@ -54,7 +54,7 @@ func (p *PluginChatCompletionStream) OnEvent(ctx context.Context,
 
 	// Prepare base messages without history
 
-	chatMessages := prepareMessagesWithHistory(chatManage)
+	chatMessages := prepareMessagesWithHistory(chatManage, opt)
 	pipelineInfo(ctx, "Stream", "messages_ready", map[string]interface{}{
 		"message_count": len(chatMessages),
 		"system_prompt": chatMessages[0].Content,

@@ -256,7 +256,7 @@ func (h *KnowledgeHandler) enqueueKnowledgeListDelete(
 		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 	task := asynq.NewTask(types.TypeKnowledgeListDelete, payloadBytes,
-		asynq.Queue("low"), asynq.MaxRetry(3))
+		asynq.Queue(types.QueueMaintenance), asynq.MaxRetry(3), asynq.Timeout(2*time.Hour))
 	info, err := h.asynqClient.Enqueue(task)
 	if err != nil {
 		return "", fmt.Errorf("enqueue task: %w", err)
@@ -280,7 +280,7 @@ func (h *KnowledgeHandler) enqueueKnowledgeListReparse(
 		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 	task := asynq.NewTask(types.TypeKnowledgeListReparse, payloadBytes,
-		asynq.Queue(types.QueueParse), asynq.MaxRetry(3))
+		asynq.Queue(types.QueueMaintenance), asynq.MaxRetry(3), asynq.Timeout(time.Hour))
 	info, err := h.asynqClient.Enqueue(task)
 	if err != nil {
 		return "", fmt.Errorf("enqueue task: %w", err)
@@ -333,7 +333,7 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 		return
 	}
 
-	// Validate file size — read MAX_FILE_SIZE_MB env (500MB default).
+	// Validate file size — read MAX_FILE_SIZE_MB env (50MB default).
 	// Deliberately not a runtime system_setting; see filesize.go for the
 	// rationale (nginx / docreader / browser bundle all cache this at
 	// container startup, so a UI knob would silently mismatch).
@@ -1013,9 +1013,6 @@ func (h *KnowledgeHandler) DeleteKnowledge(c *gin.Context) {
 		c.Error(errors.NewInternalServerError("Failed to enqueue delete task"))
 		return
 	}
-	if err := h.kgService.MarkKnowledgeDeleting(effCtx, []string{id}); err != nil {
-		logger.Warnf(ctx, "Failed to mark knowledge as deleting after enqueue, knowledge_id=%s: %v", secutils.SanitizeForLog(id), err)
-	}
 
 	logger.Infof(ctx, "Knowledge delete task enqueued: %s, knowledge_id: %s", taskID, secutils.SanitizeForLog(id))
 	c.JSON(http.StatusOK, gin.H{
@@ -1123,9 +1120,6 @@ func (h *KnowledgeHandler) BatchDeleteKnowledge(c *gin.Context) {
 		c.Error(errors.NewInternalServerError("Failed to enqueue batch delete task"))
 		return
 	}
-	if err := h.kgService.MarkKnowledgeDeleting(ctx, ids); err != nil {
-		logger.Warnf(ctx, "Failed to mark batch knowledge as deleting after enqueue, kb_id=%s: %v", secutils.SanitizeForLog(kbID), err)
-	}
 
 	logger.Infof(ctx, "Batch knowledge delete task enqueued: %s, kb_id: %s, count: %d",
 		taskID, secutils.SanitizeForLog(kbID), len(ids))
@@ -1199,9 +1193,6 @@ func (h *KnowledgeHandler) ClearKnowledgeBaseContents(c *gin.Context) {
 		logger.Errorf(ctx, "Failed to enqueue knowledge list delete task: %v", err)
 		c.Error(errors.NewInternalServerError("Failed to enqueue cleanup task"))
 		return
-	}
-	if err := h.kgService.MarkKnowledgeDeleting(ctx, knowledgeIDs); err != nil {
-		logger.Warnf(ctx, "Failed to mark cleared knowledge as deleting after enqueue, kb_id=%s: %v", secutils.SanitizeForLog(kbID), err)
 	}
 
 	logger.Infof(ctx, "Knowledge base contents clear task enqueued: %s, kb_id: %s, count: %d",
@@ -2195,7 +2186,8 @@ func (h *KnowledgeHandler) MoveKnowledge(c *gin.Context) {
 
 	// Enqueue move task
 	task := asynq.NewTask(types.TypeKnowledgeMove, payloadBytes,
-		asynq.TaskID(taskID), asynq.Queue("default"), asynq.MaxRetry(3))
+		asynq.TaskID(taskID), asynq.Queue(types.QueueMaintenance),
+		asynq.MaxRetry(3), asynq.Timeout(2*time.Hour))
 	info, err := h.asynqClient.Enqueue(task)
 	if err != nil {
 		logger.Errorf(ctx, "MoveKnowledge: failed to enqueue task: %v", err)

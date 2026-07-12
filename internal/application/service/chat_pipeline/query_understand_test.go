@@ -110,3 +110,38 @@ func TestShouldUseOriginalQueryWithoutModel(t *testing.T) {
 		t.Fatal("expected image query to keep query-understand model call")
 	}
 }
+
+func TestShouldUseOriginalQueryWithoutModel_ChitchatSkipsRetrieval(t *testing.T) {
+	cm := &types.ChatManage{
+		PipelineRequest: types.PipelineRequest{
+			EnableRewrite: true,
+			Query:         "你是谁？",
+		},
+	}
+
+	if !shouldUseOriginalQueryWithoutModel(cm, nil) {
+		t.Fatal("expected simple chitchat query to skip query-understand model call")
+	}
+	if cm.Intent != types.IntentChitchat {
+		t.Fatalf("intent = %q, want %q", cm.Intent, types.IntentChitchat)
+	}
+	if cm.NeedsRetrieval() {
+		t.Fatal("expected chitchat query to skip retrieval")
+	}
+
+	cm = &types.ChatManage{
+		PipelineRequest: types.PipelineRequest{
+			EnableRewrite: true,
+			Query:         "你是谁？",
+		},
+		PipelineState: types.PipelineState{
+			History: []*types.History{{Query: "前一个问题", Answer: "前一个回答"}},
+		},
+	}
+	if !shouldUseOriginalQueryWithoutModel(cm, cm.History) {
+		t.Fatal("expected chitchat query with history to skip query-understand model call")
+	}
+	if cm.NeedsRetrieval() {
+		t.Fatal("expected chitchat query with history to skip retrieval")
+	}
+}

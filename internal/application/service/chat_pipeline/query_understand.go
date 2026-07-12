@@ -172,10 +172,31 @@ func shouldUseOriginalQueryWithoutModel(chatManage *types.ChatManage, historyLis
 	if chatManage == nil {
 		return false
 	}
+	if isSimpleChitchatQuery(chatManage.Query) &&
+		len(chatManage.Images) == 0 &&
+		len(chatManage.Attachments) == 0 {
+		chatManage.Intent = types.IntentChitchat
+		chatManage.RewriteQuery = chatManage.Query
+		return true
+	}
 	return chatManage.EnableRewrite &&
 		len(historyList) == 0 &&
 		len(chatManage.Images) == 0 &&
 		len(chatManage.Attachments) == 0
+}
+
+func isSimpleChitchatQuery(query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	q = strings.Trim(q, " \t\r\n。！？!?，,；;：:")
+	switch q {
+	case "你好", "您好", "hi", "hello", "hey",
+		"你是谁", "你是什么", "你叫什么", "介绍一下你自己",
+		"介绍你自己", "你能做什么", "你可以做什么",
+		"who are you", "what are you", "what can you do":
+		return true
+	default:
+		return false
+	}
 }
 
 // updateUserMessageImageCaption writes the generated ImageDescription back to

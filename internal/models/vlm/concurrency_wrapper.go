@@ -2,7 +2,6 @@ package vlm
 
 import (
 	"context"
-	"strings"
 
 	"github.com/Tencent/WeKnora/internal/models/limiter"
 )
@@ -23,7 +22,7 @@ func (w *concurrencyVLM) GetModelName() string { return w.inner.GetModelName() }
 func (w *concurrencyVLM) GetModelID() string   { return w.inner.GetModelID() }
 
 func (w *concurrencyVLM) Predict(ctx context.Context, imgBytes [][]byte, prompt string) (string, error) {
-	release := limiter.GateN(ctx, vlmLimiterKey(w.inner), w.limit)
+	release := limiter.GateNamedN(ctx, w.inner.GetModelID(), w.inner.GetModelName(), w.limit)
 	defer release()
 	return w.inner.Predict(ctx, imgBytes, prompt)
 }
@@ -36,16 +35,4 @@ func wrapVLMConcurrency(v VLM, limit int, err error) (VLM, error) {
 		return v, err
 	}
 	return &concurrencyVLM{inner: v, limit: limit}, nil
-}
-
-func vlmLimiterKey(v VLM) string {
-	if v == nil {
-		return ""
-	}
-	if keyed, ok := v.(interface{ GetLimiterKey() string }); ok {
-		if key := strings.TrimSpace(keyed.GetLimiterKey()); key != "" {
-			return key
-		}
-	}
-	return v.GetModelID()
 }
