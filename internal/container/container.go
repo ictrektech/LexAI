@@ -1542,7 +1542,11 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 			parse_status IN ?
 			OR (parse_status = ? AND processed_at IS NULL)
 			OR (parse_status = ? AND processed_at IS NULL)
-		)`, statuses, types.ParseStatusProcessing, types.ParseStatusFinalizing).
+		) AND (
+			COALESCE(NULLIF(file_path, ''), '') <> ''
+			OR (type IN ('file_url', 'url') AND COALESCE(NULLIF(source, ''), '') <> '')
+			OR (type = ? AND COALESCE(NULLIF(metadata->>'content', ''), '') <> '')
+		)`, statuses, types.ParseStatusProcessing, types.ParseStatusFinalizing, types.KnowledgeTypeManual).
 		Order("tenant_id, updated_at ASC").
 		Find(&rows).Error; err != nil {
 		logger.Warnf(ctx, "[startup-reparse] query incomplete knowledge failed: %v", err)

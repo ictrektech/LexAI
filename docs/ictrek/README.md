@@ -203,7 +203,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 部署数据不应该跟 repo 一起同步。Postgres、Redis、Neo4j、Qdrant、上传文件、ollama 模型、HF 模型都通过 compose volume 或宿主机目录保存。换新镜像只要复用同一套 `.env`、compose 和数据目录，数据会恢复。
 
-部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描 `failed`、`pending`、`processing` 的知识条目；`finalizing` 只有在 `processed_at is null` 时才会整篇重新解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会重复跑 docreader、分块和 embedding。每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 core worker 池。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。每次 app 容器重建或重启后，服务会自动扫描有可解析来源的 `failed`、`pending`、`processing` 知识条目；`finalizing` 只有在 `processed_at is null` 时才会整篇重新解析。可解析来源指上传文件有 `file_path`，`file_url` / `url` 有 `source`，手工知识有非空 `metadata.content`。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会重复跑 docreader、分块和 embedding；没有实际来源的空记录不会被自动重跑。每条知识重新解析前会清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 core worker 池。这个行为适用于通用、tc232 和 Thor 模板。已完成、已取消、删除中的知识不会被自动重跑。
 
 部署脚本只重建镜像 digest 或部署配置发生变化的受管服务，不重启 Postgres、Redis、Neo4j 等数据库服务。`docreader` 只有在 docreader 镜像或部署配置变化时才重建；`app` 变化时等待 app health；vLLM 变化时等待 `WEKNORA_REPARSE_WAIT_URLS` 里的模型服务 ready。随后脚本运行 [deploy-template/trigger-reparse-incomplete.sh](deploy-template/trigger-reparse-incomplete.sh)，把当前失败/未完成文档通过批量 reparse API 重新提交。详细验证命令见 [deploy-template/README.md](deploy-template/README.md) 和 [deploy-template/THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)。
 

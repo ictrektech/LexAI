@@ -1972,6 +1972,11 @@ func (s *knowledgeService) ReparseKnowledge(
 		return nil, err
 	}
 
+	if !knowledgeHasReparseSource(existing) {
+		logger.Warnf(ctx, "Knowledge %s has no parseable content (no file, URL, or manual content)", knowledgeID)
+		return nil, werrors.NewBadRequestError("知识没有可解析内容")
+	}
+
 	s.dequeueKnowledgeTasks(ctx, knowledgeID)
 
 	// Allocate a fresh span tree attempt up front. Doing this BEFORE
@@ -2247,6 +2252,24 @@ func (s *knowledgeService) ReparseKnowledge(
 
 	logger.Warnf(ctx, "Knowledge %s has no parseable content (no file, URL, or manual content)", knowledgeID)
 	return existing, nil
+}
+
+func knowledgeHasReparseSource(k *types.Knowledge) bool {
+	if k == nil {
+		return false
+	}
+	if strings.TrimSpace(k.FilePath) != "" {
+		return true
+	}
+	switch k.Type {
+	case "file_url", "url":
+		return strings.TrimSpace(k.Source) != ""
+	case types.KnowledgeTypeManual:
+		meta, err := k.ManualMetadata()
+		return err == nil && meta != nil && strings.TrimSpace(meta.Content) != ""
+	default:
+		return false
+	}
 }
 
 // CancelKnowledgeParse marks an in-progress parse as cancelled by the user.

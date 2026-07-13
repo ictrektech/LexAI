@@ -209,7 +209,7 @@ if not statuses:
 print(",".join("'" + s.replace("'", "''") + "'" for s in statuses))
 PY
   )"
-  reparse_predicate="deleted_at is null and parse_status in (${status_sql}) and (parse_status not in ('processing','finalizing') or processed_at is null)"
+  reparse_predicate="deleted_at is null and parse_status in (${status_sql}) and (parse_status not in ('processing','finalizing') or processed_at is null) and (coalesce(nullif(file_path, ''), '') <> '' or (type in ('file_url', 'url') and coalesce(nullif(source, ''), '') <> '') or (type = 'manual' and coalesce(nullif(metadata->>'content', ''), '') <> ''))"
 
   kb_ids="$(sql_list "$postgres_cid" "$db_user" "$db_name" \
     "select knowledge_base_id from knowledges where ${reparse_predicate} group by knowledge_base_id order by knowledge_base_id")"

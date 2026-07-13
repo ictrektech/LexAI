@@ -164,7 +164,7 @@ Maximum concurrency for 18,432 tokens per request: 3.96x
 
 在线 QA 不走 Asynq 后台队列；它的优先级由 IM/HTTP 请求路径、`WEKNORA_CHAT_RESERVED_CONCURRENCY` 和 prompt 预算保证。文档入库主解析走 core 池，确保新上传文档先完成文字解析、分块、向量化和可检索状态；VLM/OCR、Graph、摘要和自动问题生成走 enrichment 池；Wiki ingest 走独立 wiki 池。后台增强再多，也必须经过 `WEKNORA_MODEL_MAX_CONCURRENCY`，不能绕过聊天预留。
 
-部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 `failed`、`pending` 状态的知识重新提交到批量重解析任务；`processing` 和 `finalizing` 只有在 `processed_at is null` 时才会整篇重解析。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会被整篇重跑，避免重复 docreader、分块和 embedding。每条知识真正重新解析前会先清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 core 池。所以它仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重建或重启后，会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把具备可解析来源的 `failed`、`pending` 状态知识重新提交到批量重解析任务；`processing` 和 `finalizing` 只有在 `processed_at is null` 且具备可解析来源时才会整篇重解析。可解析来源指上传文件有 `file_path`，`file_url` / `url` 有 `source`，手工知识有非空 `metadata.content`。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的文档不会被整篇重跑；没有任何可解析来源的空记录也不会被提交，避免重复 docreader、分块和 embedding，或制造永远无法执行的 pending 任务。每条知识真正重新解析前会先清理该知识残留的 queued/retry 任务，再提交新的 `document:process` 到 core 池。所以它仍然优先于 VLM、Graph、Wiki 后台增强，但不会改变在线 QA 的最高优先级。
 
 启动扫描还会按知识库当前配置清理已关闭功能的后台任务：如果知识库关闭了多模态识别，会删除/取消该知识库未完成的 VLM/OCR 多模态任务；如果关闭了知识图谱，会删除/取消未完成的 Graph 抽取任务。已经完成的识别和图谱结果保留。以后重新打开多模态识别时，app 会自动检查该知识库中已经完成文字解析、但最新 attempt 的 `multimodal` 阶段为 `skipped`、`cancelled` 或 `failed` 的文档，从文本 chunk 里的图片链接补发 `image:multimodal` 任务，不重跑全文解析。Housekeeping 判断队列保护时同时匹配 `knowledge_id` 和 latest `attempt`：当前 attempt 的排队/运行任务会被保留，旧 attempt 或没有当前 attempt 的旧格式任务不会让文档长期卡在 `finalizing`。Graph 重新打开后仍按重新解析或后续专门恢复入口补跑。
 
