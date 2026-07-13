@@ -97,8 +97,8 @@ RUN set -eux; \
     mv /tmp/docker/docker /usr/local/bin/docker; \
     mkdir -p /usr/local/lib/docker/cli-plugins; \
     compose_url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}"; \
-    curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
-        curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
+        curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
     chmod +x /usr/local/bin/docker /usr/local/lib/docker/cli-plugins/docker-compose; \
     rm -rf /tmp/docker /tmp/docker.tgz
 
