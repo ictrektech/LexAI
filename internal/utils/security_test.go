@@ -8,7 +8,12 @@ import (
 )
 
 func TestSSRFSafeURL(t *testing.T) {
-	t.Parallel()
+	withLookupIP(t, func(host string) ([]net.IP, error) {
+		if host == "example.com" {
+			return []net.IP{net.ParseIP("93.184.216.34")}, nil
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: host}
+	})
 
 	tests := []struct {
 		name          string
@@ -108,8 +113,6 @@ func TestSSRFSafeURL(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			ok, reason := isSSRFSafeURL(tt.rawURL)
 			if ok != tt.wantOK {
 				t.Fatalf("isSSRFSafeURL(%q) ok = %v, want %v, reason = %q", tt.rawURL, ok, tt.wantOK, reason)
@@ -122,16 +125,26 @@ func TestSSRFSafeURL(t *testing.T) {
 }
 
 func TestSSRFSafeURL_AllowPublicDomain(t *testing.T) {
-	t.Parallel()
+	withLookupIP(t, func(host string) ([]net.IP, error) {
+		if host == "example.com" {
+			return []net.IP{net.ParseIP("93.184.216.34")}, nil
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: host}
+	})
 
 	ok, reason := isSSRFSafeURL("https://example.com/path")
 	if !ok {
-		// This path depends on runtime DNS/network. If DNS is unavailable, skip to keep CI stable.
-		if strings.Contains(reason, "DNS resolution failed") {
-			t.Skipf("skip due to DNS unavailable in test environment: %s", reason)
-		}
 		t.Fatalf("expected public domain to be allowed, got ok=%v reason=%q", ok, reason)
 	}
+}
+
+func withLookupIP(t *testing.T, fn func(string) ([]net.IP, error)) {
+	t.Helper()
+	old := lookupIP
+	lookupIP = fn
+	t.Cleanup(func() {
+		lookupIP = old
+	})
 }
 
 // TestValidateURLForSSRF_IPv6Whitelist verifies that whitelisted IPv6 addresses

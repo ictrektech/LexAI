@@ -250,6 +250,8 @@ var restrictedIPv4Ranges = []*net.IPNet{
 	mustParseCIDR("172.20.0.0/16"),
 }
 
+var lookupIP = net.LookupIP
+
 // mustParseCIDR parses a CIDR string and panics on error
 func mustParseCIDR(s string) *net.IPNet {
 	_, ipNet, err := net.ParseCIDR(s)
@@ -441,7 +443,7 @@ func isSSRFSafeURL(rawURL string) (bool, string) {
 
 	// Perform DNS resolution to check the resolved IP
 	// This prevents DNS rebinding attacks where a domain resolves to internal IPs
-	ips, err := net.LookupIP(hostname)
+	ips, err := lookupIP(hostname)
 	if err != nil {
 		return false, fmt.Sprintf("DNS resolution failed for hostname %s: cannot verify if it resolves to safe IP", hostname)
 	}
@@ -1107,7 +1109,7 @@ func IsSSRFWhitelisted(hostname string) bool {
 
 	// Also resolve and check resolved IPs against CIDR whitelist
 	if net.ParseIP(hostname) == nil && len(wl.cidrNets) > 0 {
-		if ips, err := net.LookupIP(hostname); err == nil {
+		if ips, err := lookupIP(hostname); err == nil {
 			for _, ip := range ips {
 				for _, cidr := range wl.cidrNets {
 					if cidr.Contains(ip) {

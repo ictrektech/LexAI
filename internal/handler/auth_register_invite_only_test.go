@@ -208,7 +208,7 @@ func TestAutoSetup_SingleUserModeAllowsDefaultUser(t *testing.T) {
 	defer func() { Edition = oldEdition }()
 
 	user := &types.User{ID: "u1", Username: "default", Email: "admin@weknora.local", TenantID: 7, IsActive: true}
-	tenant := &types.Tenant{ID: 7, Name: "Default", APIKey: "k"}
+	tenant := &types.Tenant{ID: 7, Name: "Default"}
 	us := &stubRegisterUserService{
 		getUserByEmail: func(context.Context, string) (*types.User, error) { return user, nil },
 		generateTokens: func(context.Context, *types.User) (string, string, error) {
@@ -234,7 +234,7 @@ func TestAutoSetup_SingleUserModeCreatesDefaultUser(t *testing.T) {
 	Edition = "standard"
 	defer func() { Edition = oldEdition }()
 
-	tenant := &types.Tenant{ID: 7, Name: "Default", APIKey: "k"}
+	tenant := &types.Tenant{ID: 7, Name: "Default"}
 	registered := false
 	us := &stubRegisterUserService{
 		getUserByEmail: func(context.Context, string) (*types.User, error) { return nil, nil },
