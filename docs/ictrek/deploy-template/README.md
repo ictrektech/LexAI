@@ -50,6 +50,11 @@ syncs this deploy template, pulls changed images, and replaces only managed
 LexAI services. If app and frontend are both updated, app is recreated and
 waited healthy before frontend is recreated. Docker pull output and recreate
 steps are appended to `update-and-deploy.log` and surfaced in the web dialog.
+`deploy-updater` has no separate image artifact: it deliberately reuses the
+LexAI app image so the update endpoint and the host-side deploy script stay in
+the same release. When the app image changes, `deploy.sh` refreshes this sidecar
+after the current update run finishes, otherwise the running updater would keep
+executing the previous app image.
 Keep `FEISHU_CONFIG_HOST_FILE` pointed at the host Feishu credential file used
 for image lookup.
 
@@ -77,9 +82,9 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
 
 `deploy.sh` also runs `trigger-reparse-incomplete.sh` after affected services are healthy. This covers app, docreader, model, or config redeploys where unfinished parsing must recover after the new service set is ready. The deploy script recreates `docreader` only when the docreader image or deployment config changed, waits for changed health-checked services, waits for model URLs in `WEKNORA_REPARSE_WAIT_URLS`, then submits current `failed` / `pending` / `processing` knowledge rows, plus `finalizing` rows whose `processed_at is null`, through `POST /knowledge/batch-reparse`. This is a full-document retry for genuinely unfinished text parsing, not a stage-only retry for documents whose text has already been indexed. Set `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` only when intentionally skipping that recovery step.
 
-Housekeeping runs every 5 minutes in the app container. It only treats a row as drained when `pending_subtasks_count=0`, the latest attempt has no `pending/running` span, and Asynq has no queued/active task for that knowledge. Only then does it promote `finalizing` rows to `completed`, or mark drained `summary_status=pending/processing` rows as `failed` when the knowledge row is already `completed`. Valid queued or running multimodal, Graph, Wiki, summary, or question tasks are not cleaned.
+Housekeeping runs every 5 minutes in the app container. It only treats a row as drained when `pending_subtasks_count=0`, the latest attempt has no `pending/running` span, and Asynq has no queued/active task for the same knowledge and the same latest attempt. Only then does it promote `finalizing` rows to `completed`, or mark drained `summary_status=pending/processing` rows as `failed` when the knowledge row is already `completed`. Valid queued or running multimodal, Graph, Wiki, summary, or question tasks for the current attempt are not cleaned; stale tasks from older attempts do not protect the current document from recovery.
 
-Before feature recovery and startup reparse, the app reconciles Asynq once: stale tasks from older attempts and byte-identical duplicate tasks are removed, then disabled-feature cleanup runs, and only genuinely missing multimodal work is recovered. Wiki trigger tasks are debounced with Asynq uniqueness while the durable per-document operations remain in `task_pending_ops`. Verify the reconciliation after a restart with `docker logs <app-container> 2>&1 | grep startup-task-reconcile`. Housekeeping only repairs document state; queue reconciliation owns stale and duplicate task removal.
+Before feature recovery and startup reparse, the app reconciles Asynq once: stale tasks from older attempts, legacy tasks without the current attempt, and byte-identical duplicate tasks are removed, then disabled-feature cleanup runs, and only genuinely missing multimodal work is recovered. Wiki trigger tasks are debounced with Asynq uniqueness while the durable per-document operations remain in `task_pending_ops`. Verify the reconciliation after a restart with `docker logs <app-container> 2>&1 | grep startup-task-reconcile`. Housekeeping only repairs document state; queue reconciliation owns stale and duplicate task removal.
 
 Old trace attempts that still show `running` are historical rows after a newer attempt superseded them. Do not wait for old attempts; judge current progress by the latest attempt plus Asynq queue state. Stage-only recovery such as "rerun only multimodal" or "rerun only graph" requires a backend recovery entrypoint; do not describe shell-only deploys as stage-only recovery.
 

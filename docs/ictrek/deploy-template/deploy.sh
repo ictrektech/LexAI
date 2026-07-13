@@ -616,6 +616,18 @@ if [[ "$FRONTEND_DEFERRED" == "1" ]]; then
   log "recreate services: frontend"
   docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps frontend
 fi
+
+if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" == "true" ]] \
+  && compose_has_service deploy-updater \
+  && [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]]; then
+  log "app image changed; scheduling deploy-updater sidecar refresh after this run"
+  (
+    sleep 5
+    cd "$ROOT_DIR"
+    WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE=false docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps deploy-updater
+  ) >>"${ROOT_DIR}/update-and-deploy.log" 2>&1 &
+fi
+
 if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-backend "* ]] && compose_has_service model-hub-backend; then
   wait_service_healthy model-hub-backend 180
 fi

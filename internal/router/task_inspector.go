@@ -132,7 +132,13 @@ func (a *asynqTaskInspector) cancelTasksForKnowledgeTypes(
 func (a *asynqTaskInspector) HasQueuedTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
 ) (bool, error) {
-	return a.HasQueuedTasksForKnowledgeTypes(ctx, knowledgeID, nil)
+	return a.hasQueuedTasksForKnowledge(ctx, knowledgeID, nil, 0)
+}
+
+func (a *asynqTaskInspector) HasQueuedTasksForKnowledgeAttempt(
+	ctx context.Context, knowledgeID string, attempt int,
+) (bool, error) {
+	return a.hasQueuedTasksForKnowledge(ctx, knowledgeID, nil, attempt)
 }
 
 // HasQueuedTasksForKnowledgeTypes is the typed variant used by feature
@@ -140,6 +146,12 @@ func (a *asynqTaskInspector) HasQueuedTasksForKnowledge(
 // recovery for the same knowledge.
 func (a *asynqTaskInspector) HasQueuedTasksForKnowledgeTypes(
 	ctx context.Context, knowledgeID string, taskTypes []string,
+) (bool, error) {
+	return a.hasQueuedTasksForKnowledge(ctx, knowledgeID, taskTypes, 0)
+}
+
+func (a *asynqTaskInspector) hasQueuedTasksForKnowledge(
+	ctx context.Context, knowledgeID string, taskTypes []string, attempt int,
 ) (bool, error) {
 	if a == nil || a.inspector == nil || knowledgeID == "" {
 		return false, nil
@@ -161,7 +173,7 @@ func (a *asynqTaskInspector) HasQueuedTasksForKnowledgeTypes(
 	}
 	for _, queue := range queuesScanned {
 		for _, l := range listers {
-			if a.queueStateHasMatch(ctx, queue, knowledgeID, typeSet, l.state, l.list) {
+			if a.queueStateHasMatch(ctx, queue, knowledgeID, typeSet, attempt, l.state, l.list) {
 				return true, nil
 			}
 		}
@@ -223,7 +235,7 @@ func (a *asynqTaskInspector) QueueStats(
 // is logged and treated as "no match" (false); the caller's fail-safe
 // then errs toward recovering the row rather than preserving it forever.
 func (a *asynqTaskInspector) queueStateHasMatch(
-	ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}, state string,
+	ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}, attempt int, state string,
 	list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error),
 ) bool {
 	page := 1
@@ -239,7 +251,7 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 			return false
 		}
 		for _, t := range tasks {
-			if matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
+			if matchesKnowledgeTypedAttempt(t.Type, t.Payload, knowledgeID, typeSet, attempt) {
 				return true
 			}
 		}
@@ -335,7 +347,7 @@ func keepKnowledgeTask(task *asynq.TaskInfo, currentAttempts map[string]int, see
 		return true
 	}
 	current, exists := currentAttempts[probe.KnowledgeID]
-	if !exists || (probe.Attempt > 0 && current > 0 && probe.Attempt != current) {
+	if !exists || (current > 0 && probe.Attempt != current) {
 		return false
 	}
 	signature := task.Type + "\x00" + string(task.Payload)
@@ -353,6 +365,12 @@ func matchesKnowledge(taskType string, payload []byte, knowledgeID string) bool 
 }
 
 func matchesKnowledgeTyped(taskType string, payload []byte, knowledgeID string, typeSet map[string]struct{}) bool {
+	return matchesKnowledgeTypedAttempt(taskType, payload, knowledgeID, typeSet, 0)
+}
+
+func matchesKnowledgeTypedAttempt(
+	taskType string, payload []byte, knowledgeID string, typeSet map[string]struct{}, attempt int,
+) bool {
 	if len(typeSet) > 0 {
 		if _, ok := typeSet[taskType]; !ok {
 			return false
@@ -365,7 +383,13 @@ func matchesKnowledgeTyped(taskType string, payload []byte, knowledgeID string, 
 	if err := json.Unmarshal(payload, &probe); err != nil {
 		return false
 	}
-	return probe.KnowledgeID == knowledgeID
+	if probe.KnowledgeID != knowledgeID {
+		return false
+	}
+	if attempt > 0 && probe.Attempt != attempt {
+		return false
+	}
+	return true
 }
 
 func (a *asynqTaskInspector) deletePendingMatches(
@@ -531,6 +555,12 @@ func (noopTaskInspector) CancelTasksForKnowledgeTypes(
 // the housekeeping sweep's span/updated_at checks stay authoritative.
 func (noopTaskInspector) HasQueuedTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
+) (bool, error) {
+	return false, nil
+}
+
+func (noopTaskInspector) HasQueuedTasksForKnowledgeAttempt(
+	ctx context.Context, knowledgeID string, attempt int,
 ) (bool, error) {
 	return false, nil
 }

@@ -386,7 +386,8 @@ func (h *HousekeepingService) filterOutQueued(
 	}
 	out := candidates[:0]
 	for _, k := range candidates {
-		queued, err := h.inspector.HasQueuedTasksForKnowledge(ctx, k.ID)
+		attempt := h.latestAttempt(ctx, k.ID)
+		queued, err := h.hasQueuedTaskForCurrentAttempt(ctx, k.ID, attempt)
 		if err != nil {
 			logger.Warnf(ctx,
 				"[Housekeeping] queue probe failed for %s: %v (will fail safe and treat as stuck)", k.ID, err)
@@ -400,6 +401,35 @@ func (h *HousekeepingService) filterOutQueued(
 		out = append(out, k)
 	}
 	return out, skipped
+}
+
+func (h *HousekeepingService) latestAttempt(ctx context.Context, knowledgeID string) int {
+	if knowledgeID == "" {
+		return 0
+	}
+	var attempt int
+	if err := h.db.WithContext(ctx).
+		Table("knowledge_processing_spans").
+		Select("COALESCE(MAX(attempt), 0)").
+		Where("knowledge_id = ?", knowledgeID).
+		Scan(&attempt).Error; err != nil {
+		logger.Warnf(ctx, "[Housekeeping] latest attempt query failed for %s: %v", knowledgeID, err)
+		return 0
+	}
+	return attempt
+}
+
+func (h *HousekeepingService) hasQueuedTaskForCurrentAttempt(
+	ctx context.Context, knowledgeID string, attempt int,
+) (bool, error) {
+	if attempt > 0 {
+		if inspector, ok := h.inspector.(interface {
+			HasQueuedTasksForKnowledgeAttempt(context.Context, string, int) (bool, error)
+		}); ok {
+			return inspector.HasQueuedTasksForKnowledgeAttempt(ctx, knowledgeID, attempt)
+		}
+	}
+	return h.inspector.HasQueuedTasksForKnowledge(ctx, knowledgeID)
 }
 
 // parseHeartbeatTime accepts the timestamp formats Postgres and SQLite

@@ -49,6 +49,14 @@ type TaskInspector interface {
 	// span/updated_at checks remain authoritative there.
 	HasQueuedTasksForKnowledge(ctx context.Context, knowledgeID string) (bool, error)
 
+	// HasQueuedTasksForKnowledgeAttempt is the precise variant used by
+	// startup reconciliation and housekeeping. attempt <= 0 preserves the
+	// legacy knowledge-only check. When attempt > 0, only tasks whose
+	// payload belongs to the same current parse attempt protect the row from
+	// recovery; stale tasks from older attempts must not keep a document
+	// permanently stuck.
+	HasQueuedTasksForKnowledgeAttempt(ctx context.Context, knowledgeID string, attempt int) (bool, error)
+
 	// QueueStats returns a read-only depth snapshot for every queue this
 	// application enqueues into, for the System Admin runtime dashboard.
 	//

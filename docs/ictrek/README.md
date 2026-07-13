@@ -120,6 +120,8 @@ cd /data/jhu/lexai-deploy
 
 界面右上角的“检测更新”按钮通过 `WEKNORA_DEPLOY_UPDATER_CONTAINER` 固定调用 `deploy-updater` sidecar，先执行 `--check-only` 并向用户列出镜像版本变化和将替换的服务；用户确认后才启动后台更新。不接收前端传入的脚本路径、compose 文件或服务名，避免匹配错容器。sidecar 使用当前部署目录的 `/lexai-deploy/update-and-deploy.sh`，日志写入部署目录的 `update-and-deploy.log`，前端会轮询显示拉取镜像和替换容器进度。更新期间页面可能短暂不可用，用户应等待一段时间后手动刷新页面。确保 `.env*` 里的 `DEPLOY_UPDATER_CONTAINER` 唯一，`FEISHU_CONFIG_HOST_FILE` 指向宿主机可读的飞书凭据文件。
 
+`deploy-updater` 没有单独的 `lexai-deploy-updater` 镜像，它复用 `lexai` app 镜像，并额外挂载宿主机 Docker socket、部署目录和飞书凭据。这样更新按钮调用的后端逻辑和 app 版本一致，也避免维护第四个镜像。若 app 镜像更新，`deploy.sh` 会在本次更新完成后延迟刷新 `deploy-updater` sidecar；否则 sidecar 会继续运行旧 app 镜像，后续检测更新可能仍执行旧逻辑。
+
 tc232 专用部署：
 
 ```bash
@@ -207,7 +209,7 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 
 后台 housekeeping 每 5 分钟还会清理已经没有待完成工作的残留状态：`finalizing + pending_subtasks_count=0` 只有在最新 attempt 没有 `pending/running` span、并且 Asynq 队列里也没有该知识的 queued/active 任务时，才会推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。同理，`completed + pending_subtasks_count=0 + summary_status in (pending, processing)` 也只有在没有 open span 和 queued/active 任务时，才会把摘要状态标记为 `failed`，避免没有摘要任务可跑时页面长期显示「生成摘要中」。仍在排队或运行的多模态、Graph、Wiki、摘要任务不会被 housekeeping 清掉。
 
-app 启动时会先对 Asynq 队列做一次对账：删除已经被新 attempt 替代的任务和完全相同的重复任务，再清理已关闭功能的任务，最后才恢复确实缺失的多模态任务和未完成文字解析。多模态恢复检测到同一文档已有多模态任务时不会重复入队；Wiki 触发器按知识库和延迟窗口去重。可通过 `docker logs <app容器> | grep startup-task-reconcile` 查看本次删除和取消数量。Housekeeping 只处理文档状态，不负责制造、重跑或批量删除队列任务。
+app 启动时会先对 Asynq 队列做一次对账：删除已经被新 attempt 替代的任务、没有当前 attempt 的旧格式任务和完全相同的重复任务，再清理已关闭功能的任务，最后才恢复确实缺失的多模态任务和未完成文字解析。多模态恢复检测到同一文档已有多模态任务时不会重复入队；Wiki 触发器按知识库和延迟窗口去重。可通过 `docker logs <app容器> | grep startup-task-reconcile` 查看本次删除和取消数量。Housekeeping 只处理文档状态，不负责制造、重跑或批量删除队列任务。
 
 ## Wiki/Graph 模型结论
 

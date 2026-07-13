@@ -102,8 +102,9 @@ func insertSpan(t *testing.T, db *gorm.DB, kid string, attempt int, spanID, stat
 // suite. queued maps knowledge_id → "still has a queued task"; err forces
 // the probe to fail so the fail-safe branch can be exercised.
 type fakeTaskInspector struct {
-	queued map[string]bool
-	err    error
+	queued        map[string]bool
+	queuedAttempt map[string]int
+	err           error
 }
 
 func (f fakeTaskInspector) CancelTasksForKnowledge(
@@ -123,6 +124,18 @@ func (f fakeTaskInspector) HasQueuedTasksForKnowledge(
 ) (bool, error) {
 	if f.err != nil {
 		return false, f.err
+	}
+	return f.queued[knowledgeID], nil
+}
+
+func (f fakeTaskInspector) HasQueuedTasksForKnowledgeAttempt(
+	_ context.Context, knowledgeID string, attempt int,
+) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	if f.queuedAttempt != nil {
+		return f.queuedAttempt[knowledgeID] == attempt, nil
 	}
 	return f.queued[knowledgeID], nil
 }
@@ -219,7 +232,7 @@ func TestHousekeeping_NoFalseKill_StaleSpanRecovers(t *testing.T) {
 func TestHousekeeping_NoFalseKill_TasksStillQueued(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
-		queued: map[string]bool{"kid-backlogged": true},
+		queuedAttempt: map[string]int{"kid-backlogged": 1},
 	})
 	stale := time.Now().Add(-3 * time.Hour)
 	// finalizing + stale knowledge + stale span: span-only heuristics
@@ -294,7 +307,7 @@ func TestHousekeeping_PromotesFinalizingWithStalePendingCounter(t *testing.T) {
 func TestHousekeeping_PreservesFinalizingStalePendingCounterWithQueuedTask(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
-		queued: map[string]bool{"kid-valid-queued": true},
+		queuedAttempt: map[string]int{"kid-valid-queued": 1},
 	})
 	stale := time.Now().Add(-3 * time.Hour)
 	insertKnowledge(t, db, "kid-valid-queued", types.ParseStatusFinalizing, stale)
@@ -313,6 +326,36 @@ func TestHousekeeping_PreservesFinalizingStalePendingCounterWithQueuedTask(t *te
 	).Row().Scan(&status, &pending))
 	assert.Equal(t, types.ParseStatusFinalizing, status)
 	assert.Equal(t, 99, pending)
+}
+
+func TestHousekeeping_DoesNotPreserveFinalizingWithOnlyStaleAttemptQueued(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
+		queuedAttempt: map[string]int{"kid-stale-queued": 1},
+	})
+	stale := time.Now().Add(-3 * time.Hour)
+	insertKnowledge(t, db, "kid-stale-queued", types.ParseStatusFinalizing, stale)
+	require.NoError(t, db.Model(&types.Knowledge{}).
+		Where("id = ?", "kid-stale-queued").
+		Updates(map[string]interface{}{
+			"pending_subtasks_count": 99,
+			"error_message":          "Task interrupted due to application restart",
+		}).Error)
+	insertSpan(t, db, "kid-stale-queued", 1, "post-1", types.SpanStatusDone, stale)
+	insertSpan(t, db, "kid-stale-queued", 2, "post-2", types.SpanStatusDone, stale)
+
+	svc.runSweep(context.Background())
+
+	var status string
+	var pending int
+	var errorMessage string
+	require.NoError(t, db.Raw(
+		`SELECT parse_status, pending_subtasks_count, error_message FROM knowledges WHERE id = ?`,
+		"kid-stale-queued",
+	).Row().Scan(&status, &pending, &errorMessage))
+	assert.Equal(t, types.ParseStatusCompleted, status)
+	assert.Zero(t, pending)
+	assert.Empty(t, errorMessage)
 }
 
 func TestHousekeeping_PreservesDrainedFinalizingWithOpenSpan(t *testing.T) {
@@ -334,9 +377,10 @@ func TestHousekeeping_PreservesDrainedFinalizingWithOpenSpan(t *testing.T) {
 func TestHousekeeping_PreservesDrainedFinalizingWithQueuedTask(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
-		queued: map[string]bool{"kid-queued-mm": true},
+		queuedAttempt: map[string]int{"kid-queued-mm": 1},
 	})
 	insertKnowledge(t, db, "kid-queued-mm", types.ParseStatusFinalizing, time.Now().Add(-3*time.Hour))
+	insertSpan(t, db, "kid-queued-mm", 1, "post-1", types.SpanStatusDone, time.Now().Add(-3*time.Hour))
 
 	svc.runSweep(context.Background())
 
@@ -409,13 +453,14 @@ func TestHousekeeping_PreservesDrainedSummaryWithOpenSpan(t *testing.T) {
 func TestHousekeeping_PreservesDrainedSummaryWithQueuedTask(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
-		queued: map[string]bool{"kid-summary-queued-no-span": true},
+		queuedAttempt: map[string]int{"kid-summary-queued-no-span": 1},
 	})
 	require.NoError(t, db.Exec(
 		`INSERT INTO knowledges (id, parse_status, summary_status, pending_subtasks_count, updated_at)
 		 VALUES (?, ?, ?, 0, ?)`,
 		"kid-summary-queued-no-span", types.ParseStatusCompleted, types.SummaryStatusPending, time.Now(),
 	).Error)
+	insertSpan(t, db, "kid-summary-queued-no-span", 1, "summary-1", types.SpanStatusDone, time.Now())
 
 	svc.runSweep(context.Background())
 

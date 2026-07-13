@@ -38,6 +38,14 @@ func TestKeepKnowledgeTaskRejectsStaleAndDuplicate(t *testing.T) {
 	if keepKnowledgeTask(task, map[string]int{"kid": 3}, map[string]struct{}{}) {
 		t.Fatal("stale attempt must be removed")
 	}
+	legacyPayload, err := json.Marshal(knowledgeIDProbe{KnowledgeID: "kid"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyTask := &asynq.TaskInfo{Type: types.TypeImageMultimodal, Payload: legacyPayload}
+	if keepKnowledgeTask(legacyTask, map[string]int{"kid": 2}, map[string]struct{}{}) {
+		t.Fatal("legacy task without attempt must be removed when a current attempt exists")
+	}
 }
 
 func TestKeepKnowledgeTaskCoalescesWikiTriggers(t *testing.T) {
@@ -45,5 +53,25 @@ func TestKeepKnowledgeTaskCoalescesWikiTriggers(t *testing.T) {
 	seen := map[string]struct{}{}
 	if !keepKnowledgeTask(task, nil, seen) || keepKnowledgeTask(task, nil, seen) {
 		t.Fatal("identical wiki triggers must be coalesced")
+	}
+}
+
+func TestMatchesKnowledgeTypedAttemptRejectsStaleAttempt(t *testing.T) {
+	payload, err := json.Marshal(knowledgeIDProbe{KnowledgeID: "kid", Attempt: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !matchesKnowledgeTypedAttempt(types.TypeChunkExtract, payload, "kid", nil, 2) {
+		t.Fatal("current attempt must match")
+	}
+	if matchesKnowledgeTypedAttempt(types.TypeChunkExtract, payload, "kid", nil, 3) {
+		t.Fatal("stale attempt must not match")
+	}
+	legacyPayload, err := json.Marshal(knowledgeIDProbe{KnowledgeID: "kid"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if matchesKnowledgeTypedAttempt(types.TypeChunkExtract, legacyPayload, "kid", nil, 2) {
+		t.Fatal("legacy task without attempt must not protect a known current attempt")
 	}
 }
