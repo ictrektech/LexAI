@@ -28,6 +28,7 @@ PUSH_IMAGES=1
 UPDATE_FEISHU=1
 DRY_RUN=0
 SKIP_BUILD=0
+BUILD_ENGINE="${LEXAI_BUILD_ENGINE:-auto}"
 
 log() {
   echo "[INFO] $*"
@@ -66,6 +67,10 @@ Environment:
   GOPROXY_ARG            Optional Go proxy for app image
   GOPRIVATE_ARG          Optional Go private module pattern for app image
   GOSUMDB_ARG            Optional Go checksum DB setting, default off in Dockerfile
+  COMMIT_ID_ARG          Source commit written into the app binary. Set this when
+                         building a synced source snapshot without its .git directory.
+  LEXAI_BUILD_ENGINE     auto (default), buildx, or docker. auto prefers
+                         `docker buildx build --load` and falls back to `docker build`.
 EOF
 }
 
@@ -74,6 +79,38 @@ require_cmd() {
     err "missing command: $1"
     exit 1
   }
+}
+
+configure_build_engine() {
+  case "$BUILD_ENGINE" in
+    auto)
+      if docker buildx version >/dev/null 2>&1; then
+        BUILD_ENGINE="buildx"
+      else
+        BUILD_ENGINE="docker"
+      fi
+      ;;
+    buildx)
+      docker buildx version >/dev/null 2>&1 || {
+        err "LEXAI_BUILD_ENGINE=buildx but docker buildx is unavailable; install docker-buildx or use LEXAI_BUILD_ENGINE=docker"
+        exit 1
+      }
+      ;;
+    docker)
+      ;;
+    *)
+      err "Unsupported LEXAI_BUILD_ENGINE=${BUILD_ENGINE}; expected auto, buildx, or docker"
+      exit 1
+      ;;
+  esac
+}
+
+docker_build_image() {
+  if [[ "$BUILD_ENGINE" == "buildx" ]]; then
+    docker buildx build --load "$@"
+  else
+    docker build "$@"
+  fi
 }
 
 column_letter() {
@@ -532,10 +569,13 @@ fi
 
 if [[ "$SKIP_BUILD" != "1" ]]; then
   require_cmd docker
+  configure_build_engine
 fi
 if [[ "$UPDATE_FEISHU" == "1" ]]; then
   require_cmd curl
 fi
+
+log "BUILD_ENGINE=${BUILD_ENGINE}"
 
 APP_BUILD_ARGS=(
   --build-arg "APK_MIRROR_ARG=${APK_MIRROR_ARG:-mirrors.tuna.tsinghua.edu.cn}"
@@ -557,7 +597,7 @@ DOCREADER_BUILD_ARGS=(
 )
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
-  docker build \
+  docker_build_image \
     "${APP_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.app \
     -t "${APP_IMAGE}:${TAG}" \
@@ -565,7 +605,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
-  docker build \
+  docker_build_image \
     "${FRONTEND_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.frontend \
     -t "${UI_IMAGE}:${TAG}" \
@@ -573,7 +613,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
-  docker build \
+  docker_build_image \
     "${DOCREADER_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.docreader \
     -t "${DOCREADER_IMAGE}:${TAG}" \
