@@ -70,7 +70,8 @@ Environment:
   COMMIT_ID_ARG          Source commit written into the app binary. Set this when
                          building a synced source snapshot without its .git directory.
   LEXAI_BUILD_ENGINE     auto (default), buildx, or docker. auto prefers
-                         `docker buildx build --load` and falls back to `docker build`.
+                         `docker buildx build --load --provenance=false --sbom=false`
+                         and falls back to `docker build`.
 EOF
 }
 
@@ -107,9 +108,9 @@ configure_build_engine() {
 
 docker_build_image() {
   if [[ "$BUILD_ENGINE" == "buildx" ]]; then
-    docker buildx build --load "$@"
+    docker buildx build --load --provenance=false --sbom=false "$@"
   else
-    docker build "$@"
+    docker build --provenance=false --sbom=false "$@"
   fi
 }
 
