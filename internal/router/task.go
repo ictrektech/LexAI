@@ -32,7 +32,7 @@ type AsynqTaskParams struct {
 	PostProcessServer    *asynq.Server `name:"postProcessAsynqServer"`
 	EnrichmentServer     *asynq.Server `name:"enrichmentAsynqServer"`
 	MaintenanceServer    *asynq.Server `name:"maintenanceAsynqServer"`
-	SharedServer         *asynq.Server `name:"sharedAsynqServer"`
+	SharedServer         *asynq.Server `name:"sharedAsynqServer" optional:"true"`
 	WikiServer           *asynq.Server `name:"wikiAsynqServer"`
 	KnowledgeService     interfaces.KnowledgeService
 	KnowledgeBaseService interfaces.KnowledgeBaseService
@@ -206,6 +206,11 @@ func NewMaintenanceAsynqServer(svc interfaces.SystemSettingService) *asynq.Serve
 // queues: every task is still executed by exactly one worker.
 func NewSharedAsynqServer(svc interfaces.SystemSettingService) *asynq.Server {
 	allocation := resolveWorkerPoolConcurrency(svc)
+	if allocation.Shared == 0 {
+		log.Printf("asynq shared-pool server disabled with concurrency=0 total_upstream=%d",
+			allocation.UpstreamTotal())
+		return nil
+	}
 	log.Printf("asynq shared-pool server starting with concurrency=%d total_upstream=%d",
 		allocation.Shared, allocation.UpstreamTotal())
 	return newAsynqServer(allocation.Shared, types.QueueWeightsForSharedPool())
@@ -311,6 +316,10 @@ func RunAsynqServer(params AsynqTaskParams) *asynq.ServeMux {
 	// Run the same mux on every pool. Shared and dedicated servers intentionally
 	// overlap, but Redis dequeue is atomic, so each task still executes once.
 	runPool := func(name string, srv *asynq.Server) {
+		if srv == nil {
+			log.Printf("%s asynq server disabled; skipping", name)
+			return
+		}
 		go func() {
 			if err := srv.Run(mux); err != nil {
 				log.Fatalf("could not run %s asynq server: %v", name, err)

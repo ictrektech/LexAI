@@ -48,7 +48,10 @@ func (runtimeTestSettings) SubscribeRedis(context.Context) error { return nil }
 
 type runtimeInvalidSettings struct{ runtimeTestSettings }
 
-func (runtimeInvalidSettings) GetInt(_ context.Context, _ string, _ string, _ int64) int64 {
+func (runtimeInvalidSettings) GetInt(_ context.Context, key string, _ string, _ int64) int64 {
+	if key == "asynq.shared_concurrency" {
+		return -1
+	}
 	return 0
 }
 
