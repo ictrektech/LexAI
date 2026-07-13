@@ -1535,14 +1535,14 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 	statuses := []string{
 		types.ParseStatusFailed,
 		types.ParseStatusPending,
-		types.ParseStatusProcessing,
 	}
 	if err := db.WithContext(ctx).Model(&types.Knowledge{}).
 		Select("tenant_id, id").
 		Where(`deleted_at IS NULL AND (
 			parse_status IN ?
 			OR (parse_status = ? AND processed_at IS NULL)
-		)`, statuses, types.ParseStatusFinalizing).
+			OR (parse_status = ? AND processed_at IS NULL)
+		)`, statuses, types.ParseStatusProcessing, types.ParseStatusFinalizing).
 		Order("tenant_id, updated_at ASC").
 		Find(&rows).Error; err != nil {
 		logger.Warnf(ctx, "[startup-reparse] query incomplete knowledge failed: %v", err)

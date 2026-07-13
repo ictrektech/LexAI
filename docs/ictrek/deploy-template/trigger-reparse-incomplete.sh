@@ -5,7 +5,7 @@ SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 ENV_FILE="${ENV_FILE:-${ROOT_DIR}/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
-REPARSE_STATUSES="${REPARSE_STATUSES:-failed,pending,processing}"
+REPARSE_STATUSES="${REPARSE_STATUSES:-failed,pending,processing,finalizing}"
 REPARSE_BATCH_SIZE="${REPARSE_BATCH_SIZE:-200}"
 REPARSE_WAIT_SECONDS="${REPARSE_WAIT_SECONDS:-120}"
 REPARSE_READY_WAIT_SECONDS="${REPARSE_READY_WAIT_SECONDS:-300}"
@@ -183,7 +183,7 @@ main() {
   [[ -f "$ENV_FILE" ]] || die "env file not found: $ENV_FILE"
   [[ -f "$COMPOSE_FILE" ]] || die "compose file not found: $COMPOSE_FILE"
 
-  local db_user db_name app_port api_url ready_urls postgres_cid token status_sql kb_ids tmp ids_file total count payload code
+  local db_user db_name app_port api_url ready_urls postgres_cid token status_sql reparse_predicate kb_ids tmp ids_file total count payload code
   db_user="$(env_value DB_USER lexai)"
   db_name="$(env_value DB_NAME lexai)"
   app_port="$(env_value APP_PORT 30081)"
@@ -209,9 +209,10 @@ if not statuses:
 print(",".join("'" + s.replace("'", "''") + "'" for s in statuses))
 PY
   )"
+  reparse_predicate="deleted_at is null and parse_status in (${status_sql}) and (parse_status not in ('processing','finalizing') or processed_at is null)"
 
   kb_ids="$(sql_list "$postgres_cid" "$db_user" "$db_name" \
-    "select knowledge_base_id from knowledges where deleted_at is null and parse_status in (${status_sql}) and (parse_status <> 'finalizing' or processed_at is null) group by knowledge_base_id order by knowledge_base_id")"
+    "select knowledge_base_id from knowledges where ${reparse_predicate} group by knowledge_base_id order by knowledge_base_id")"
 
   if [[ -z "$kb_ids" ]]; then
     log "no incomplete knowledge to reparse"
@@ -226,7 +227,7 @@ PY
     [[ -n "$kb_id" ]] || continue
     ids_file="${tmp}/${kb_id}.ids"
     sql_list "$postgres_cid" "$db_user" "$db_name" \
-      "select id from knowledges where deleted_at is null and knowledge_base_id='${kb_id}' and parse_status in (${status_sql}) and (parse_status <> 'finalizing' or processed_at is null) order by updated_at nulls first, created_at" \
+      "select id from knowledges where ${reparse_predicate} and knowledge_base_id='${kb_id}' order by updated_at nulls first, created_at" \
       > "$ids_file"
     total="$(wc -l < "$ids_file" | tr -d ' ')"
     [[ "$total" != "0" ]] || continue
