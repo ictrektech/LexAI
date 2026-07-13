@@ -93,15 +93,15 @@ RUN set -eux; \
         *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
     esac; \
     docker_url="https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
-    curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${docker_url}" -o /tmp/docker.tgz || \
-        curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "${docker_url}" -o /tmp/docker.tgz; \
+    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${docker_url}" -o /tmp/docker.tgz || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_url}" -o /tmp/docker.tgz; \
     tar -xzf /tmp/docker.tgz -C /tmp docker/docker; \
     install -m 0755 /tmp/docker/docker /usr/local/bin/docker; \
     rm -rf /tmp/docker /tmp/docker.tgz; \
     mkdir -p /usr/local/lib/docker/cli-plugins; \
     compose_url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}"; \
-    curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
-        curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Create data directories and set permissions

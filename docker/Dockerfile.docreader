@@ -57,7 +57,9 @@ RUN if [ -z "$TARGETARCH" ]; then \
         rm -f /app/${PROTOC_PACKAGE}; \
     else \
         echo "未发现本地protoc安装包，将进行在线安装"; \
-        curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/${PROTOC_PACKAGE} && \
+        PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/${PROTOC_PACKAGE}" && \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fL "https://ghfast.top/${PROTOC_URL}" -o ${PROTOC_PACKAGE} || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fL "${PROTOC_URL}" -o ${PROTOC_PACKAGE} && \
         unzip -o ${PROTOC_PACKAGE} -d /usr/local && \
         chmod +x /usr/local/bin/protoc && \
         rm -f ${PROTOC_PACKAGE}; \
