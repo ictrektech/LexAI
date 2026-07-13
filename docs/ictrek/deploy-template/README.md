@@ -58,6 +58,21 @@ executing the previous app image.
 Keep `FEISHU_CONFIG_HOST_FILE` pointed at the host Feishu credential file used
 for image lookup.
 
+The app and `deploy-updater` containers call the host Docker daemon through the
+mounted Docker socket. The bundled Docker CLI in the app image must therefore be
+new enough for the host daemon's minimum supported API. It does not need to be
+newer than the host daemon, but `Client.APIVersion` must be at least
+`Server.MinAPIVersion`. The default app image bundles Docker CLI `29.1.3`; set
+`DOCKER_CLI_VERSION` when building only if a platform requires a different
+static Docker CLI. Verify a deployment with:
+
+```bash
+docker exec lexai-thor-app-1 docker version \
+  --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+docker exec lexai-thor-deploy-updater docker version \
+  --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+```
+
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.

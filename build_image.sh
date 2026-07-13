@@ -67,6 +67,10 @@ Environment:
   GOPROXY_ARG            Optional Go proxy for app image
   GOPRIVATE_ARG          Optional Go private module pattern for app image
   GOSUMDB_ARG            Optional Go checksum DB setting, default off in Dockerfile
+  DOCKER_CLI_VERSION     Optional Docker CLI version bundled into the app image,
+                         default 29.1.3. Keep it new enough for target host
+                         daemons because app/deploy-updater call the host
+                         Docker socket.
   COMMIT_ID_ARG          Source commit written into the app binary. Set this when
                          building a synced source snapshot without its .git directory.
   LEXAI_BUILD_ENGINE     auto (default), buildx, or docker. auto prefers
@@ -583,6 +587,7 @@ APP_BUILD_ARGS=(
   --build-arg "GOPROXY_ARG=${GOPROXY_ARG:-https://goproxy.cn,direct}"
   --build-arg "GOPRIVATE_ARG=${GOPRIVATE_ARG:-}"
   --build-arg "GOSUMDB_ARG=${GOSUMDB_ARG:-off}"
+  --build-arg "DOCKER_CLI_VERSION=${DOCKER_CLI_VERSION:-29.1.3}"
   --build-arg "VERSION_ARG=${TAG}"
   --build-arg "COMMIT_ID_ARG=${COMMIT_ID_ARG:-$(cat .git-commit 2>/dev/null || echo unknown)}"
   --build-arg "BUILD_TIME_ARG=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

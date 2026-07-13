@@ -54,6 +54,7 @@ WORKDIR /app
 
 ARG APK_MIRROR_ARG
 ARG TARGETARCH
+ARG DOCKER_CLI_VERSION=29.1.3
 ARG DOCKER_COMPOSE_VERSION=v2.40.3
 
 # Create a non-root user first
@@ -74,7 +75,6 @@ RUN if [ -n "$APK_MIRROR_ARG" ]; then \
         libsqlite3-0 \
         python3 python3-pip python3-dev libffi-dev libssl-dev \
         nodejs npm \
-        docker.io \
         gosu \
         ffmpeg && \
     python3 -m pip install --break-system-packages --upgrade pip setuptools wheel && \
@@ -92,6 +92,12 @@ RUN set -eux; \
         arm64) docker_arch="aarch64" ;; \
         *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
     esac; \
+    docker_url="https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${docker_url}" -o /tmp/docker.tgz || \
+        curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "${docker_url}" -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /tmp docker/docker; \
+    install -m 0755 /tmp/docker/docker /usr/local/bin/docker; \
+    rm -rf /tmp/docker /tmp/docker.tgz; \
     mkdir -p /usr/local/lib/docker/cli-plugins; \
     compose_url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}"; \
     curl --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \

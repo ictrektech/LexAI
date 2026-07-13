@@ -122,6 +122,15 @@ cd /data/jhu/lexai-deploy
 
 `deploy-updater` 没有单独的 `lexai-deploy-updater` 镜像，它复用 `lexai` app 镜像，并额外挂载宿主机 Docker socket、部署目录和飞书凭据。这样更新按钮调用的后端逻辑和 app 版本一致，也避免维护第四个镜像。若 app 镜像更新，`deploy.sh` 会在本次更新完成后延迟刷新 `deploy-updater` sidecar；否则 sidecar 会继续运行旧 app 镜像，后续检测更新可能仍执行旧逻辑。
 
+`app` 和 `deploy-updater` 会在容器内调用宿主机 Docker daemon，因此 app 镜像内置的 Docker CLI 不能低于宿主 daemon 的最低 API 要求。不是要求容器内 Docker 版本必须比宿主机新，而是必须满足 `Client.APIVersion >= Server.MinAPIVersion`。默认 app 镜像内置 Docker CLI `29.1.3`；构建时可用 `DOCKER_CLI_VERSION` 覆盖。部署后用下面命令检查，不能出现 `client version ... is too old`：
+
+```bash
+docker exec lexai-thor-app-1 docker version \
+  --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+docker exec lexai-thor-deploy-updater docker version \
+  --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+```
+
 tc232 专用部署：
 
 ```bash
