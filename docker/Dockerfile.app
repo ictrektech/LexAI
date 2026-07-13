@@ -93,9 +93,10 @@ RUN set -eux; \
         *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
     esac; \
     docker_url="https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
-    docker_mirror_url="https://mirrors.aliyun.com/docker-ce/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
-    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${docker_url}" -o /tmp/docker.tgz || \
-        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_mirror_url}" -o /tmp/docker.tgz || \
+    docker_tuna_url="https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    docker_aliyun_url="https://mirrors.aliyun.com/docker-ce/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_tuna_url}" -o /tmp/docker.tgz || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_aliyun_url}" -o /tmp/docker.tgz || \
         curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_url}" -o /tmp/docker.tgz; \
     tar -xzf /tmp/docker.tgz -C /tmp docker/docker; \
     install -m 0755 /tmp/docker/docker /usr/local/bin/docker; \
