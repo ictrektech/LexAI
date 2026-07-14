@@ -593,6 +593,7 @@ const normalizeRenderedMessageContent = (value) => String(value || '').replace(/
 
 const getRenderedAssistantScore = (message) => {
     let score = 0;
+    if (message?.is_completed) score += 1000;
     if (message?.knowledge_references?.length) score += 100;
     if (message?.agentEventStream?.length) score += 50;
     if (message?.agent_steps?.length) score += 30;
@@ -617,7 +618,6 @@ const renderedMessagesList = computed(() => {
 
         if (
             message.role === 'assistant' &&
-            message.is_completed &&
             normalizeRenderedMessageContent(message.content)
         ) {
             if (currentTurnAssistantIndex >= 0) {
