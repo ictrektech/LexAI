@@ -118,6 +118,43 @@ docker_build_image() {
   fi
 }
 
+ensure_dockerfile_base_images() {
+  local dockerfile="$1"
+  local image
+  local missing=0
+
+  while IFS= read -r image; do
+    [[ -n "$image" ]] || continue
+    if docker image inspect "$image" >/dev/null 2>&1; then
+      log "Base image present locally: ${image}"
+      continue
+    fi
+
+    log "Base image missing locally, pulling: ${image}"
+    if ! docker pull "$image"; then
+      err "Base image is not available locally and pull failed: ${image}"
+      missing=1
+    fi
+  done < <(awk 'toupper($1) == "FROM" { print $2 }' "$dockerfile" | sort -u)
+
+  [[ "$missing" == "0" ]]
+}
+
+docker_build_docreader_image() {
+  ensure_dockerfile_base_images docker/Dockerfile.docreader
+
+  if docker_build_image "$@"; then
+    return 0
+  fi
+
+  if [[ "$BUILD_ENGINE" != "buildx" ]]; then
+    return 1
+  fi
+
+  log "Docreader buildx build failed; retrying with docker build --pull=false to use local base images"
+  docker build --pull=false --provenance=false --sbom=false "$@"
+}
+
 column_letter() {
   python3 - "$1" <<'PY'
 import sys
@@ -619,7 +656,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
-  docker_build_image \
+  docker_build_docreader_image \
     "${DOCREADER_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.docreader \
     -t "${DOCREADER_IMAGE}:${TAG}" \
