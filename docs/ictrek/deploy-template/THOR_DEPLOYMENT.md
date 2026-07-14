@@ -52,6 +52,15 @@ MAX_FILE_SIZE_MB=500
 
 See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile uses `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=12`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=6` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for 18,432 tokens per request` far above the configured request cap; on tc97 with `gpu_memory_utilization=0.65` it was `141.00x`, so the hard operational limit is `VLLM_MAX_NUM_SEQS=12`.
 
+Set these values as a group:
+
+1. `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` must be the same context window. Use exact `18432`; do not round it to `18000`.
+2. `VLLM_MAX_NUM_SEQS` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` must be the same model-service request cap. tc97 uses `12`.
+3. `WEKNORA_CHAT_RESERVED_CONCURRENCY` is the online-chat target reserve. tc97 uses `6`.
+4. `WEKNORA_MODEL_MAX_CONCURRENCY` is the total background entry limit for Graph, Wiki, Summary, Question, and VLM calls to the shared QA model. Compute it as `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`; tc97 is `12 - 6 = 6`.
+5. `WEKNORA_ASYNQ_CORE_CONCURRENCY`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY`, and `WEKNORA_WIKI_ASYNQ_CONCURRENCY` control task workers, not model slots. tc97 keeps `4/2/2/1/0/4` so text parsing has a dedicated core pool and Graph/Wiki/VLM cannot expand through shared borrowing.
+6. `BGE_VLLM_MAX_NUM_SEQS`, `CONCURRENCY_POOL_SIZE`, and `BATCH_EMBED_SIZE` control embedding service capacity, document embedding request concurrency, and chunks per embedding request. tc97 keeps `16/8/8` so document ingestion does not consume all bge capacity.
+
 `VLLM_MODEL_PATH` and `BGE_VLLM_MODEL_PATH` must be paths that exist inside the vLLM containers. The compose file mounts `${VLLM_MODELS_DIR}` as `/data/models` and resolves a Hugging Face model root such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ` to its newest `snapshots/<hash>` directory automatically. Avoid host absolute paths such as `/data/jhu/dev/workspace/lexai/...` inside these variables.
 
 ## Model preparation

@@ -6,7 +6,16 @@
 
 ## 机器资源评估入口
 
-任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。Thor 部署尤其先看其中「Thor 当前参数：每个数字限制什么」和「2026-07-12 变更说明」：`7` 是 QA vLLM 接收上限，`3` 是聊天目标预留，`1` 只限制后台进入主 QA 模型的总并发，不限制在线聊天或 embedding。
+任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。Thor 部署尤其先看其中「管理界面参数和 env 对照」「Thor 当前参数：每个数字限制什么」和「机器资源评估流程」。当前 tc97 Thor 配置里，`12` 是 QA vLLM 接收上限，`6` 是聊天目标预留，另一个 `6` 是后台进入主 QA 模型的总并发上限；这些值不限制在线聊天或 embedding。
+
+资源参数不要只改一个数字。按下面顺序设置，确保部署文档、env 和 compose 里没有旧值残留：
+
+1. 先定模型和上下文：`VLLM_MAX_MODEL_LEN` 必须等于 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`，tc97 当前是精确 `18432`，不是近似 `18000`。
+2. 再定主模型入口：`VLLM_MAX_NUM_SEQS` 必须等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`，tc97 当前是 `12`。
+3. 再定聊天预留：`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是在线聊天目标预留，tc97 当前是 `6`；更小机器至少保留 `2-3`。
+4. 再定后台主模型闸门：`WEKNORA_MODEL_MAX_CONCURRENCY` 按 `min(VLLM_MAX_NUM_SEQS, vLLM 满长有效并发) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 计算，tc97 当前是 `6`。Graph、Wiki、摘要、自动问题和 VLM 后台请求都必须受它限制。
+5. 最后定 worker 池：core 负责文字解析和向量化，postprocess 负责派发后处理，enrichment 负责 VLM/Graph/Question/Summary，maintenance 负责批处理和清理，wiki 单独跑 Wiki。tc97 当前是 `4/2/2/1/0/4`，shared 为 `0`，避免后台增强绕过固定池。
+6. Embedding 独立设置：`BGE_VLLM_MAX_NUM_SEQS` 是 bge 服务上限，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧并发，`BATCH_EMBED_SIZE` 是单次请求打包 chunk 数；tc97 当前是 `16/8/8`，给在线检索留余量。
 
 ## 部署包范围
 
