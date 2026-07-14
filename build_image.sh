@@ -118,6 +118,40 @@ docker_build_image() {
   fi
 }
 
+normalize_official_image_path() {
+  local image="$1"
+  local image_without_tag="${image%%:*}"
+
+  if [[ "$image_without_tag" != */* ]]; then
+    printf 'library/%s\n' "$image"
+  else
+    printf '%s\n' "$image"
+  fi
+}
+
+pull_base_image() {
+  local image="$1"
+  local normalized_image
+  local mirror
+  local mirrored_image
+
+  if docker pull "$image"; then
+    return 0
+  fi
+
+  normalized_image="$(normalize_official_image_path "$image")"
+  for mirror in docker.m.daocloud.io docker.1ms.run dockerproxy.com; do
+    mirrored_image="${mirror}/${normalized_image}"
+    log "Direct pull failed for ${image}; trying Docker registry mirror: ${mirrored_image}"
+    if docker pull "$mirrored_image"; then
+      docker tag "$mirrored_image" "$image"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 ensure_dockerfile_base_images() {
   local dockerfile="$1"
   local image
@@ -131,7 +165,7 @@ ensure_dockerfile_base_images() {
     fi
 
     log "Base image missing locally, pulling: ${image}"
-    if ! docker pull "$image"; then
+    if ! pull_base_image "$image"; then
       err "Base image is not available locally and pull failed: ${image}"
       missing=1
     fi
@@ -140,8 +174,11 @@ ensure_dockerfile_base_images() {
   [[ "$missing" == "0" ]]
 }
 
-docker_build_docreader_image() {
-  ensure_dockerfile_base_images docker/Dockerfile.docreader
+docker_build_with_local_base_fallback() {
+  local dockerfile="$1"
+  shift
+
+  ensure_dockerfile_base_images "$dockerfile"
 
   if docker_build_image "$@"; then
     return 0
@@ -151,8 +188,8 @@ docker_build_docreader_image() {
     return 1
   fi
 
-  log "Docreader buildx build failed; retrying with docker build --pull=false to use local base images"
-  docker build --pull=false --provenance=false --sbom=false "$@"
+  log "Buildx build failed for ${dockerfile}; retrying with docker build --pull=false to use local base images"
+  DOCKER_BUILDKIT=1 docker build --pull=false --provenance=false --sbom=false "$@"
 }
 
 column_letter() {
@@ -640,7 +677,7 @@ DOCREADER_BUILD_ARGS=(
 )
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
-  docker_build_image \
+  docker_build_with_local_base_fallback docker/Dockerfile.app \
     "${APP_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.app \
     -t "${APP_IMAGE}:${TAG}" \
@@ -648,7 +685,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
-  docker_build_image \
+  docker_build_with_local_base_fallback docker/Dockerfile.frontend \
     "${FRONTEND_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.frontend \
     -t "${UI_IMAGE}:${TAG}" \
@@ -656,7 +693,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
-  docker_build_docreader_image \
+  docker_build_with_local_base_fallback docker/Dockerfile.docreader \
     "${DOCREADER_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.docreader \
     -t "${DOCREADER_IMAGE}:${TAG}" \
