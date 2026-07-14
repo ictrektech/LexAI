@@ -14,7 +14,7 @@
 
 | 场景 | 需要的文件 | 不需要的文件 | 主要改哪里 |
 | --- | --- | --- | --- |
-| Thor `ictrek@192.168.1.81`，完整启动 LexAI + model_hub + qwen35-9b-vLLM + bge-m3-vLLM | [deploy-thor.sh](deploy-template/deploy-thor.sh)、[docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)、[.env.thor.example](deploy-template/.env.thor.example)、[config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)、[config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)、[THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 `.env.example` 不是 Thor 运行入口；tc232 文件也不用 | `.env.thor` 的密钥、端口、`/data/ssd/ictrek` 数据目录、vLLM 模型路径、bge-m3 路径、并发/队列参数；具体按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) |
+| Thor `jhu@192.168.1.97`，完整启动 LexAI + model_hub + qwen35-9b-vLLM + bge-m3-vLLM | [deploy-thor.sh](deploy-template/deploy-thor.sh)、[docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)、[.env.thor.example](deploy-template/.env.thor.example)、[config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)、[config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)、[THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 `.env.example` 不是 Thor 运行入口；tc232 文件也不用 | `.env.thor` 的密钥、端口、`/data/jhu/dev/workspace/lexai` 数据目录、vLLM 模型路径、bge-m3 路径、并发/队列参数；具体按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) |
 | tc232，已有 `qwen35-9b-awq-vllm` | [deploy-tc232.sh](deploy-template/deploy-tc232.sh)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)、[.env.tc232.example](deploy-template/.env.tc232.example)、[config/](deploy-template/config/)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md)；本地同步可用 [sync-tc232.sh](deploy-template/sync-tc232.sh) | [docker-compose.yml](deploy-template/docker-compose.yml) 里的 vllm 服务不会用；`.env.example` 不是运行入口 | `.env.tc232` 的端口、密钥、数据目录、并发；如已有 vllm 容器名不同，改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 里的 `base_url` |
 | 全新主机，没有可用 vllm | [deploy.sh](deploy-template/deploy.sh)、[docker-compose.yml](deploy-template/docker-compose.yml)、[.env.example](deploy-template/.env.example)、[config/](deploy-template/config/)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | `deploy-tc232.sh`、`docker-compose.tc232.yml`、`.env.tc232.example` | `.env` 的 `VLLM_HOST_PORT`、`VLLM_HF_MODELS_DIR`、模型目录、端口、密钥、并发 |
 | 主机已有可用 vllm，且同一个模型同时支持文本和 VLM | 以 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为模板另存一份机器专用 compose，配套一份 env，再带上 [config/](deploy-template/config/) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 compose 里的 `qwen35-9b-awq-vllm` 服务不需要启动 | 把 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 中 QA 和 Vision 模型的 `base_url` 都指向已有 vllm 容器名；模型 ID 可以共用同一个 served model |
@@ -61,11 +61,11 @@ tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 2. 在 tc232 执行 `cp .env.tc232.example .env.tc232`，如果已有 `.env.tc232` 就只补缺失项。
 3. tc232 不需要配置 `VLLM_*` 镜像服务，compose 会通过 `http://qwen35-9b-awq-vllm:8000/v1` 访问 `lexai` 网络里已有的 vllm。
 
-Thor 部署，即 81 上完整启动 LexAI、model_hub、qwen35-9b-vLLM、bge-m3-vLLM：
+Thor 部署，即 97 上完整启动 LexAI、model_hub、qwen35-9b-vLLM、bge-m3-vLLM：
 
-1. 把 [deploy-template](deploy-template/) 目录同步到 `ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy`。
-2. 在 81 执行 `cp .env.thor.example .env.thor`，如果已有 `.env.thor` 就只补缺失项和新版并发变量。
-3. 按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 检查 `/data/ssd/ictrek`、模型路径、vLLM 参数、默认 Embedding、队列/并发参数后执行 `./deploy-thor.sh`。
+1. 把 [deploy-template](deploy-template/) 目录同步到 `jhu@192.168.1.97:/data/jhu/dev/workspace/lexai/deploy`。
+2. 在 97 执行 `cp .env.thor.example .env.thor`，如果已有 `.env.thor` 就只补缺失项和新版并发变量。
+3. 按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 检查 `/data/jhu/dev/workspace/lexai`、模型路径、vLLM 参数、默认 Embedding、队列/并发参数后执行 `./deploy-thor.sh`。
 
 其他已有 vllm 的主机：
 
@@ -141,7 +141,7 @@ cd /data/jhu/lexai-tc232-deploy
 Thor 专用部署：
 
 ```bash
-cd /home/ictrek/lexai-thor-deploy
+cd /data/jhu/dev/workspace/lexai/deploy
 ./deploy-thor.sh
 ```
 
@@ -236,22 +236,22 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 详细说明见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。这份文档是 ictrek 部署包里的机器资源评估、并发/队列配置入口，说明如何根据显存、模型大小、上下文长度、vLLM 实测满长并发、聊天预留、Asynq 队列权重、Embedding 并发来确定一台机器的部署参数。
 
-Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。Thor 的 QA vLLM 按 18k 上下文、7 并发、聊天保留 3 部署：
+Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。tc97 Thor 的 QA vLLM 按 `18432` 上下文、12 并发、聊天保留 6 部署：
 
 ```dotenv
 VLLM_MAX_MODEL_LEN=18432
-VLLM_MAX_NUM_SEQS=7
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7
-WEKNORA_CHAT_RESERVED_CONCURRENCY=3
-WEKNORA_MODEL_MAX_CONCURRENCY=1
-WEKNORA_GRAPH_LLM_CONCURRENCY=1
-WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
-WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
+VLLM_MAX_NUM_SEQS=12
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12
+WEKNORA_CHAT_RESERVED_CONCURRENCY=6
+WEKNORA_MODEL_MAX_CONCURRENCY=6
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的请求数上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析走 core worker 池，先完成可检索的文字解析、分块和向量化；VLM/OCR、Graph、摘要和自动问题生成走 enrichment worker 池；Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制两个池的后台模型调用。Thor 不能按 `VLLM_MAX_NUM_SEQS - 聊天预留` 直接算后台 qwen 并发：`18432` 上下文下 vLLM 启动日志显示满长有效并发约 `3.96x`，所以保留 3 个聊天槽位时后台主模型并发必须设为 `1`；upstream worker 仍为 4，会拆成 core=2、enrichment=1、maintenance=1；Wiki worker 2。tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的请求数上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析走 core worker 池，先完成可检索的文字解析、分块和向量化；VLM/OCR、Graph、摘要和自动问题生成走 enrichment worker 池；Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制后台主模型调用。tc97 的 qwen vLLM 在 `VLLM_GPU_MEMORY_UTILIZATION=0.65`、`18432` 上下文、`VLLM_MAX_NUM_SEQS=12` 下启动日志显示满长 KV 容量高于请求上限，因此按 12 个请求槽分配，保留 6 个给聊天，后台 Graph/Wiki/VLM/摘要/问题生成最多共用 6 个。tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
 
-Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`。
+Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`，tc97 使用 `BGE_VLLM_MAX_NUM_SEQS=16`、`BATCH_EMBED_SIZE=8`、`CONCURRENCY_POOL_SIZE=8`。
 
 ## 配置文件位置
 
@@ -378,10 +378,10 @@ Thor 使用专用 compose：
 部署目录：
 
 ```text
-/home/ictrek/lexai-thor-deploy
+/data/jhu/dev/workspace/lexai/deploy
 ```
 
-更新部署模板到 81 时，同步脚本、compose 和 config，不同步数据目录：
+更新部署模板到 97 时，同步脚本、compose 和 config，不同步数据目录：
 
 ```bash
 rsync -az docs/ictrek/deploy-template/deploy.sh \
@@ -390,17 +390,17 @@ rsync -az docs/ictrek/deploy-template/deploy.sh \
   docs/ictrek/deploy-template/.env.thor.example \
   docs/ictrek/deploy-template/THOR_DEPLOYMENT.md \
   docs/ictrek/deploy-template/CONCURRENCY.md \
-  ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy/
+  jhu@192.168.1.97:/data/jhu/dev/workspace/lexai/deploy/
 
 rsync -az docs/ictrek/deploy-template/config/ \
-  ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy/config/
+  jhu@192.168.1.97:/data/jhu/dev/workspace/lexai/deploy/config/
 ```
 
-然后在 81 上部署：
+然后在 97 上部署：
 
 ```bash
-ssh ictrek@192.168.1.81
-cd /home/ictrek/lexai-thor-deploy
+ssh jhu@192.168.1.97
+cd /data/jhu/dev/workspace/lexai/deploy
 ./update-and-deploy.sh --platform thor
 ```
 

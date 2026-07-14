@@ -1,61 +1,62 @@
 # Thor LexAI deployment
 
-This is the reproducible procedure used for the thor host `ictrek@192.168.1.81`.
+This is the reproducible procedure used for the thor host `jhu@192.168.1.97` (`tc97`, Jetson Thor M114/T5000, 128G unified memory).
 
 ## Files
 
 Work from the repo directory `docs/ictrek/deploy-template`, then copy the directory to thor:
 
 ```bash
-scp -r docs/ictrek/deploy-template ictrek@192.168.1.81:/home/ictrek/lexai-thor-deploy
+scp -r docs/ictrek/deploy-template jhu@192.168.1.97:/data/jhu/dev/workspace/lexai/deploy
 ```
 
 On thor:
 
 ```bash
-cd /home/ictrek/lexai-thor-deploy
+cd /data/jhu/dev/workspace/lexai/deploy
 cp .env.thor.example .env.thor
 ```
 
 Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc changes:
 
 ```dotenv
-VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1
+VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ
 VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
-VLLM_GPU_MEMORY_UTILIZATION=0.45
+VLLM_GPU_MEMORY_UTILIZATION=0.65
 VLLM_MAX_MODEL_LEN=18432
-VLLM_MAX_NUM_SEQS=7
+VLLM_MAX_NUM_SEQS=12
 VLLM_MAX_NUM_BATCHED_TOKENS=4096
 VLLM_MAX_JOBS=4
 VLLM_ENFORCE_EAGER=true
 THOR_VLLM_ENABLE_MTP=false
-BGE_VLLM_MODEL_PATH=/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3
+BGE_VLLM_MODEL_PATH=/data/models/huggingface/hub/models--BAAI--bge-m3
 BGE_VLLM_SERVED_MODEL_NAME=bge-m3
-BGE_VLLM_GPU_MEMORY_UTILIZATION=0.2
-BGE_VLLM_MAX_NUM_SEQS=8
-WEKNORA_ASYNQ_CORE_CONCURRENCY=2
-WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1
-WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1
+BGE_VLLM_GPU_MEMORY_UTILIZATION=0.1
+BGE_VLLM_MAX_NUM_SEQS=16
+WEKNORA_ASYNQ_CORE_CONCURRENCY=4
+WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2
+WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2
 WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
 WEKNORA_ASYNQ_SHARED_CONCURRENCY=0
-WEKNORA_MODEL_MAX_CONCURRENCY=1
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7
-WEKNORA_CHAT_RESERVED_CONCURRENCY=3
-WEKNORA_GRAPH_LLM_CONCURRENCY=1
-WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
-WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
-BATCH_EMBED_SIZE=4
-CONCURRENCY_POOL_SIZE=4
+WEKNORA_WIKI_ASYNQ_CONCURRENCY=4
+WEKNORA_MODEL_MAX_CONCURRENCY=6
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12
+WEKNORA_CHAT_RESERVED_CONCURRENCY=6
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
+BATCH_EMBED_SIZE=8
+CONCURRENCY_POOL_SIZE=8
 MAX_FILE_SIZE_MB=500
 ```
 
-See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. Thor currently uses `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=7`, 3 chat slots reserved, 4 background workers, `WEKNORA_MODEL_MAX_CONCURRENCY=1` for the shared qwen QA model, and the 8-slot bge-m3 embedding profile with 4 document embedding slots. The qwen vLLM startup log must show `Maximum concurrency for 18,432 tokens per request` around `3.96x`; do not calculate background qwen concurrency from `VLLM_MAX_NUM_SEQS` alone.
+See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile uses `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=12`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=6` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for 18,432 tokens per request` far above the configured request cap; on tc97 with `gpu_memory_utilization=0.65` it was `141.00x`, so the hard operational limit is `VLLM_MAX_NUM_SEQS=12`.
 
-`VLLM_MODEL_PATH` must be a path that exists inside the vLLM container. Avoid host absolute symlinks such as `/data/ssd/ictrek/...` because the 9B container mounts `/data/ssd/ictrek/models` as `/data/models`, and the bge-m3 container mounts `/data/ssd/ictrek/model_hub` as `/data/model_hub`.
+`VLLM_MODEL_PATH` and `BGE_VLLM_MODEL_PATH` must be paths that exist inside the vLLM containers. The compose file mounts `${VLLM_MODELS_DIR}` as `/data/models` and resolves a Hugging Face model root such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ` to its newest `snapshots/<hash>` directory automatically. Avoid host absolute paths such as `/data/jhu/dev/workspace/lexai/...` inside these variables.
 
 ## Model preparation
 
-The persistent model/data root is `/data/ssd/ictrek`.
+The persistent model/data root is `/data/jhu/dev/workspace/lexai`. Keep model-hub, vLLM models, Ollama models, uploaded files, database volumes, docreader cache, and future migrated data under this root.
 
 If the models are missing, start only model_hub first and pull:
 
@@ -67,7 +68,7 @@ Use model_hub or its API to pull:
 
 ```text
 ollama://qwen3.5:4b
-ms://BAAI/bge-m3
+hf://BAAI/bge-m3
 hf://QuantTrio/Qwen3.5-9B-AWQ
 ```
 
@@ -77,11 +78,13 @@ If Hugging Face is slow, keep:
 HF_ENDPOINT=https://hf-mirror.com
 ```
 
+On the validated tc97 model_hub backend, `ms://BAAI/bge-m3` failed with a ModelScope `progress_callbacks` argument error, so the Thor preload defaults use `hf://BAAI/bge-m3`.
+
 Confirm the snapshot exists:
 
 ```bash
-test -f /data/ssd/ictrek/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1/config.json
-test -f /data/ssd/ictrek/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3/config.json
+find /data/jhu/dev/workspace/lexai/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots -mindepth 1 -maxdepth 1 -name '*' -exec test -f '{}/config.json' ';' -print
+find /data/jhu/dev/workspace/lexai/models/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 1 -maxdepth 1 -name '*' -exec test -f '{}/config.json' ';' -print
 ```
 
 ## Cleanup before deployment
@@ -128,7 +131,7 @@ docker logs --since 5m lexai-thor-app-1 2>&1 \
 
 Old trace attempts that still show `running` are historical rows after a newer attempt superseded them. Do not wait for old attempts; judge current progress by the latest attempt plus Asynq queue state. The current built-in stage recovery covers enabled multimodal only. Graph recovery still requires full reparse or a future graph-specific recovery entrypoint.
 
-The deployed and verified 81 plan uses these model roles:
+The tested tc97 plan uses these model roles:
 
 | Role | Model ID | Service |
 | --- | --- | --- |
@@ -137,13 +140,13 @@ The deployed and verified 81 plan uses these model roles:
 | Default Embedding | `lexai-thor-vllm-bge-m3-embedding` | `http://bge-m3-vllm:22223/v1` |
 | Backup Embedding | `lexai-thor-ollama-bge-m3-embedding` | `http://model-hub-ollama:11434` |
 
-The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=18432`. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during validation.
+The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=18432`. On tc97, qwen `gpu_memory_utilization=0.8` and `VLLM_MAX_NUM_SEQS=14` can start by itself, but bge-m3 at `0.2` cannot coexist because the remaining free GPU memory is below bge's requested reservation. The recommended steady profile is qwen `0.65/18432/12` plus bge `0.1/8192/16`, leaving app and database headroom. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during earlier validation.
 
-Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=8`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=2, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, and `CONCURRENCY_POOL_SIZE=4` so document embedding can use 4 requests while interactive retrieval keeps about 3 service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
+Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8` so document ingestion can use 8 embedding requests while interactive retrieval has spare service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
 
-Keep `BATCH_EMBED_SIZE=4` on thor. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 4 can consume the bge-m3 slots reserved for chat retrieval.
+Keep `BATCH_EMBED_SIZE=8` on tc97. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 8 should be validated against bge `waiting` metrics before deployment.
 
-VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On thor, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=2, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, and `WEKNORA_MODEL_MAX_CONCURRENCY=1`; chat is the highest-priority path, and background LLM calls must not exceed the single qwen slot left by the 18432-token KV capacity. Keep `WEKNORA_GRAPH_LLM_CONCURRENCY=1`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`. With these pool settings, document text parsing stays in core, postprocess keeps one lightweight fan-out worker, VLM/Graph/Question/Summary enrichment has only one worker, maintenance remains isolated, and shared borrowing is disabled on thor. Every background LLM task still must pass `WEKNORA_MODEL_MAX_CONCURRENCY=1`, so it cannot crowd out chat. If another thor-class machine changes model capacity, update `.env.thor`, the model-service `VLLM_MAX_NUM_SEQS`, and the measured full-context concurrency according to [CONCURRENCY.md](CONCURRENCY.md).
+VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On tc97, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=4, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, and `WEKNORA_MODEL_MAX_CONCURRENCY=6`; chat is the highest-priority path, and background LLM calls must not exceed the 6 non-chat qwen slots. Keep `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. With these pool settings, document text parsing stays in core, postprocess and enrichment are separated from core text parsing, maintenance remains isolated, and shared borrowing is disabled. Every background LLM task still must pass `WEKNORA_MODEL_MAX_CONCURRENCY=6`, so Graph/Wiki/VLM cannot crowd out the 6 reserved chat slots. If another thor-class machine changes model capacity, update `.env.thor`, the model-service `VLLM_MAX_NUM_SEQS`, and the measured startup concurrency according to [CONCURRENCY.md](CONCURRENCY.md).
 
 Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters and set `wiki_config.extraction_granularity=focused`. A KB-level `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel` overrides the Thor env defaults; keep those at `1-2` unless the 9B model has spare capacity. Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
 
@@ -188,16 +191,16 @@ curl -I -s http://127.0.0.1:30080/ | sed -n '1,8p'
 curl -I -s http://127.0.0.1:30175/app/com.ictrek.model-hub/static/css/main.css | sed -n '1,10p'
 ```
 
-During ingestion, qwen running should usually stay at 4 background requests or below. It may rise above 4 when a user chat is active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
+During ingestion, qwen background running requests should usually stay at 6 or below. It may rise above 6 when user chats are active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
 
-Expected externally reachable URLs:
+Expected LAN URLs:
 
 ```text
-LexAI: http://192.168.1.81:30080
-LexAI API: http://192.168.1.81:30081
-model_hub: http://192.168.1.81:30175/app/com.ictrek.model-hub/
-model_hub API: http://192.168.1.81:30005
-Ollama API: http://192.168.1.81:31434
-Qwen 9B vLLM OpenAI API: http://192.168.1.81:32222/v1
-bge-m3 vLLM OpenAI API: http://192.168.1.81:32223/v1
+LexAI: http://192.168.1.97:30080
+LexAI API: http://192.168.1.97:30081
+model_hub: http://192.168.1.97:30175/app/com.ictrek.model-hub/
+model_hub API: http://192.168.1.97:30005
+Ollama API: http://192.168.1.97:31434
+Qwen 9B vLLM OpenAI API: http://192.168.1.97:32222/v1
+bge-m3 vLLM OpenAI API: http://192.168.1.97:32223/v1
 ```

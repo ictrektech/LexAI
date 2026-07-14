@@ -51,22 +51,22 @@ services:
       NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
       NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-}
-      BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
-      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-4}
-      WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-2}
-      WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-1}
-      WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-1}
+      BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-8}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-8}
+      WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-4}
+      WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-2}
+      WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-2}
       WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY: ${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY:-1}
       WEKNORA_ASYNQ_SHARED_CONCURRENCY: ${WEKNORA_ASYNQ_SHARED_CONCURRENCY:-0}
-      WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-2}
-      WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY:-1}
-      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-7}
-      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-3}
-      WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-1}
+      WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-4}
+      WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY:-6}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-12}
+      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-6}
+      WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-2}
       WEKNORA_CHAT_MODEL_CONTEXT_TOKENS: ${WEKNORA_CHAT_MODEL_CONTEXT_TOKENS:-18432}
       WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS: ${WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS:-768}
-      WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-2}
-      WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-2}
+      WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-4}
+      WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-4}
       WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB: ${WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB:-20}
       DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
       WEKNORA_SINGLE_USER_MODE: ${WEKNORA_SINGLE_USER_MODE:-true}
@@ -85,8 +85,8 @@ services:
       WEKNORA_DEPLOY_PLATFORM: thor
       WEKNORA_RUN_AS_ROOT: "true"
     volumes:
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/files:/data/files
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/docreader:/tmp/docreader:ro
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/files:/data/files
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/docreader:/tmp/docreader:ro
       - ./config/builtin_models.thor.yaml:/app/config/builtin_models.yaml:ro
       - ./config/legal_graph_preset.json:/app/config/legal_graph_preset.json:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -127,8 +127,8 @@ services:
     volumes:
       - ./:/lexai-deploy
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${FEISHU_CONFIG_HOST_FILE:-/home/ictrek/.feishu.json}:/root/.feishu.json:ro
-      - ${FEISHU_READ_CONFIG_HOST_FILE:-/home/ictrek/.feishu.components.json}:/root/.feishu.components.json:ro
+      - ${FEISHU_CONFIG_HOST_FILE:-/home/jhu/.feishu.json}:/root/.feishu.json:ro
+      - ${FEISHU_READ_CONFIG_HOST_FILE:-/home/jhu/.feishu.components.json}:/root/.feishu.components.json:ro
     networks:
       - lexai
     restart: unless-stopped
@@ -150,7 +150,7 @@ services:
       GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
       GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
     volumes:
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/docreader:/tmp/docreader
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/docreader:/tmp/docreader
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
       interval: 30s
@@ -186,9 +186,9 @@ services:
       HF_HOME: /data/huggingface
       TRANSFORMERS_CACHE: /data/huggingface
     volumes:
-      - ${MODEL_HUB_DATA_DIR:-/data/ssd/ictrek/model_hub}:/data
-      - ${MODEL_HUB_HF_MODELS_DIR:-/data/ssd/ictrek/models/huggingface}:/data/huggingface
-      - ${OLLAMA_MODELS_DIR:-/data/ssd/ictrek/ollama/models}:/data/ollama/models
+      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/data
+      - ${MODEL_HUB_HF_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models/huggingface}:/data/huggingface
+      - ${OLLAMA_MODELS_DIR:-/data/jhu/dev/workspace/lexai/ollama/models}:/data/ollama/models
     depends_on:
       model-hub-ollama:
         condition: service_healthy
@@ -210,7 +210,7 @@ services:
         python3 - <<'PY'
         import json, os, time, urllib.error, urllib.request
         base = "http://model-hub-backend:5005"
-        models = [m for m in os.getenv("MODEL_HUB_PRELOAD_MODELS", "ms://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ").split() if m]
+        models = [m for m in os.getenv("MODEL_HUB_PRELOAD_MODELS", "hf://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ").split() if m]
         for model in models:
             source = model.split("://", 1)[0]
             body = json.dumps({"model_id": model, "source": source}).encode()
@@ -236,7 +236,7 @@ services:
                     time.sleep(5)
         PY
     environment:
-      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-ms://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ}
+      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-hf://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ}
     depends_on:
       model-hub-backend:
         condition: service_healthy
@@ -262,12 +262,12 @@ services:
       NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
       NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
       MODELS_BASE_DIR: /data
-      MODELS_HOST_DIR: ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}
+      MODELS_HOST_DIR: ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_CONTEXT_LENGTH: "8192"
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-8}
     volumes:
-      - ${OLLAMA_MODELS_DIR:-/data/ssd/ictrek/ollama/models}:/root/.ollama/models
+      - ${OLLAMA_MODELS_DIR:-/data/jhu/dev/workspace/lexai/ollama/models}:/root/.ollama/models
     healthcheck:
       test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -288,9 +288,9 @@ services:
     ports:
       - "${VLLM_HOST_PORT:-32222}:22222"
     volumes:
-      - ${VLLM_MODELS_DIR:-/data/ssd/ictrek/models}:/data/models
-      - /home/ictrek:/home/ictrek
-    working_dir: /home/ictrek
+      - ${VLLM_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models}:/data/models
+      - ${THOR_HOST_HOME:-/home/jhu}:${THOR_CONTAINER_HOME:-/home/jhu}
+    working_dir: ${THOR_CONTAINER_HOME:-/home/jhu}
     entrypoint: ["/bin/bash", "-lc"]
     command:
       - |
@@ -307,7 +307,23 @@ services:
         if [ "${VLLM_ENFORCE_EAGER:-true}" = "true" ]; then
           eager_args=(--enforce-eager)
         fi
-        exec vllm serve "${VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots/938f8e3ef86c9d1e9bec3705e149694c172592f1}" \
+        resolve_model_path() {
+          local candidate="$1"
+          if [ -f "$$candidate/config.json" ]; then
+            printf '%s\n' "$$candidate"
+            return 0
+          fi
+          local resolved
+          resolved="$$(find "$$candidate/snapshots" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/config.json' ';' -print 2>/dev/null | sort | tail -n 1 || true)"
+          if [ -n "$$resolved" ]; then
+            printf '%s\n' "$$resolved"
+            return 0
+          fi
+          printf '%s\n' "$$candidate"
+        }
+        model_path="$$(resolve_model_path "${VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ}")"
+        echo "Using qwen model path: $$model_path"
+        exec vllm serve "$$model_path" \
           --served-model-name "${VLLM_SERVED_MODEL_NAME:-Qwen3.5-9B-AWQ}" \
           --host 0.0.0.0 \
           --port 22222 \
@@ -315,9 +331,9 @@ services:
           --kv-cache-dtype fp8 \
           --attention-backend flashinfer \
           --moe-backend marlin \
-          --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.45}" \
+          --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.65}" \
           --max-model-len "${VLLM_MAX_MODEL_LEN:-18432}" \
-          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-7}" \
+          --max-num-seqs "${VLLM_MAX_NUM_SEQS:-12}" \
           --max-num-batched-tokens "${VLLM_MAX_NUM_BATCHED_TOKENS:-4096}" \
           --enable-chunked-prefill \
           --async-scheduling \
@@ -354,23 +370,40 @@ services:
     ports:
       - "${BGE_VLLM_HOST_PORT:-32223}:22223"
     volumes:
-      - ${MODEL_HUB_DATA_DIR:-/data/ssd/ictrek/model_hub}:/data/model_hub
-      - /home/ictrek:/home/ictrek
-    working_dir: /home/ictrek
+      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/data/model_hub
+      - ${VLLM_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models}:/data/models
+      - ${THOR_HOST_HOME:-/home/jhu}:${THOR_CONTAINER_HOME:-/home/jhu}
+    working_dir: ${THOR_CONTAINER_HOME:-/home/jhu}
     entrypoint: ["/bin/bash", "-lc"]
     command:
       - |
-        exec vllm serve "${BGE_VLLM_MODEL_PATH:-/data/model_hub/modelscope/hub/models--BAAI--bge-m3/BAAI/bge-m3}" \
+        resolve_model_path() {
+          local candidate="$1"
+          if [ -f "$$candidate/config.json" ]; then
+            printf '%s\n' "$$candidate"
+            return 0
+          fi
+          local resolved
+          resolved="$$(find "$$candidate/snapshots" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/config.json' ';' -print 2>/dev/null | sort | tail -n 1 || true)"
+          if [ -n "$$resolved" ]; then
+            printf '%s\n' "$$resolved"
+            return 0
+          fi
+          printf '%s\n' "$$candidate"
+        }
+        model_path="$$(resolve_model_path "${BGE_VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--BAAI--bge-m3}")"
+        echo "Using bge model path: $$model_path"
+        exec vllm serve "$$model_path" \
           --served-model-name "${BGE_VLLM_SERVED_MODEL_NAME:-bge-m3}" \
           --runner pooling \
           --convert embed \
           --host 0.0.0.0 \
           --port 22223 \
           --trust-remote-code \
-          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-8}" \
+          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-16}" \
           --max-model-len "${BGE_VLLM_MAX_MODEL_LEN:-8192}" \
           --max-num-batched-tokens "${BGE_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
-          --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.2}"
+          --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
     environment:
       TZ: Asia/Shanghai
       DEBIAN_FRONTEND: noninteractive
@@ -393,7 +426,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.thor}
       POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env.thor}
     volumes:
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/postgres:/var/lib/postgresql/data
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
@@ -409,7 +442,7 @@ services:
     image: redis:7.0-alpine
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.thor}
     volumes:
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/redis:/data
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/redis:/data
     networks:
       - lexai
     restart: unless-stopped
@@ -426,7 +459,7 @@ services:
       NEO4J_apoc_import_file_use__neo4j__config: "true"
       NEO4JLABS_PLUGINS: '["apoc"]'
     volumes:
-      - ${LEXAI_DATA_ROOT:-/data/ssd/ictrek}/neo4j:/data
+      - ${LEXAI_DATA_ROOT:-/data/jhu/dev/workspace/lexai}/neo4j:/data
     networks:
       - lexai
     restart: unless-stopped

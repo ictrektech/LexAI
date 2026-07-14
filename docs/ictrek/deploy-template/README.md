@@ -113,13 +113,13 @@ Wiki synthesis uses the same model as the knowledge base's main QA model by defa
 
 Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible models use `chat_template_kwargs.enable_thinking=false`. Ollama's native chat API uses `think=false`; Ollama OpenAI-compatible models should use `extra_config.thinking_control=reasoning_effort`, which sends `reasoning_effort=none`.
 
-Knowledge graph extraction, Wiki synthesis, document summaries, table summaries, VLM/OCR multimodal parsing, and generated-question postprocessing share the main QA model. Configure worker pools, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). On thor, use `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=7`, `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=7`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=3`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=2, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, `WEKNORA_MODEL_MAX_CONCURRENCY=1`, `WEKNORA_GRAPH_LLM_CONCURRENCY=1`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=2`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2`. vLLM reports only about `3.96x` full-context concurrency at 18432 tokens on thor, so the background main-model limiter must be 1 to keep 3 usable chat slots.
+Knowledge graph extraction, Wiki synthesis, document summaries, table summaries, VLM/OCR multimodal parsing, and generated-question postprocessing share the main QA model. Configure worker pools, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). On the tc97 Thor profile, use `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=12`, `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=4, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, `WEKNORA_MODEL_MAX_CONCURRENCY=6`, `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. vLLM reports far more full-context KV capacity than the configured request cap at 18432 tokens on tc97, so the operational cap is `VLLM_MAX_NUM_SEQS=12`; keep 6 of those slots reserved for chat.
 
 On thor, keep `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. Both the app startup reparse hook and `trigger-reparse-incomplete.sh` use this list so interrupted parsing is not retried before vLLM is HTTP-ready.
 
-On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. It uses `BGE_VLLM_MAX_NUM_SEQS=8`; keep `WEKNORA_ASYNQ_CORE_CONCURRENCY=2, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0` and `CONCURRENCY_POOL_SIZE=4` so document ingestion can use 4 embedding requests while interactive retrieval keeps about 3 service slots. Ollama `bge-m3:latest` remains configured only as a backup; see [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
+On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. The tc97 profile uses `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8`; Ollama `bge-m3:latest` remains configured only as a backup. See [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
 
-Thor Wiki generation uses the 9B QA model and keeps source text capped at 12000 characters. For Thor KBs, set `wiki_config.extraction_granularity=focused`; the deployment defaults keep Wiki ingest map/reduce parallelism at 2 unless a KB explicitly overrides `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel`. On weaker machines, lower the Wiki map/reduce values before lowering chat reserved capacity.
+Thor Wiki generation uses the 9B QA model and keeps source text capped at 12000 characters. For Thor KBs, set `wiki_config.extraction_granularity=focused`; the tc97 deployment defaults keep Wiki ingest map/reduce parallelism at 4 unless a KB explicitly overrides `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel`. On weaker machines, lower the Wiki map/reduce values before lowering chat reserved capacity.
 
 For `tc232`, use the dedicated compose file. It expects the existing `qwen35-9b-awq-vllm` container to already be attached to the external `lexai` network.
 
@@ -128,14 +128,14 @@ cp .env.tc232.example .env.tc232
 ./deploy-tc232.sh
 ```
 
-For `thor`, use the dedicated compose file. It creates the external `lexai` Docker network if missing, looks up the latest `thor_spark` component tags from Feishu, starts model_hub, ollama, `qwen35-9b-vllm`, and `bge-m3-vllm` on the internal network, triggers `ms://BAAI/bge-m3` through model_hub, and runs the model_hub-downloaded 9B and bge-m3 paths. Ollama remains available only as a non-default backup. See [THOR_DEPLOYMENT.md](THOR_DEPLOYMENT.md) for the reproducible host procedure.
+For `thor`, use the dedicated compose file. It creates the external `lexai` Docker network if missing, looks up the latest `thor_spark` component tags from Feishu, starts model_hub, ollama, `qwen35-9b-vllm`, and `bge-m3-vllm` on the internal network, triggers `hf://BAAI/bge-m3` and `hf://QuantTrio/Qwen3.5-9B-AWQ` through model_hub, and runs the model_hub-downloaded 9B and bge-m3 paths. Ollama remains available only as a non-default backup. See [THOR_DEPLOYMENT.md](THOR_DEPLOYMENT.md) for the reproducible host procedure.
 
 ```bash
 cp .env.thor.example .env.thor
 ./deploy-thor.sh
 ```
 
-Thor persistent data defaults to `/data/ssd/ictrek` for LexAI, model_hub, Ollama, Postgres, Redis, Neo4j, files, and docreader. The 9B vLLM mounts `/data/ssd/ictrek/models:/data/models`; the bge-m3 vLLM mounts `/data/ssd/ictrek/model_hub:/data/model_hub`. Use container paths, not host absolute symlinks.
+Thor persistent data defaults to `/data/jhu/dev/workspace/lexai` for LexAI, model_hub, Ollama, Postgres, Redis, Neo4j, files, and docreader. Both qwen and bge vLLM containers mount `/data/jhu/dev/workspace/lexai/models:/data/models`; use container paths such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ`, not host absolute paths.
 
 When updating the tc232 deploy directory from this repo, use:
 
