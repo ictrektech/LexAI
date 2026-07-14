@@ -67,12 +67,15 @@ pull_image_if_needed() {
 remote_image_digest() {
   local image="$1"
   local manifest
-  manifest="$(docker manifest inspect "$image" 2>/dev/null || true)"
+  manifest="$(docker manifest inspect -v "$image" 2>/dev/null || docker manifest inspect "$image" 2>/dev/null || true)"
   [[ -n "$manifest" ]] || return 0
   printf '%s' "$manifest" | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
-digest = data.get("Descriptor", {}).get("digest") or data.get("config", {}).get("digest") or ""
+if isinstance(data, list):
+    digest = data[0].get("Descriptor", {}).get("digest") if data else ""
+else:
+    digest = data.get("Descriptor", {}).get("digest") or data.get("config", {}).get("digest") or ""
 print(digest)
 '
 }
@@ -84,6 +87,14 @@ running_image_digest() {
   [[ -n "$cid" ]] || return 0
   image="$(docker inspect "$cid" --format '{{.Config.Image}}' 2>/dev/null || true)"
   [[ -n "$image" ]] || return 0
+  repo_digest="$(docker image inspect "$image" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | head -n 1 || true)"
+  [[ -n "$repo_digest" ]] || return 0
+  echo "${repo_digest##*@}"
+}
+
+local_image_digest() {
+  local image="$1"
+  local repo_digest
   repo_digest="$(docker image inspect "$image" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | head -n 1 || true)"
   [[ -n "$repo_digest" ]] || return 0
   echo "${repo_digest##*@}"
@@ -117,6 +128,34 @@ image_tag() {
   local image="$1"
   [[ "$image" == *:* ]] || return 0
   echo "${image##*:}"
+}
+
+ensure_sandbox_image() {
+  local mode image
+  mode="$(env_value WEKNORA_SANDBOX_MODE "$ENV_FILE")"
+  mode="${mode:-docker}"
+  image="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+  image="${image:-wechatopenai/weknora-sandbox:latest}"
+
+  if [[ "$mode" != "docker" ]]; then
+    log "skills sandbox mode=${mode}; skip sandbox image pull"
+    return 0
+  fi
+
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    log "skills sandbox image present: ${image}"
+  else
+    log "pull skills sandbox image: ${image}"
+    if docker pull "$image"; then
+      return 0
+    fi
+    if [[ -f "${ROOT_DIR}/docker/Dockerfile.sandbox" ]]; then
+      log "sandbox image pull failed; building local fallback from deploy-template/docker/Dockerfile.sandbox"
+      DOCKER_BUILDKIT=1 docker build --pull=false -f "${ROOT_DIR}/docker/Dockerfile.sandbox" -t "$image" "${ROOT_DIR}"
+      return 0
+    fi
+    return 1
+  fi
 }
 
 service_needs_remote_image_update() {
@@ -176,6 +215,7 @@ check_image_version_update() {
   local service="$1"
   local env_key="$2"
   local image="$3"
+  local detail_name="${4:-$service}"
   local current_image current_tag latest_tag current_digest remote_digest
   compose_has_service "$service" || return 1
   current_image="$(env_value "$env_key" "$ENV_FILE")"
@@ -184,14 +224,37 @@ check_image_version_update() {
   latest_tag="$(image_tag "$image")"
   if [[ -z "$current_tag" || "$current_tag" != "$latest_tag" ]]; then
     append_service_once "$service"
-    append_detail_once "$service" "$current_tag" "$latest_tag" "version"
+    append_detail_once "$detail_name" "$current_tag" "$latest_tag" "version"
     return 0
   fi
   remote_digest="$(remote_image_digest "$image")"
   current_digest="$(running_image_digest "$service")"
   if [[ -n "$remote_digest" && -n "$current_digest" && "$remote_digest" != "$current_digest" ]]; then
     append_service_once "$service"
-    append_detail_once "$service" "$current_tag" "$latest_tag" "same-tag-digest"
+    append_detail_once "$detail_name" "$current_tag" "$latest_tag" "same-tag-digest"
+    return 0
+  fi
+  return 1
+}
+
+check_sandbox_image_update() {
+  local image="$1"
+  local current_image current_tag latest_tag current_digest remote_digest
+  compose_has_service app || return 1
+  current_image="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+  current_image="${current_image:-wechatopenai/weknora-sandbox:latest}"
+  current_tag="$(image_tag "$current_image")"
+  latest_tag="$(image_tag "$image")"
+  if [[ "$current_image" != "$image" || -z "$current_tag" || "$current_tag" != "$latest_tag" ]]; then
+    append_service_once app
+    append_detail_once lexai-sandbox "$current_tag" "$latest_tag" "version"
+    return 0
+  fi
+  remote_digest="$(remote_image_digest "$image")"
+  current_digest="$(local_image_digest "$image")"
+  if [[ -n "$remote_digest" && ( -z "$current_digest" || "$remote_digest" != "$current_digest" ) ]]; then
+    append_service_once app
+    append_detail_once lexai-sandbox "$current_tag" "$latest_tag" "same-tag-digest"
     return 0
   fi
   return 1
@@ -421,6 +484,10 @@ latest_tag_for_component() {
   echo "$tag"
 }
 
+latest_tag_for_component_optional() {
+  latest_tag_for_component "$@" 2>/dev/null || true
+}
+
 image_with_tag() {
   local repository="$1"
   local tag="$2"
@@ -502,15 +569,23 @@ resolve_feishu_reader
 LEXAI_APP_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai)"
 LEXAI_UI_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-ui)"
 LEXAI_DOCREADER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" lexai-docreader)"
+LEXAI_SANDBOX_TAG="$(latest_tag_for_component_optional "$TOKEN" "$SHEET_ID" lexai-sandbox)"
 
 LEXAI_APP_IMAGE="$(image_with_tag "${REGISTRY}/lexai" "$LEXAI_APP_TAG")"
 LEXAI_UI_IMAGE="$(image_with_tag "${REGISTRY}/lexai-ui" "$LEXAI_UI_TAG")"
 LEXAI_DOCREADER_IMAGE="$(image_with_tag "${REGISTRY}/lexai-docreader" "$LEXAI_DOCREADER_TAG")"
+if [[ -n "$LEXAI_SANDBOX_TAG" ]]; then
+  LEXAI_SANDBOX_IMAGE="$(image_with_tag "${REGISTRY}/lexai-sandbox" "$LEXAI_SANDBOX_TAG")"
+else
+  LEXAI_SANDBOX_IMAGE="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+  LEXAI_SANDBOX_IMAGE="${LEXAI_SANDBOX_IMAGE:-wechatopenai/weknora-sandbox:latest}"
+fi
 
 log "sheet=${SHEET_TITLE}"
 log "LEXAI_APP_IMAGE=${LEXAI_APP_IMAGE} tag=${LEXAI_APP_TAG}"
 log "LEXAI_UI_IMAGE=${LEXAI_UI_IMAGE} tag=${LEXAI_UI_TAG}"
 log "LEXAI_DOCREADER_IMAGE=${LEXAI_DOCREADER_IMAGE} tag=${LEXAI_DOCREADER_TAG}"
+log "LEXAI_SANDBOX_IMAGE=${LEXAI_SANDBOX_IMAGE} tag=${LEXAI_SANDBOX_TAG:-env/default}"
 
 if [[ "$CHECK_ONLY" != "1" ]]; then
   MODEL_HUB_BACKEND_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" model_hub_backend)"
@@ -530,22 +605,33 @@ fi
 
 require_cmd docker
 
+PREVIOUS_SANDBOX_IMAGE="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+
 if [[ "$CHECK_ONLY" != "1" ]]; then
   write_env_value LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" "$ENV_FILE"
   write_env_value LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" "$ENV_FILE"
   write_env_value LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" "$ENV_FILE"
+  if [[ -z "$(env_value WEKNORA_SANDBOX_MODE "$ENV_FILE")" ]]; then
+    write_env_value WEKNORA_SANDBOX_MODE "docker" "$ENV_FILE"
+  fi
+  write_env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$LEXAI_SANDBOX_IMAGE" "$ENV_FILE"
   write_env_value MODEL_HUB_BACKEND_IMAGE "$MODEL_HUB_BACKEND_IMAGE" "$ENV_FILE"
   write_env_value MODEL_HUB_FRONTEND_IMAGE "$MODEL_HUB_FRONTEND_IMAGE" "$ENV_FILE"
   write_env_value OLLAMA_SERVER_IMAGE "$OLLAMA_SERVER_IMAGE" "$ENV_FILE"
 fi
 
 cd "$ROOT_DIR"
+if [[ "$CHECK_ONLY" != "1" ]] && compose_has_service app; then
+  ensure_sandbox_image
+fi
+
 UPDATE_SERVICES=()
 UPDATE_DETAILS=()
 if [[ "$CHECK_ONLY" == "1" ]]; then
   check_image_version_update frontend LEXAI_UI_IMAGE "$LEXAI_UI_IMAGE" || true
   check_image_version_update app LEXAI_APP_IMAGE "$LEXAI_APP_IMAGE" || true
   check_image_version_update docreader LEXAI_DOCREADER_IMAGE "$LEXAI_DOCREADER_IMAGE" || true
+  check_sandbox_image_update "$LEXAI_SANDBOX_IMAGE" || true
   if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] \
     && [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] \
     && compose_has_service deploy-updater; then
@@ -555,6 +641,7 @@ else
   if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
   if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
   if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
+  if [[ "${PREVIOUS_SANDBOX_IMAGE:-}" != "$LEXAI_SANDBOX_IMAGE" ]]; then append_service_once app; fi
   if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
 fi
 

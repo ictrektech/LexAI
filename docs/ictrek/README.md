@@ -31,6 +31,8 @@
 
 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 和 [config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json) 两个配置文件建议通用/tc232 部署场景都带上。Thor 使用 [config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml) 替代通用模型文件。模型文件注册默认模型，图谱文件保留法律图谱实体/关系模板。
 
+Agent 的「技能 Skills」依赖后端 sandbox。通用、tc232、Thor 三套 compose 模板都默认设置 `WEKNORA_SANDBOX_MODE=docker`，并把宿主机 `/var/run/docker.sock` 挂到 app 容器；[deploy-template/deploy.sh](deploy-template/deploy.sh) 会读取飞书 `lexai-sandbox` 列并预拉 `WEKNORA_SANDBOX_DOCKER_IMAGE`，避免部署后创建智能体时 Skills 菜单消失。除非明确不允许执行 Skill，否则不要把 `WEKNORA_SANDBOX_MODE` 改成 `disabled`。
+
 只有在重新构建镜像、修改前端默认模板或修改后端源码时，才需要完整 repo、Dockerfile 和源码目录。单纯部署、改端口、改模型、改图谱模板，不需要把整个 repo 放到目标机。
 
 ## 初次部署需要改哪里
@@ -123,13 +125,13 @@ cd /data/jhu/lexai-deploy
 ./update-and-deploy.sh --platform l4t
 ```
 
-[update-and-deploy.sh](deploy-template/update-and-deploy.sh) 的 `--check-only` 只读取飞书表格里的 `lexai`、`lexai-ui`、`lexai-docreader` 三个镜像版本，并在版本相同时比较远端镜像 digest 是否变化；检测阶段不拉取 Git 仓库、不同步部署文件、不写入 `.env`、不重建容器。输出 `UPDATE_AVAILABLE`、`UPDATE_SERVICES`、`UPDATE_DETAILS`，用于界面提示当前版本、最新版本和同版本镜像内容变化。
+[update-and-deploy.sh](deploy-template/update-and-deploy.sh) 的 `--check-only` 只读取飞书表格里的 `lexai`、`lexai-ui`、`lexai-docreader`、`lexai-sandbox` 四个 LexAI 运行镜像版本，并在版本相同时比较远端镜像 digest 是否变化；检测阶段不拉取 Git 仓库、不同步部署文件、不写入 `.env`、不重建容器。`lexai-sandbox` 不是独立服务，检测到它更新时会提示替换 app，因为 app 需要重新创建才能使用新的 `WEKNORA_SANDBOX_DOCKER_IMAGE`。输出 `UPDATE_AVAILABLE`、`UPDATE_SERVICES`、`UPDATE_DETAILS`，用于界面提示当前版本、最新版本和同版本镜像内容变化。
 
-用户确认更新后，脚本才从 `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF` 拉取最新 `docs/ictrek`，同步 `deploy-template` 到当前部署目录并保留本机 `.env`、`.env.tc232`、`.env.thor`，随后 `docker pull` 飞书表格解析出的镜像并精确替换需要更新的 LexAI app、frontend、docreader 和 deploy-updater 服务。不会重启 Postgres、Redis、Neo4j 等数据库服务；如果同次更新 app 和 frontend，会先等待 app 健康，再重建 frontend，避免 frontend 反代到旧 app 容器 IP。
+用户确认更新后，脚本才从 `LEXAI_DEPLOY_REPO` / `LEXAI_DEPLOY_REF` 拉取最新 `docs/ictrek`，同步 `deploy-template` 到当前部署目录并保留本机 `.env`、`.env.tc232`、`.env.thor`，随后 `docker pull` 飞书表格解析出的镜像并精确替换需要更新的 LexAI app、frontend、docreader 和 deploy-updater 服务。sandbox 镜像只会通过 app 环境变量生效，不会创建 `lexai-sandbox` 容器。不会重启 Postgres、Redis、Neo4j 等数据库服务；如果同次更新 app 和 frontend，会先等待 app 健康，再重建 frontend，避免 frontend 反代到旧 app 容器 IP。
 
 界面右上角的“检测更新”按钮通过 `WEKNORA_DEPLOY_UPDATER_CONTAINER` 固定调用 `deploy-updater` sidecar，先执行 `--check-only` 并向用户列出镜像版本变化和将替换的服务；用户确认后才启动后台更新。不接收前端传入的脚本路径、compose 文件或服务名，避免匹配错容器。sidecar 使用当前部署目录的 `/lexai-deploy/update-and-deploy.sh`，日志写入部署目录的 `update-and-deploy.log`，前端会轮询显示拉取镜像和替换容器进度。更新期间页面可能短暂不可用，用户应等待一段时间后手动刷新页面。确保 `.env*` 里的 `DEPLOY_UPDATER_CONTAINER` 唯一，`FEISHU_CONFIG_HOST_FILE` 指向宿主机可读的飞书凭据文件。
 
-`deploy-updater` 没有单独的 `lexai-deploy-updater` 镜像，它复用 `lexai` app 镜像，并额外挂载宿主机 Docker socket、部署目录和飞书凭据。这样更新按钮调用的后端逻辑和 app 版本一致，也避免维护第四个镜像。若 app 镜像更新，`deploy.sh` 会在本次更新完成后延迟刷新 `deploy-updater` sidecar；否则 sidecar 会继续运行旧 app 镜像，后续检测更新可能仍执行旧逻辑。
+`deploy-updater` 没有单独的 `lexai-deploy-updater` 镜像，它复用 `lexai` app 镜像，并额外挂载宿主机 Docker socket、部署目录和飞书凭据。这样更新按钮调用的后端逻辑和 app 版本一致，也避免维护额外的 updater 镜像。若 app 镜像更新，`deploy.sh` 会在本次更新完成后延迟刷新 `deploy-updater` sidecar；否则 sidecar 会继续运行旧 app 镜像，后续检测更新可能仍执行旧逻辑。
 
 `app` 和 `deploy-updater` 会在容器内调用宿主机 Docker daemon，因此 app 镜像内置的 Docker CLI 不能低于宿主 daemon 的最低 API 要求。不是要求容器内 Docker 版本必须比宿主机新，而是必须满足 `Client.APIVersion >= Server.MinAPIVersion`。默认 app 镜像内置 Docker CLI `29.1.3`；构建时可用 `DOCKER_CLI_VERSION` 覆盖。部署后用下面命令检查，不能出现 `client version ... is too old`：
 
@@ -154,12 +156,13 @@ cd /data/jhu/dev/workspace/lexai/deploy
 ./deploy-thor.sh
 ```
 
-[deploy.sh](deploy-template/deploy.sh) 会分别查找这些组件的最新镜像，允许 LexAI 三个组件和 model_hub/ollama 使用不同版本：
+[deploy.sh](deploy-template/deploy.sh) 会分别查找这些组件的最新镜像，允许 LexAI 组件、sandbox runtime 和 model_hub/ollama 使用不同版本：
 
 ```text
 LEXAI_APP_IMAGE
 LEXAI_UI_IMAGE
 LEXAI_DOCREADER_IMAGE
+WEKNORA_SANDBOX_DOCKER_IMAGE
 MODEL_HUB_BACKEND_IMAGE
 MODEL_HUB_FRONTEND_IMAGE
 OLLAMA_SERVER_IMAGE
@@ -182,6 +185,8 @@ docker exec model-hub-ollama sh -lc 'ls /dev/nvhost-gpu /dev/nvmap /dev/nvhost-c
 LEXAI_APP_IMAGE=registry.example.com/lexai:xxx
 LEXAI_UI_IMAGE=registry.example.com/lexai-ui:xxx
 LEXAI_DOCREADER_IMAGE=registry.example.com/lexai-docreader:xxx
+WEKNORA_SANDBOX_MODE=docker
+WEKNORA_SANDBOX_DOCKER_IMAGE=registry.example.com/lexai-sandbox:xxx
 MODEL_HUB_BACKEND_IMAGE=registry.example.com/model_hub_backend:xxx
 MODEL_HUB_FRONTEND_IMAGE=registry.example.com/model_hub_frontend:xxx
 OLLAMA_SERVER_IMAGE=registry.example.com/ollama_server:xxx
@@ -369,7 +374,7 @@ cd /data/jhu/lexai-tc232-deploy
 ./update-and-deploy.sh --platform amd
 ```
 
-如果 tag 没变但镜像 digest 变了，强制重建 LexAI 三个容器：
+如果 tag 没变但镜像 digest 变了，强制重建 LexAI 容器；若只更新 sandbox 镜像，重建 app 即可：
 
 ```bash
 docker compose --env-file .env.tc232 -f docker-compose.tc232.yml up -d --force-recreate app frontend docreader

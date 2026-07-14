@@ -43,13 +43,14 @@ git commit
 
 ## 哪些改动需要重建哪些镜像
 
-构建脚本是 [build_image.sh](../../build_image.sh)。当前只负责三类 ictrek 镜像：
+构建脚本是 [build_image.sh](../../build_image.sh)。当前负责四类 ictrek 镜像：
 
 | 镜像 | Dockerfile | 需要重建的常见改动 |
 | --- | --- | --- |
 | `lexai` | [docker/Dockerfile.app](../../docker/Dockerfile.app) | 后端 Go 代码、后端配置加载、默认用户、鉴权、模型注册、流式接口、Graph/Wiki 后端逻辑 |
 | `lexai-ui` | [docker/Dockerfile.frontend](../../docker/Dockerfile.frontend) | 前端页面、登录跳过、默认法律图谱前端模板 [frontend/src/config/legalGraphPreset.ts](../../frontend/src/config/legalGraphPreset.ts) |
 | `lexai-docreader` | [docker/Dockerfile.docreader](../../docker/Dockerfile.docreader) | 文档解析、OCR、docreader 服务相关代码 |
+| `lexai-sandbox` | [docker/Dockerfile.sandbox](../../docker/Dockerfile.sandbox) | Agent Skills 运行时镜像，包含 Python、Node、jq；改 sandbox 依赖或基础镜像时需要重建 |
 
 只改 [docs/ictrek/deploy-template](deploy-template/) 里的 compose、env 示例、部署脚本、README，一般不需要重建镜像。
 
@@ -81,9 +82,10 @@ cd /data/jhu/lexai-build
 ./build_image.sh --target amd --app-only
 ./build_image.sh --target amd --frontend-only
 ./build_image.sh --target amd --docreader-only
+./build_image.sh --target amd --sandbox-only
 ```
 
-脚本会 push 镜像并更新飞书表格。AMD 默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；ARM 默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`。
+脚本会 push 镜像并更新飞书表格。默认构建会同时写 `lexai`、`lexai-ui`、`lexai-docreader`、`lexai-sandbox` 四个组件列；单镜像参数只写对应列。AMD 默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；ARM 默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`。
 
 `build_image.sh` 会写飞书表格，凭据使用 `FEISHU_CONFIG_FILE`，默认是 `~/.feishu.json`。`~/.feishu.components.json` 只给部署脚本做只读查表用，不用于构建写表。
 

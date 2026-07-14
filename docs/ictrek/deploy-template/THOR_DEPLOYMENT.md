@@ -48,6 +48,9 @@ WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
 BATCH_EMBED_SIZE=8
 CONCURRENCY_POOL_SIZE=8
 MAX_FILE_SIZE_MB=500
+WEKNORA_SANDBOX_MODE=docker
+WEKNORA_SANDBOX_TIMEOUT=60
+WEKNORA_SANDBOX_DOCKER_IMAGE=wechatopenai/weknora-sandbox:latest
 ```
 
 See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile uses `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=12`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=6` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for 18,432 tokens per request` far above the configured request cap; on tc97 with `gpu_memory_utilization=0.65` it was `141.00x`, so the hard operational limit is `VLLM_MAX_NUM_SEQS=12`.
@@ -124,6 +127,22 @@ done
 ```
 
 `deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
+
+Agent Skills are available only when the backend sandbox is enabled. The thor
+template uses Docker sandbox mode by default: `app` mounts the host Docker
+socket and runs one-shot sandbox containers from
+`WEKNORA_SANDBOX_DOCKER_IMAGE=wechatopenai/weknora-sandbox:latest` when a Skill
+executes. `deploy.sh` pre-pulls this image, so a normal deploy should not leave
+the agent editor without the "技能 Skills" menu. Keep
+`WEKNORA_SANDBOX_MODE=docker`; `disabled` intentionally hides Skills from the
+frontend. Verify after deployment:
+
+```bash
+docker exec lexai-thor-app-1 sh -lc 'env | grep ^WEKNORA_SANDBOX'
+docker exec lexai-thor-app-1 docker version \
+  --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+docker logs --since 5m lexai-thor-app-1 2>&1 | grep 'skills_available'
+```
 
 `.env.thor` keeps `WEKNORA_REPARSE_INCOMPLETE_ON_START=true` and `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. After every app container recreate, LexAI waits for those model endpoints and then automatically resubmits parseable `failed` and `pending` knowledge rows to the batch reparse queue; `processing` and `finalizing` rows are resubmitted only when `processed_at is null`. Parseable means the row has a file path, a URL source, or non-empty manual content. Documents whose text parsing and vector indexing already completed are not full-reparsed just because VLM/Graph/Wiki background work is still pending, and empty rows that cannot produce a `document:process` task are skipped. This is part of the redeploy flow: model/vLLM restarts or interrupted work should recover without manual per-document retry.
 

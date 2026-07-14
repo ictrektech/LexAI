@@ -8,6 +8,7 @@ set -euo pipefail
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/lexai:<tag>
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/lexai-ui:<tag>
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/lexai-docreader:<tag>
+#   swr.cn-southwest-2.myhuaweicloud.com/ictrek/lexai-sandbox:<tag>
 
 REGISTRY_PREFIX="swr.cn-southwest-2.myhuaweicloud.com/ictrek"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
@@ -20,10 +21,12 @@ TARGET_SHEET_TITLES=()
 APP_IMAGE="${REGISTRY_PREFIX}/lexai"
 UI_IMAGE="${REGISTRY_PREFIX}/lexai-ui"
 DOCREADER_IMAGE="${REGISTRY_PREFIX}/lexai-docreader"
+SANDBOX_IMAGE="${REGISTRY_PREFIX}/lexai-sandbox"
 
 BUILD_APP=1
 BUILD_FRONTEND=1
 BUILD_DOCREADER=1
+BUILD_SANDBOX=1
 PUSH_IMAGES=1
 UPDATE_FEISHU=1
 DRY_RUN=0
@@ -48,6 +51,7 @@ Options:
   --app-only             Build only swr.../lexai
   --frontend-only        Build only swr.../lexai-ui
   --docreader-only       Build only swr.../lexai-docreader
+  --sandbox-only         Build only swr.../lexai-sandbox
   --no-push              Build locally without docker push
   --no-feishu            Do not update Feishu after push
   --feishu-only          Do not build or push; only write selected service tags to Feishu
@@ -511,6 +515,7 @@ update_feishu() {
     [[ "$BUILD_APP" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai" "$APP_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_FRONTEND" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai-ui" "$UI_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_DOCREADER" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai-docreader" "$DOCREADER_IMAGE" "$date_row" "$tag"
+    [[ "$BUILD_SANDBOX" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "lexai-sandbox" "$SANDBOX_IMAGE" "$date_row" "$tag"
   done
   return 0
 }
@@ -523,18 +528,28 @@ while [[ $# -gt 0 ]]; do
       BUILD_APP=1
       BUILD_FRONTEND=0
       BUILD_DOCREADER=0
+      BUILD_SANDBOX=0
       shift
       ;;
     --frontend-only)
       BUILD_APP=0
       BUILD_FRONTEND=1
       BUILD_DOCREADER=0
+      BUILD_SANDBOX=0
       shift
       ;;
     --docreader-only)
       BUILD_APP=0
       BUILD_FRONTEND=0
       BUILD_DOCREADER=1
+      BUILD_SANDBOX=0
+      shift
+      ;;
+    --sandbox-only)
+      BUILD_APP=0
+      BUILD_FRONTEND=0
+      BUILD_DOCREADER=0
+      BUILD_SANDBOX=1
       shift
       ;;
     --no-push)
@@ -641,6 +656,7 @@ log "TAG=${TAG}"
 log "APP_IMAGE=${APP_IMAGE}:${TAG}"
 log "UI_IMAGE=${UI_IMAGE}:${TAG}"
 log "DOCREADER_IMAGE=${DOCREADER_IMAGE}:${TAG}"
+log "SANDBOX_IMAGE=${SANDBOX_IMAGE}:${TAG}"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
@@ -700,10 +716,18 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
     .
 fi
 
+if [[ "$SKIP_BUILD" != "1" && "$BUILD_SANDBOX" == "1" ]]; then
+  docker_build_with_local_base_fallback docker/Dockerfile.sandbox \
+    -f docker/Dockerfile.sandbox \
+    -t "${SANDBOX_IMAGE}:${TAG}" \
+    .
+fi
+
 if [[ "$PUSH_IMAGES" == "1" ]]; then
   [[ "$BUILD_APP" == "1" ]] && docker push "${APP_IMAGE}:${TAG}"
   [[ "$BUILD_FRONTEND" == "1" ]] && docker push "${UI_IMAGE}:${TAG}"
   [[ "$BUILD_DOCREADER" == "1" ]] && docker push "${DOCREADER_IMAGE}:${TAG}"
+  [[ "$BUILD_SANDBOX" == "1" ]] && docker push "${SANDBOX_IMAGE}:${TAG}"
 fi
 
 if [[ "$UPDATE_FEISHU" == "1" ]]; then

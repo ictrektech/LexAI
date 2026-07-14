@@ -22,11 +22,12 @@ For an existing deployment, use the one-step updater from the deploy directory:
 ./update-and-deploy.sh --platform l4t
 ```
 
-`--check-only` is deliberately narrow: it only reads Feishu for the three LexAI
-images (`lexai`, `lexai-ui`, `lexai-docreader`). If a Feishu tag is newer than
-the local deployment, it reports the current tag and target tag. If the tag is
-the same, it compares the remote image digest with the running container image
-digest and reports a same-version image update only when the digest differs.
+`--check-only` is deliberately narrow: it only reads Feishu for the LexAI
+runtime images (`lexai`, `lexai-ui`, `lexai-docreader`, `lexai-sandbox`). If a
+Feishu tag is newer than the local deployment, it reports the current tag and
+target tag. If the tag is the same, it compares the remote image digest with
+the running container image digest, or the local sandbox image digest, and
+reports a same-version image update only when the digest differs.
 It does not clone the repo, sync deployment files, write `.env`, pull images, or
 recreate containers.
 
@@ -42,14 +43,17 @@ submitting unfinished work.
 The UI update button does not run arbitrary host commands. It appears as
 "检测更新" in the knowledge-base page header, calls the fixed `deploy-updater`
 sidecar named by `DEPLOY_UPDATER_CONTAINER`, and starts the update only after
-user confirmation. `--check-only` only reads Feishu for the three LexAI images
-(`lexai`, `lexai-ui`, `lexai-docreader`) and compares same-tag remote image
-digests; it does not clone the repo, sync deployment files, write `.env`, or
-recreate containers. After confirmation, the sidecar pulls `docs/ictrek`,
-syncs this deploy template, pulls changed images, and replaces only managed
-LexAI services. If app and frontend are both updated, app is recreated and
-waited healthy before frontend is recreated. Docker pull output and recreate
-steps are appended to `update-and-deploy.log` and surfaced in the web dialog.
+user confirmation. `--check-only` only reads Feishu for the LexAI runtime
+images (`lexai`, `lexai-ui`, `lexai-docreader`, `lexai-sandbox`) and compares
+same-tag remote image digests; it does not clone the repo, sync deployment
+files, write `.env`, or recreate containers. After confirmation, the sidecar
+pulls `docs/ictrek`, syncs this deploy template, pulls changed images, and
+replaces only managed LexAI services. A sandbox image change recreates `app`
+only, because the sandbox image is consumed through
+`WEKNORA_SANDBOX_DOCKER_IMAGE` instead of running as a separate service. If app
+and frontend are both updated, app is recreated and waited healthy before
+frontend is recreated. Docker pull output and recreate steps are appended to
+`update-and-deploy.log` and surfaced in the web dialog.
 `deploy-updater` has no separate image artifact: it deliberately reuses the
 LexAI app image so the update endpoint and the host-side deploy script stay in
 the same release. When the app image changes, `deploy.sh` refreshes this sidecar
@@ -71,6 +75,22 @@ docker exec lexai-thor-app-1 docker version \
   --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
 docker exec lexai-thor-deploy-updater docker version \
   --format 'client={{.Client.Version}} api={{.Client.APIVersion}} server_min={{.Server.MinAPIVersion}}'
+```
+
+Agent Skills require the backend sandbox to be enabled. All ictrek compose
+templates now default to `WEKNORA_SANDBOX_MODE=docker`, mount
+`/var/run/docker.sock` into `app`, and use
+`WEKNORA_SANDBOX_DOCKER_IMAGE=wechatopenai/weknora-sandbox:latest`. When the
+Feishu release sheet has a `lexai-sandbox` column, `deploy.sh` writes the latest
+SWR sandbox image into `.env` and pre-pulls it before recreating services; if
+the column is not present yet, it keeps the env/default image and can build the
+bundled fallback Dockerfile after a pull failure. Do not set
+`WEKNORA_SANDBOX_MODE=disabled` on a deployment that should expose the "技能
+Skills" tab in the agent editor. Verify it with:
+
+```bash
+docker exec lexai-thor-app-1 sh -lc 'env | grep ^WEKNORA_SANDBOX'
+docker logs --since 5m lexai-thor-app-1 2>&1 | grep 'skills_available'
 ```
 
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
