@@ -15,6 +15,67 @@
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。
 
+## 管理界面参数和 env 对照
+
+管理员界面的「系统设置」会展示后台 worker 池的每实例并发数。这些值保存后需要重启 app 才会生效；部署时应优先写入 env 或 compose，界面只用于运行期确认和少量调参。
+
+![系统资源设置](images/system-resource-settings.png)
+
+| 界面参数 | env 变量 | 影响阶段 | 主要资源 | 设置建议 |
+| --- | --- | --- | --- | --- |
+| 核心解析保底并发数 | `WEKNORA_ASYNQ_CORE_CONCURRENCY` | 文档解析、手工重解析、分块、向量化 | docreader、Embedding、数据库写入 | 优先保证足够。新上传文档长时间不能检索时先看它；但不要超过 Embedding 服务和数据库能承受的写入能力。 |
+| 内容富化保底并发数 | `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY` | 摘要、多模态、图谱、问题生成 | 主 QA/VLM 模型、数据库写入 | 小机器保持低值。它只决定任务 worker 数，真正进入主 QA 模型还会受 `WEKNORA_MODEL_MAX_CONCURRENCY` 限制。 |
+| 维护与同步并发数 | `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY` | 数据源同步、批量重解析、批量删除、清理任务 | 数据库、对象存储、队列 | 通常为 `1`。维护任务不能抢占文字解析和聊天资源。 |
+| 后处理编排并发数 | `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY` | 文字解析完成后的状态收尾、富化任务派发 | 数据库、队列 | 不能为 `0`。它太低会让文档卡在已解析但后续任务未派发；太高通常收益不大。 |
+| 共享弹性并发数 | `WEKNORA_ASYNQ_SHARED_CONCURRENCY` | 可弹性订阅 default/summary/multimodal/graph/question | 取决于借用到的队列 | 小机器建议 `0`。只有在模型和数据库余量明确充足时才设为 `1+`，否则富化任务可能绕过保底池设计。 |
+| Wiki Worker 并发数 | `WEKNORA_WIKI_ASYNQ_CONCURRENCY` | Wiki 内容生成、索引同步、全局收尾 | 主 QA 模型、数据库 | Wiki 独立池，不占 core；但调用主 QA 模型时仍受 `WEKNORA_MODEL_MAX_CONCURRENCY` 约束。 |
+
+这些 worker 参数只控制“有多少后台任务开始执行”，不等于“有多少请求可以进入模型”。如果内容富化、Wiki、图谱、摘要同时触发，最终还要经过后台主模型闸门：
+
+```dotenv
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12
+WEKNORA_CHAT_RESERVED_CONCURRENCY=6
+WEKNORA_MODEL_MAX_CONCURRENCY=6
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
+```
+
+参数含义：
+
+- `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`：LexAI 认为主 QA 模型服务可接收的总请求入口，vLLM 场景通常与 `VLLM_MAX_NUM_SEQS` 对齐。
+- `WEKNORA_CHAT_RESERVED_CONCURRENCY`：给在线聊天保留的目标槽位。它不是 vLLM 的独立队列，而是应用侧限制后台任务不要占满主模型。
+- `WEKNORA_MODEL_MAX_CONCURRENCY`：全部后台任务同时进入主 QA 模型的硬上限，包括 Graph、Wiki、摘要、问题生成和需要主 QA 的 VLM。它应小于等于 `主模型容量 - 聊天保留`。
+- `WEKNORA_GRAPH_LLM_CONCURRENCY`：单个文档内 Graph chunk 并发。它只限制 Graph 自己，仍受 `WEKNORA_MODEL_MAX_CONCURRENCY` 总闸门约束。
+- `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`：Wiki map/reduce 阶段的并行度。知识库级配置可以覆盖 env 默认值。
+
+任务队列页用于确认这些设置是否真的按预期运行：
+
+![任务队列运行时](images/task-queue-runtime.png)
+
+上半部分的「运行概览」是全局任务数量：
+
+- 运行中：已经被 worker 取走并正在执行的任务。
+- 排队中：等待 worker 的任务。排队多不一定异常，要看是哪类队列。
+- 重试中：失败后等待下一次重试的任务。
+- 死信：超过重试次数的任务，需要人工检查或重新触发。
+
+「Worker 池」卡片里的 `运行中/容量` 只代表任务池占用，不代表模型服务占用。例如「内容富化 2/2」表示两个富化 worker 都在工作，但它们是否同时进入 QA 模型，还取决于 `WEKNORA_MODEL_MAX_CONCURRENCY`。底部「模型并发占用」才是观察模型服务限流的地方：`调用中` 表示已经进入模型，`限流等待` 表示被应用侧模型闸门挡住，`并发用量` 表示当前模型槽位使用比例。
+
+队列明细的读取方法：
+
+- 默认（文档解析）排队高：文字解析、分块或向量化跟不上；先检查 core worker、docreader、Embedding 服务和数据库。
+- 摘要生成、多模态、图谱抽取、问题生成排队高：内容富化慢；只要聊天和文字解析正常，可以让它慢慢跑。
+- Wiki 同步排队高：Wiki 独立池忙；先看 Wiki worker，再看主 QA 模型是否有等待。
+- 死信增长：不是单纯并发问题，需要看任务错误、Trace 和容器日志。
+
+调参顺序：
+
+1. 先保证在线聊天：确认 `WEKNORA_CHAT_RESERVED_CONCURRENCY` 和 `WEKNORA_MODEL_MAX_CONCURRENCY` 没让后台任务吃满主 QA 模型。
+2. 再保证文字入库：提高或恢复 `WEKNORA_ASYNQ_CORE_CONCURRENCY`，确认 Embedding 有余量。
+3. 最后调富化：在聊天和文字解析稳定后，再逐步提高 enrichment、wiki、graph 或 shared。
+4. 每次改 worker 池后重启 app；每次改 vLLM 模型容量后重启对应模型服务，并同步更新应用侧并发。
+
 ## Thor 当前参数：每个数字限制什么
 
 Thor 不是只靠一个并发参数。下表是 `tc97` / `192.168.1.97` 当前推荐分工，避免把 worker 数、vLLM 接收上限和后台模型限流混为一谈。该机器是 Jetson Thor M114/T5000，128G 统一内存；实测 qwen `0.65/18432/12` 与 bge `0.1/8192/16` 可同时 ready，并给系统和 LexAI 其他服务保留余量。
