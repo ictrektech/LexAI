@@ -23,8 +23,8 @@ Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc 
 VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ
 VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
 VLLM_GPU_MEMORY_UTILIZATION=0.65
-VLLM_MAX_MODEL_LEN=18432
-VLLM_MAX_NUM_SEQS=12
+VLLM_MAX_MODEL_LEN=32768
+VLLM_MAX_NUM_SEQS=20
 VLLM_MAX_NUM_BATCHED_TOKENS=4096
 VLLM_MAX_JOBS=4
 VLLM_ENFORCE_EAGER=true
@@ -39,8 +39,8 @@ WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2
 WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
 WEKNORA_ASYNQ_SHARED_CONCURRENCY=0
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=4
-WEKNORA_MODEL_MAX_CONCURRENCY=6
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12
+WEKNORA_MODEL_MAX_CONCURRENCY=14
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20
 WEKNORA_CHAT_RESERVED_CONCURRENCY=6
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
@@ -53,14 +53,14 @@ WEKNORA_SANDBOX_TIMEOUT=60
 WEKNORA_SANDBOX_DOCKER_IMAGE=wechatopenai/weknora-sandbox:latest
 ```
 
-See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile uses `VLLM_MAX_MODEL_LEN=18432`, `VLLM_MAX_NUM_SEQS=12`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=6` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for 18,432 tokens per request` far above the configured request cap; on tc97 with `gpu_memory_utilization=0.65` it was `141.00x`, so the hard operational limit is `VLLM_MAX_NUM_SEQS=12`.
+See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile currently uses `VLLM_MAX_MODEL_LEN=32768`, `VLLM_MAX_NUM_SEQS=20`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=14` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for ... tokens per request`; that value is KV cache capacity evidence, not a smooth-answer concurrency guarantee, so still validate with `vllm:num_requests_waiting`, TTFT, and output throughput.
 
 Set these values as a group:
 
-1. `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` must be the same context window. Use exact `18432`; do not round it to `18000`.
-2. `VLLM_MAX_NUM_SEQS` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` must be the same model-service request cap. tc97 uses `12`.
+1. `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` must be the same context window. tc97 currently uses `32768`.
+2. `VLLM_MAX_NUM_SEQS` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` must be the same model-service request cap. tc97 currently uses `20`.
 3. `WEKNORA_CHAT_RESERVED_CONCURRENCY` is the online-chat target reserve. tc97 uses `6`.
-4. `WEKNORA_MODEL_MAX_CONCURRENCY` is the total background entry limit for Graph, Wiki, Summary, Question, and VLM calls to the shared QA model. Compute it as `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`; tc97 is `12 - 6 = 6`.
+4. `WEKNORA_MODEL_MAX_CONCURRENCY` is the total background entry limit for Graph, Wiki, Summary, Question, and VLM calls to the shared QA model. Compute it as `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`; tc97 is currently `20 - 6 = 14`.
 5. `WEKNORA_ASYNQ_CORE_CONCURRENCY`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY`, and `WEKNORA_WIKI_ASYNQ_CONCURRENCY` control task workers, not model slots. tc97 keeps `4/2/2/1/0/4` so text parsing has a dedicated core pool and Graph/Wiki/VLM cannot expand through shared borrowing.
 6. `BGE_VLLM_MAX_NUM_SEQS`, `CONCURRENCY_POOL_SIZE`, and `BATCH_EMBED_SIZE` control embedding service capacity, document embedding request concurrency, and chunks per embedding request. tc97 keeps `16/8/8` so document ingestion does not consume all bge capacity.
 
@@ -168,13 +168,13 @@ The tested tc97 plan uses these model roles:
 | Default Embedding | `lexai-thor-vllm-bge-m3-embedding` | `http://bge-m3-vllm:22223/v1` |
 | Backup Embedding | `lexai-thor-ollama-bge-m3-embedding` | `http://model-hub-ollama:11434` |
 
-The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=18432`. On tc97, qwen `gpu_memory_utilization=0.8` and `VLLM_MAX_NUM_SEQS=14` can start by itself, but bge-m3 at `0.2` cannot coexist because the remaining free GPU memory is below bge's requested reservation. The recommended steady profile is qwen `0.65/18432/12` plus bge `0.1/8192/16`, leaving app and database headroom. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during earlier validation.
+The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=32768`. The current tc97 trial profile is qwen `0.65/32768/20` plus bge `0.1/8192/16`, leaving app and database headroom while testing whether 20 request slots remain stable. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during earlier validation.
 
 Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8` so document ingestion can use 8 embedding requests while interactive retrieval has spare service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
 
 Keep `BATCH_EMBED_SIZE=8` on tc97. The app uses `CONCURRENCY_POOL_SIZE` as the document batch embedding request cap; raising it above 8 should be validated against bge `waiting` metrics before deployment.
 
-VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On tc97, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=4, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, and `WEKNORA_MODEL_MAX_CONCURRENCY=6`; chat is the highest-priority path, and background LLM calls must not exceed the 6 non-chat qwen slots. Keep `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. With these pool settings, document text parsing stays in core, postprocess and enrichment are separated from core text parsing, maintenance remains isolated, and shared borrowing is disabled. Every background LLM task still must pass `WEKNORA_MODEL_MAX_CONCURRENCY=6`, so Graph/Wiki/VLM cannot crowd out the 6 reserved chat slots. If another thor-class machine changes model capacity, update `.env.thor`, the model-service `VLLM_MAX_NUM_SEQS`, and the measured startup concurrency according to [CONCURRENCY.md](CONCURRENCY.md).
+VLM/OCR multimodal parsing, Graph, Wiki, document summary, table summary, and generated-question postprocessing share the same 9B QA model. On tc97, keep `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20`, `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`, `WEKNORA_ASYNQ_CORE_CONCURRENCY=4, WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2, WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2, WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1, WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, and `WEKNORA_MODEL_MAX_CONCURRENCY=14`; chat is the highest-priority path, and background LLM calls must not exceed the 14 non-chat qwen slots. Keep `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. With these pool settings, document text parsing stays in core, postprocess and enrichment are separated from core text parsing, maintenance remains isolated, and shared borrowing is disabled. Every background LLM task still must pass `WEKNORA_MODEL_MAX_CONCURRENCY=14`, so Graph/Wiki/VLM cannot crowd out the 6 reserved chat slots. If another thor-class machine changes model capacity, update `.env.thor`, the model-service `VLLM_MAX_NUM_SEQS`, and the measured startup concurrency according to [CONCURRENCY.md](CONCURRENCY.md).
 
 Wiki generation uses the same 9B QA model. Keep Wiki source text capped at the application default of 12000 characters and set `wiki_config.extraction_granularity=focused`. A KB-level `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel` overrides the Thor env defaults; keep those at `1-2` unless the 9B model has spare capacity. Larger prompts on the 9B model can return truncated JSON and leave pages ungenerated until the `wiki:ingest` task is retried.
 

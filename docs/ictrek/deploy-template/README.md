@@ -137,14 +137,14 @@ Knowledge graph extraction, Wiki synthesis, document summaries, table summaries,
 
 For the tc97 Thor profile, set resource values in this order:
 
-1. Model window: `VLLM_MAX_MODEL_LEN=18432` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18432`. The value is exact; do not use `18000`.
-2. Model service entry: `VLLM_MAX_NUM_SEQS=12` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=12`. These two values must match so app-side admission control reflects the real vLLM request cap.
+1. Model window: `VLLM_MAX_MODEL_LEN=32768` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=32768`. These two values must match exactly.
+2. Model service entry: `VLLM_MAX_NUM_SEQS=20` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20`. These two values must match so app-side admission control reflects the real vLLM request cap.
 3. Chat reserve: `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`. This is the target online chat reserve.
-4. Background QA-model gate: `WEKNORA_MODEL_MAX_CONCURRENCY=6`. This is the total number of background Graph/Wiki/Summary/Question/VLM calls that may enter the shared QA model at the same time.
+4. Background QA-model gate: `WEKNORA_MODEL_MAX_CONCURRENCY=14`. This is the total number of background Graph/Wiki/Summary/Question/VLM calls that may enter the shared QA model at the same time.
 5. Background worker pools: `WEKNORA_ASYNQ_CORE_CONCURRENCY=4`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`. Core keeps text parsing moving; enrichment and wiki can run slowly without consuming the chat reserve.
 6. Stage-local LLM limits: `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. These are still capped by `WEKNORA_MODEL_MAX_CONCURRENCY`.
 
-vLLM reports far more full-context KV capacity than the configured request cap at 18432 tokens on tc97, so the operational cap is `VLLM_MAX_NUM_SEQS=12`; keep 6 of those slots reserved for chat. On a different machine, recompute `WEKNORA_MODEL_MAX_CONCURRENCY` from `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`, then validate with `vllm:num_requests_waiting`.
+vLLM reports full-context KV capacity at startup, but that number only proves KV cache can hold the sequences; it is not a guarantee that all of them will answer smoothly. On tc97, the operational cap is `VLLM_MAX_NUM_SEQS=20`; keep 6 of those slots reserved for chat and let background calls use at most 14. On a different machine, recompute `WEKNORA_MODEL_MAX_CONCURRENCY` from `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`, then validate with `vllm:num_requests_waiting`, TTFT, and output throughput.
 
 On thor, keep `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. Both the app startup reparse hook and `trigger-reparse-incomplete.sh` use this list so interrupted parsing is not retried before vLLM is HTTP-ready.
 
