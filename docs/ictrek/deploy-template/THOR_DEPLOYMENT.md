@@ -231,7 +231,7 @@ curl -I -s http://127.0.0.1:30080/ | sed -n '1,8p'
 curl -I -s http://127.0.0.1:30175/app/com.ictrek.model-hub/static/css/main.css | sed -n '1,10p'
 ```
 
-During ingestion, qwen background running requests should usually stay at 6 or below. It may rise above 6 when user chats are active, but `waiting` should not stay above 0. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
+During ingestion, qwen background running requests should usually stay at or below `WEKNORA_MODEL_MAX_CONCURRENCY=14`. User chats may raise total qwen running above 14, but `waiting` should not stay above 0. If qwen `waiting` grows during chat, lower `WEKNORA_MODEL_MAX_CONCURRENCY`, Graph/Wiki/VLM concurrency, or the context window before increasing worker pools. bge-m3 should also avoid sustained `waiting > 0`; lower `CONCURRENCY_POOL_SIZE` first if it queues.
 
 Expected LAN URLs:
 

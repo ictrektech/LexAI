@@ -11,11 +11,12 @@
 资源参数不要只改一个数字。按下面顺序设置，确保部署文档、env 和 compose 里没有旧值残留：
 
 1. 先定模型和上下文：`VLLM_MAX_MODEL_LEN` 必须等于 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`，tc97 当前试运行 `65536`。
-2. 再定主模型入口：`VLLM_MAX_NUM_SEQS` 必须等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`，tc97 当前试运行 `20`。
-3. 再定聊天预留：`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是在线聊天目标预留，tc97 当前是 `6`；更小机器至少保留 `2-3`。
-4. 再定后台主模型闸门：`WEKNORA_MODEL_MAX_CONCURRENCY` 按 `min(VLLM_MAX_NUM_SEQS, vLLM 满长有效并发) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 计算，tc97 当前是 `14`。Graph、Wiki、摘要、自动问题和 VLM 后台请求都必须受它限制。
-5. 最后定 worker 池：core 负责文字解析和向量化，postprocess 负责派发后处理，enrichment 负责 VLM/Graph/Question/Summary，maintenance 负责批处理和清理，wiki 单独跑 Wiki。tc97 当前是 `4/2/2/1/0/4`，shared 为 `0`，避免后台增强绕过固定池。
-6. Embedding 独立设置：`BGE_VLLM_MAX_NUM_SEQS` 是 bge 服务上限，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧并发，`BATCH_EMBED_SIZE` 是单次请求打包 chunk 数；tc97 当前是 `16/8/8`，给在线检索留余量。
+2. 同步输出预算：`WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` 和 `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` 会从总上下文里预留输出空间，tc97 当前都是 `24576`；界面只支持调整单个快速问答智能体的 Max completion tokens，部署默认和智能推理最终答案上限仍在 env 中配置。
+3. 再定主模型入口：`VLLM_MAX_NUM_SEQS` 必须等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`，tc97 当前试运行 `20`。
+4. 再定聊天预留：`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是在线聊天目标预留，tc97 当前是 `6`；更小机器至少保留 `2-3`。
+5. 再定后台主模型闸门：`WEKNORA_MODEL_MAX_CONCURRENCY` 按 `min(VLLM_MAX_NUM_SEQS, vLLM 满长有效并发) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 计算，tc97 当前是 `14`。Graph、Wiki、摘要、自动问题和 VLM 后台请求都必须受它限制。
+6. 最后定 worker 池：core 负责文字解析和向量化，postprocess 负责派发后处理，enrichment 负责 VLM/Graph/Question/Summary，maintenance 负责批处理和清理，wiki 单独跑 Wiki。tc97 当前是 `4/2/2/1/0/4`，shared 为 `0`，避免后台增强绕过固定池。
+7. Embedding 独立设置：`BGE_VLLM_MAX_NUM_SEQS` 是 bge 服务上限，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧并发，`BATCH_EMBED_SIZE` 是单次请求打包 chunk 数；tc97 当前是 `16/8/8`，给在线检索留余量。
 
 ## 部署包范围
 
