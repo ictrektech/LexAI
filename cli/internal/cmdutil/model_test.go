@@ -26,6 +26,7 @@ func TestResolveModelRef(t *testing.T) {
 		{ID: "22222222-2222-2222-2222-222222222222", Name: "nomic", Type: sdk.ModelTypeEmbedding},
 		{ID: "33333333-3333-3333-3333-333333333333", Name: "dup", Type: sdk.ModelTypeEmbedding},
 		{ID: "44444444-4444-4444-4444-444444444444", Name: "dup", Type: sdk.ModelTypeKnowledgeQA},
+		{ID: "lexai-ollama-bge-m3-embedding", Name: "bge-m3", Type: sdk.ModelTypeEmbedding},
 	}}
 
 	// A UUID passes through untouched without hitting the lister.
@@ -43,6 +44,11 @@ func TestResolveModelRef(t *testing.T) {
 	got, err = ResolveModelRef(context.Background(), lister, "qwen2", "KnowledgeQA")
 	require.NoError(t, err)
 	assert.Equal(t, "11111111-1111-1111-1111-111111111111", got)
+
+	// Non-UUID ids from built-in configs resolve by exact id before name lookup.
+	got, err = ResolveModelRef(context.Background(), lister, "lexai-ollama-bge-m3-embedding", "Embedding")
+	require.NoError(t, err)
+	assert.Equal(t, "lexai-ollama-bge-m3-embedding", got)
 
 	// Type filter disambiguates same-named models across types.
 	got, err = ResolveModelRef(context.Background(), lister, "dup", "Embedding")

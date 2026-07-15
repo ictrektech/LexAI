@@ -7,6 +7,7 @@ import {
   createChatMarkdownRenderer,
   markStandaloneStrongParagraphs,
   preprocessMathDelimiters,
+  repairMalformedTableDelimiters,
   renderChatMarkdown,
   repairFlankingEmphasis,
   replaceIncompleteImageWithPlaceholder,
@@ -117,6 +118,51 @@ test('renderChatMarkdown renders an unfinished bold line as bold immediately whi
   assert.match(
     renderChatMarkdown(partial, { ...options, streaming: false }),
     /<p>\*\*平台访问地址/,
+  )
+})
+
+test('renderChatMarkdown parses the escaped markdown output', () => {
+  const renderer = createChatMarkdownRenderer()
+  const html = renderChatMarkdown('before <!--remove-me--> after', {
+    renderer,
+    escapeMarkdown: (text: string) => text.replace('<!--remove-me-->', '**kept**'),
+    sanitizeHtml: (value: string) => value,
+  })
+
+  assert.match(html, /<strong>kept<\/strong>/)
+  assert.doesNotMatch(html, /remove-me/)
+})
+
+test('renderChatMarkdown repairs bare-colon table delimiter cells', () => {
+  const renderer = createChatMarkdownRenderer()
+  const source = [
+    '| 序号 | 风险条款/内容 | 风险分析 | 修改建议 |',
+    '| :--- | :--- | :--- | : |',
+    '| 1 | A | B | C |',
+  ].join('\n')
+
+  assert.equal(
+    repairMalformedTableDelimiters(source),
+    [
+      '| 序号 | 风险条款/内容 | 风险分析 | 修改建议 |',
+      '| :--- | :--- | :--- | :--- |',
+      '| 1 | A | B | C |',
+    ].join('\n'),
+  )
+
+  const html = renderChatMarkdown(source, {
+    renderer,
+    escapeMarkdown: (text: string) => text,
+    sanitizeHtml: (value: string) => value,
+  })
+  assert.match(html, /<table>/)
+  assert.match(html, /<td>C<\/td>/)
+})
+
+test('repairMalformedTableDelimiters leaves fenced code untouched', () => {
+  assert.equal(
+    repairMalformedTableDelimiters('```\n| :--- | : |\n```'),
+    '```\n| :--- | : |\n```',
   )
 })
 

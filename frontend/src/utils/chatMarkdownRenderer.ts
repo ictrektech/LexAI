@@ -58,6 +58,63 @@ export function preprocessMathDelimiters(rawText: string): string {
     .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$')
 }
 
+function repairTableDelimiterCell(cell: string): string {
+  const trimmed = cell.trim()
+  if (!trimmed || trimmed.includes('-')) return cell
+
+  const leftAligned = trimmed.startsWith(':')
+  const rightAligned = trimmed.length > 1 && trimmed.endsWith(':')
+  const delimiter = leftAligned && rightAligned
+    ? ':---:'
+    : leftAligned
+      ? ':---'
+      : rightAligned
+        ? '---:'
+        : '---'
+  const leading = cell.match(/^\s*/)?.[0] ?? ''
+  const trailing = cell.match(/\s*$/)?.[0] ?? ''
+  return `${leading}${delimiter}${trailing}`
+}
+
+function repairTableDelimiterLine(line: string): string {
+  if (!line.includes('|')) return line
+
+  const hasLeadingPipe = /^\s*\|/.test(line)
+  const hasTrailingPipe = /\|\s*$/.test(line)
+  const parts = line.split('|')
+  const start = hasLeadingPipe ? 1 : 0
+  const end = hasTrailingPipe ? parts.length - 1 : parts.length
+  const cells = parts.slice(start, end)
+
+  if (
+    cells.length < 2 ||
+    !cells.every((cell) => /^\s*:?-*:?\s*$/.test(cell) && /[:-]/.test(cell))
+  ) {
+    return line
+  }
+
+  const repaired = cells.map(repairTableDelimiterCell)
+  return [
+    ...parts.slice(0, start),
+    ...repaired,
+    ...parts.slice(end),
+  ].join('|')
+}
+
+export function repairMalformedTableDelimiters(markdown: string): string {
+  if (!markdown || !markdown.includes('|')) return markdown
+
+  let inFence = false
+  const lines = markdown.split('\n')
+  return lines.map((line) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence
+      return line
+    }
+    return inFence ? line : repairTableDelimiterLine(line)
+  }).join('\n')
+}
+
 export function replaceIncompleteImageWithPlaceholder(content: string): string {
   if (!content) return ''
 
@@ -369,13 +426,14 @@ export function renderChatMarkdown(rawMarkdown: unknown, options: RenderChatMark
   const preparedMarkdown = options.prepareMarkdown
     ? options.prepareMarkdown(balancedInline, options.cachedMermaidSvgHtml)
     : balancedInline
-  const flankingSafeMarkdown = repairFlankingEmphasis(preparedMarkdown)
+  const tableSafeMarkdown = repairMalformedTableDelimiters(preparedMarkdown)
+  const flankingSafeMarkdown = repairFlankingEmphasis(tableSafeMarkdown)
   // Convert <kb>/<web>/wiki tags to HTML placeholders before escapeMarkdown so
   // agent sanitizers (e.g. UUID stripping) cannot damage chunk_id attributes.
   const { content: markdownWithPlaceholders, htmlSnippets } =
     extractCitationHtmlPlaceholders(flankingSafeMarkdown, options.knowledgeReferences)
   const escapedMarkdown = options.escapeMarkdown(markdownWithPlaceholders)
-  const html = marked.parse(markdownWithPlaceholders, {
+  const html = marked.parse(escapedMarkdown, {
     renderer: options.renderer,
     breaks: true,
     async: false,

@@ -1,4 +1,5 @@
 import i18n from '@/i18n';
+import { repairMalformedTableDelimiters } from '@/utils/chatMarkdownRenderer';
 import { buildMermaidBlockHtml, buildMermaidLoadingHtml } from '@/utils/markdownEnhancements';
 
 const STREAMING_IMAGE_PLACEHOLDER = '<span class="streaming-image-loading"><span class="streaming-image-loading__skeleton"></span></span>';
@@ -96,8 +97,12 @@ export const formatManualTitle = (question?: string): string => {
   return condensed.length > 40 ? `${condensed.slice(0, 40)}...` : condensed;
 };
 
+export const normalizeAnswerMarkdown = (content: string): string => {
+  return repairMalformedTableDelimiters(content?.trim() || '');
+};
+
 export const buildManualMarkdown = (_question: string, answer: string): string => {
-  const safeAnswer = answer?.trim() || i18n.global.t('chat.noAnswerContent');
+  const safeAnswer = normalizeAnswerMarkdown(answer) || i18n.global.t('chat.noAnswerContent');
   return `${safeAnswer}`;
 };
 

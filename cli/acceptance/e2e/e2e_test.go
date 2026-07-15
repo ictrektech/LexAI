@@ -13,8 +13,10 @@
 //	go test -tags=acceptance_e2e -v ./acceptance/e2e/...
 //
 // Optional WEKNORA_E2E_KB_NAME_PREFIX customizes the throwaway KB name (default
-// "cli-e2e-"). Cleanup runs even on test failure via t.Cleanup so the server
-// doesn't accumulate test debris.
+// "cli-e2e-"). Optional WEKNORA_E2E_CHAT_MODEL and
+// WEKNORA_E2E_EMBEDDING_MODEL override the auto-selected test models. Cleanup
+// runs even on test failure via t.Cleanup so the server doesn't accumulate test
+// debris.
 package e2e_test
 
 import (
@@ -31,7 +33,7 @@ import (
 
 // TestRAGFullLoop walks the demo MVP path: link a profile, create a KB,
 // upload a doc, wait for indexing, search it, then chat against it. Each
-// step parses the CLI's bare JSON to extract IDs for the next step -
+// step parses the CLI's JSON envelope to extract IDs for the next step -
 // validating both functional behavior and wire-contract stability.
 func TestRAGFullLoop(t *testing.T) {
 	host := mustEnv(t, "WEKNORA_E2E_HOST")
@@ -45,17 +47,26 @@ func TestRAGFullLoop(t *testing.T) {
 	env := append(os.Environ(),
 		"XDG_CONFIG_HOME="+xdg,
 		"XDG_CACHE_HOME="+filepath.Join(xdg, "cache"),
+		"WEKNORA_HOST="+host,
+		"WEKNORA_TOKEN="+token,
 		// SDK debug off - explicit so the CI run isn't noisy.
 		"WEKNORA_LOG_LEVEL=error",
 	)
+	chatModel, embeddingModel := selectE2EModels(t, bin, env)
+	t.Logf("using models: chat=%s embedding=%s", chatModel, embeddingModel)
 
-	// 1. kb create → bare KnowledgeBase object
+	// 1. kb create → envelope.data is the KnowledgeBase object
 	kbName := prefix + fmt.Sprintf("%d", time.Now().UnixNano())
 	var created struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
-	runJSONInto(t, bin, env, &created, "kb", "create", kbName, "--format", "json")
+	runDataJSONInto(t, bin, env, &created,
+		"kb", "create", kbName,
+		"--chat-model", chatModel,
+		"--embedding-model", embeddingModel,
+		"--format", "json",
+	)
 	if created.ID == "" {
 		t.Fatalf("kb create returned no id")
 	}
@@ -69,12 +80,12 @@ func TestRAGFullLoop(t *testing.T) {
 		}
 	})
 
-	// 2. doc upload → bare Knowledge object
+	// 2. doc upload → envelope.data is the Knowledge object
 	docPath := writeSampleDoc(t)
 	var uploaded struct {
 		ID string `json:"id"`
 	}
-	runJSONInto(t, bin, env, &uploaded, "doc", "upload", docPath, "--kb", created.ID, "--format", "json")
+	runDataJSONInto(t, bin, env, &uploaded, "doc", "upload", docPath, "--kb", created.ID, "--format", "json")
 	if uploaded.ID == "" {
 		t.Fatalf("doc upload returned no id")
 	}
@@ -83,9 +94,9 @@ func TestRAGFullLoop(t *testing.T) {
 	// 3. poll until indexing finishes (status changes from "pending" / "processing" to "ready" / similar)
 	waitDocReady(t, bin, env, created.ID, uploaded.ID, 90*time.Second)
 
-	// 4. search chunks → bare []SearchResult
+	// 4. search chunks → envelope.data is []SearchResult
 	var results []map[string]any
-	runJSONInto(t, bin, env, &results, "search", "chunks", "sample", "--kb", created.ID, "--limit", "5", "--format", "json")
+	runDataJSONInto(t, bin, env, &results, "search", "chunks", "sample", "--kb", created.ID, "--limit", "5", "--format", "json")
 	if len(results) == 0 {
 		t.Fatalf("search returned no results")
 	}
@@ -144,6 +155,36 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+func selectE2EModels(t *testing.T, bin string, env []string) (chatModel, embeddingModel string) {
+	t.Helper()
+	chatModel = os.Getenv("WEKNORA_E2E_CHAT_MODEL")
+	embeddingModel = os.Getenv("WEKNORA_E2E_EMBEDDING_MODEL")
+	if chatModel == "" {
+		chatModel = firstModelID(t, bin, env, "KnowledgeQA", "WEKNORA_E2E_CHAT_MODEL")
+	}
+	if embeddingModel == "" {
+		embeddingModel = firstModelID(t, bin, env, "Embedding", "WEKNORA_E2E_EMBEDDING_MODEL")
+	}
+	return chatModel, embeddingModel
+}
+
+func firstModelID(t *testing.T, bin string, env []string, modelType, envKey string) string {
+	t.Helper()
+	var models []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	runDataJSONInto(t, bin, env, &models, "model", "list", "--type", modelType, "--limit", "100", "--format", "json")
+	for _, m := range models {
+		if m.ID != "" {
+			return m.ID
+		}
+	}
+	t.Fatalf("no %s model found; set %s or register a model first", modelType, envKey)
+	return ""
+}
+
 // buildBinary compiles the CLI to a temp dir once per test run. Re-using a
 // single binary across sub-cases avoids the multi-second linker cost on each
 // step and matches gh acceptance/ build behavior.
@@ -174,10 +215,9 @@ func writeProfileYAML(t *testing.T, xdg, host, token string) {
 	}
 	yaml := fmt.Sprintf(`current_profile: e2e
 profiles:
-  - name: e2e
+  e2e:
     host: %s
-    token: %s
-`, host, token)
+`, host)
 	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(yaml), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -221,7 +261,7 @@ func waitDocReady(t *testing.T, bin string, env []string, kbID, docID string, ti
 			ID          string `json:"id"`
 			ParseStatus string `json:"parse_status"`
 		}
-		runJSONInto(t, bin, env, &docs, "doc", "list", "--kb", kbID, "--page-size", "100", "--format", "json")
+		runDataJSONInto(t, bin, env, &docs, "doc", "list", "--kb", kbID, "--page-size", "100", "--format", "json")
 		for _, d := range docs {
 			if d.ID != docID {
 				continue
@@ -256,7 +296,7 @@ func run(bin string, env []string, args ...string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-// runJSONInto runs the CLI expecting bare JSON output and decodes stdout
+// runJSONInto runs the CLI expecting JSON output and decodes stdout
 // into out (a struct, slice, or map pointer). Test fails on non-zero exit
 // or unparseable JSON.
 func runJSONInto(t *testing.T, bin string, env []string, out any, args ...string) {
@@ -267,5 +307,24 @@ func runJSONInto(t *testing.T, bin string, env []string, out any, args ...string
 	}
 	if err := json.Unmarshal(stdout, out); err != nil {
 		t.Fatalf("parse JSON from %v: %v\nstdout:\n%s", args, err, string(stdout))
+	}
+}
+
+func runDataJSONInto(t *testing.T, bin string, env []string, out any, args ...string) {
+	t.Helper()
+	var envOut struct {
+		OK    bool            `json:"ok"`
+		Data  json.RawMessage `json:"data"`
+		Error any             `json:"error,omitempty"`
+	}
+	runJSONInto(t, bin, env, &envOut, args...)
+	if !envOut.OK {
+		t.Fatalf("command returned ok=false from %v: %+v", args, envOut.Error)
+	}
+	if len(envOut.Data) == 0 {
+		t.Fatalf("command returned no data from %v", args)
+	}
+	if err := json.Unmarshal(envOut.Data, out); err != nil {
+		t.Fatalf("parse envelope.data from %v: %v\ndata:\n%s", args, err, string(envOut.Data))
 	}
 }
