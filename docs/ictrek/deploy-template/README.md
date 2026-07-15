@@ -144,6 +144,13 @@ For the tc97 Thor profile, set resource values in this order:
 5. Background worker pools: `WEKNORA_ASYNQ_CORE_CONCURRENCY=4`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`. Core keeps text parsing moving; enrichment and wiki can run slowly without consuming the chat reserve.
 6. Stage-local LLM limits: `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. These are still capped by `WEKNORA_MODEL_MAX_CONCURRENCY`.
 
+Answer length has two layers:
+
+- Per-agent quick-answer setting: in the web UI, open an agent, go to Model Config, and set "Max completion tokens". This is saved in the agent config and applies to that quick-answer agent only.
+- Deployment defaults and hard budgets: `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` controls ordinary knowledge-base chat when the request does not provide a larger per-agent value; `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` controls smart-reasoning / Skill final-answer synthesis. These two values are deployment environment variables, not global UI settings. They reserve output budget before retrieval context is assembled, so raising them reduces the remaining input budget unless `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` are raised together.
+
+For tc97, the current 64k profile uses `65536 - 24576 - 768 = 40192` tokens as the approximate maximum retrieved-context / tool-result input budget. If a user asks for very long final reports, increase the relevant output env value only after confirming the vLLM model window and concurrency still have enough headroom.
+
 vLLM reports full-context KV capacity at startup, but that number only proves KV cache can hold the sequences; it is not a guarantee that all of them will answer smoothly. On tc97, the operational cap is `VLLM_MAX_NUM_SEQS=20`; keep 6 of those slots reserved for chat and let background calls use at most 14. On a different machine, recompute `WEKNORA_MODEL_MAX_CONCURRENCY` from `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`, then validate with `vllm:num_requests_waiting`, TTFT, and output throughput.
 
 On thor, keep `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. Both the app startup reparse hook and `trigger-reparse-incomplete.sh` use this list so interrupted parsing is not retried before vLLM is HTTP-ready.

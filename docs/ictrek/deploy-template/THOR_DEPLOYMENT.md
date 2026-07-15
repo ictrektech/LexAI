@@ -68,6 +68,14 @@ Set these values as a group:
 5. `WEKNORA_ASYNQ_CORE_CONCURRENCY`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY`, and `WEKNORA_WIKI_ASYNQ_CONCURRENCY` control task workers, not model slots. tc97 keeps `4/2/2/1/0/4` so text parsing has a dedicated core pool and Graph/Wiki/VLM cannot expand through shared borrowing.
 6. `BGE_VLLM_MAX_NUM_SEQS`, `CONCURRENCY_POOL_SIZE`, and `BATCH_EMBED_SIZE` control embedding service capacity, document embedding request concurrency, and chunks per embedding request. tc97 keeps `16/8/8` so document ingestion does not consume all bge capacity.
 
+For answer length, distinguish UI-level agent settings from deployment-level safety budgets:
+
+1. Quick-answer agents have a UI field under "Model Config" named "Max completion tokens". It is useful for one agent's normal chat output, and can be changed without editing compose files.
+2. `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` is the deployment default / ceiling used by ordinary knowledge-base chat when no larger per-agent value is provided by the request.
+3. `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` is the deployment ceiling for smart-reasoning and Skill final-answer synthesis, including contract-review reports. This is not currently exposed as a global web setting.
+4. Both env values reserve output tokens before RAG context or tool results are packed. With tc97's current values, `65536 - 24576 - 768 = 40192` tokens remain for retrieved context and tool output. Raising answer output without raising the vLLM/app context window reduces input budget and can make retrieval weaker.
+5. If a host cannot keep chat smooth at 64k, lower all three values together, for example `49152` model/context window, `16384` output, and the same safety margin.
+
 `VLLM_MODEL_PATH` and `BGE_VLLM_MODEL_PATH` must be paths that exist inside the vLLM containers. The compose file mounts `${VLLM_MODELS_DIR}` as `/data/models` and resolves a Hugging Face model root such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ` to its newest `snapshots/<hash>` directory automatically. Avoid host absolute paths such as `/data/jhu/dev/workspace/lexai/...` inside these variables.
 
 ## Model preparation
