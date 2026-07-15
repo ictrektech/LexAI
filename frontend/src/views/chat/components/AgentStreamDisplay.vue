@@ -286,8 +286,7 @@
             <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
               <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
-                <pre v-if="!event.done" class="streaming-answer-text">{{ event.content }}</pre>
-                <div v-else v-html="renderAnswerContent(event.content)" />
+                <div v-html="renderAnswerContent(event.content)" />
               </div>
               <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
                 class="answer-toolbar">
@@ -491,6 +490,7 @@ import {
   buildManualMarkdown,
   copyTextToClipboard,
   formatManualTitle,
+  normalizeAnswerMarkdown,
   replaceIncompleteMermaidWithPlaceholder,
   prepareStreamingMermaidMarkdown,
   extractFirstMermaidCode,
@@ -2516,7 +2516,7 @@ const handleCopyAnswer = async (answerEvent: any) => {
   }
 
   try {
-    await copyTextToClipboard(content);
+    await copyTextToClipboard(normalizeAnswerMarkdown(content));
     MessagePlugin.success(t('agentStream.copy.success'));
   } catch (err) {
     console.error('Copy failed:', err);

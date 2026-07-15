@@ -95,6 +95,7 @@ import {
     buildManualMarkdown,
     copyTextToClipboard,
     formatManualTitle,
+    normalizeAnswerMarkdown,
 } from '@/utils/chatMessageShared';
 import {
     createChatMarkdownRenderer,
@@ -246,7 +247,7 @@ const handleCopyAnswer = async () => {
     }
 
     try {
-        await copyTextToClipboard(content);
+        await copyTextToClipboard(normalizeAnswerMarkdown(content));
         MessagePlugin.success(t('chat.copySuccess'));
     } catch (err) {
         console.error('复制失败:', err);
