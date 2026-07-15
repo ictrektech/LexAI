@@ -23,7 +23,7 @@ Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc 
 VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ
 VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
 VLLM_GPU_MEMORY_UTILIZATION=0.65
-VLLM_MAX_MODEL_LEN=32768
+VLLM_MAX_MODEL_LEN=65536
 VLLM_MAX_NUM_SEQS=20
 VLLM_MAX_NUM_BATCHED_TOKENS=4096
 VLLM_MAX_JOBS=4
@@ -43,6 +43,10 @@ WEKNORA_MODEL_MAX_CONCURRENCY=14
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20
 WEKNORA_CHAT_RESERVED_CONCURRENCY=6
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=65536
+WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768
+WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576
+WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
 BATCH_EMBED_SIZE=8
@@ -53,11 +57,11 @@ WEKNORA_SANDBOX_TIMEOUT=60
 WEKNORA_SANDBOX_DOCKER_IMAGE=wechatopenai/weknora-sandbox:latest
 ```
 
-See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile currently uses `VLLM_MAX_MODEL_LEN=32768`, `VLLM_MAX_NUM_SEQS=20`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=14` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The qwen vLLM startup log should show `Maximum concurrency for ... tokens per request`; that value is KV cache capacity evidence, not a smooth-answer concurrency guarantee, so still validate with `vllm:num_requests_waiting`, TTFT, and output throughput.
+See [CONCURRENCY.md](CONCURRENCY.md) for the detailed machine sizing, worker pool, background LLM limiter, model-server capacity, and embedding concurrency rules. The tc97 Thor profile currently uses `VLLM_MAX_MODEL_LEN=65536`, `VLLM_MAX_NUM_SEQS=20`, 6 chat slots reserved, `WEKNORA_MODEL_MAX_CONCURRENCY=14` for background calls to the shared qwen QA model, and a 16-slot bge-m3 embedding service with 8 document embedding slots. The app-side `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576` and `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576` reserve up to 24k output tokens; with `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768`, input context is trimmed to about 40k tokens. The qwen vLLM startup log should show `Maximum concurrency for ... tokens per request`; that value is KV cache capacity evidence, not a smooth-answer concurrency guarantee, so still validate with `vllm:num_requests_waiting`, TTFT, and output throughput.
 
 Set these values as a group:
 
-1. `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` must be the same context window. tc97 currently uses `32768`.
+1. `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` must be the same context window. tc97 currently uses `65536`. Start qwen vLLM first and wait until `/v1/models` is ready before applying the app-side context/output settings.
 2. `VLLM_MAX_NUM_SEQS` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` must be the same model-service request cap. tc97 currently uses `20`.
 3. `WEKNORA_CHAT_RESERVED_CONCURRENCY` is the online-chat target reserve. tc97 uses `6`.
 4. `WEKNORA_MODEL_MAX_CONCURRENCY` is the total background entry limit for Graph, Wiki, Summary, Question, and VLM calls to the shared QA model. Compute it as `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`; tc97 is currently `20 - 6 = 14`.
@@ -168,7 +172,7 @@ The tested tc97 plan uses these model roles:
 | Default Embedding | `lexai-thor-vllm-bge-m3-embedding` | `http://bge-m3-vllm:22223/v1` |
 | Backup Embedding | `lexai-thor-ollama-bge-m3-embedding` | `http://model-hub-ollama:11434` |
 
-The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=32768`. The current tc97 trial profile is qwen `0.65/32768/20` plus bge `0.1/8192/16`, leaving app and database headroom while testing whether 20 request slots remain stable. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during earlier validation.
+The deployed 9B default is `Qwen3.5-9B-AWQ` with `VLLM_MAX_MODEL_LEN=65536`. The current tc97 trial profile is qwen `0.65/65536/20` plus bge `0.1/8192/16`, leaving app and database headroom while testing whether 20 request slots remain stable. `Qwen3.5-9B-NVFP4` loaded weights on thor, but did not become HTTP-ready under either compile or eager mode during earlier validation.
 
 Default Embedding is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1` with `interface_type=openai`. Ollama `bge-m3:latest` stays in the config as a non-default backup and is not preloaded. Keep `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8` so document ingestion can use 8 embedding requests while interactive retrieval has spare service slots. The generic tuning rules are in [CONCURRENCY.md](CONCURRENCY.md).
 

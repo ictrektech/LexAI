@@ -10,7 +10,7 @@
 
 资源参数不要只改一个数字。按下面顺序设置，确保部署文档、env 和 compose 里没有旧值残留：
 
-1. 先定模型和上下文：`VLLM_MAX_MODEL_LEN` 必须等于 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`，tc97 当前试运行 `32768`。
+1. 先定模型和上下文：`VLLM_MAX_MODEL_LEN` 必须等于 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`，tc97 当前试运行 `65536`。
 2. 再定主模型入口：`VLLM_MAX_NUM_SEQS` 必须等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`，tc97 当前试运行 `20`。
 3. 再定聊天预留：`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是在线聊天目标预留，tc97 当前是 `6`；更小机器至少保留 `2-3`。
 4. 再定后台主模型闸门：`WEKNORA_MODEL_MAX_CONCURRENCY` 按 `min(VLLM_MAX_NUM_SEQS, vLLM 满长有效并发) - WEKNORA_CHAT_RESERVED_CONCURRENCY` 计算，tc97 当前是 `14`。Graph、Wiki、摘要、自动问题和 VLM 后台请求都必须受它限制。
@@ -250,11 +250,15 @@ QA 模型配好以后，不代表所有已有知识库都会自动改用它。
 
 详细说明见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。这份文档是 ictrek 部署包里的机器资源评估、并发/队列配置入口，说明如何根据显存、模型大小、上下文长度、vLLM 实测满长并发、聊天预留、Asynq 队列权重、Embedding 并发来确定一台机器的部署参数。
 
-Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。tc97 Thor 的 QA vLLM 当前按 `32768` 上下文、20 并发、聊天保留 6 试运行：
+Graph、Wiki、文档摘要、表格摘要、自动问题生成都走主 QA/LLM 模型，不要让它们把模型并发吃满。tc97 Thor 的 QA vLLM 当前按 `65536` 上下文、20 并发、聊天保留 6 试运行：
 
 ```dotenv
-VLLM_MAX_MODEL_LEN=32768
+VLLM_MAX_MODEL_LEN=65536
 VLLM_MAX_NUM_SEQS=20
+WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=65536
+WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768
+WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576
+WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20
 WEKNORA_CHAT_RESERVED_CONCURRENCY=6
 WEKNORA_MODEL_MAX_CONCURRENCY=14
@@ -263,7 +267,7 @@ WEKNORA_WIKI_INGEST_MAP_PARALLEL=4
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的请求数上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。新上传文档的主文字解析和批量重新解析走 core worker 池，先完成可检索的文字解析、分块和向量化；VLM/OCR、Graph、摘要和自动问题生成走 enrichment worker 池；Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制后台主模型调用。tc97 的 qwen vLLM 在 `VLLM_GPU_MEMORY_UTILIZATION=0.65`、`32768` 上下文、`VLLM_MAX_NUM_SEQS=20` 下按 20 个请求槽分配，保留 6 个给聊天，后台 Graph/Wiki/VLM/摘要/问题生成最多共用 14 个。这个值仍要用 vLLM 启动日志和 `waiting` 指标回验；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 对齐 vLLM/Ollama 的请求数上限；`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是给在线聊天保留的下限；在线 QA 仍是最高优先级。`WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=65536` 必须等于 vLLM `--max-model-len 65536`；`WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576` 和 `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576` 分别控制普通问答和智能体最终答案的输出上限。应用按 `65536 - 24576 - 768 = 40192` 给输入检索上下文留预算，超过时裁剪检索内容或工具结果，避免 context-length 400。新上传文档的主文字解析和批量重新解析走 core worker 池，先完成可检索的文字解析、分块和向量化；VLM/OCR、Graph、摘要和自动问题生成走 enrichment worker 池；Wiki 使用独立 worker 池；`WEKNORA_MODEL_MAX_CONCURRENCY` 统一限制后台主模型调用。tc97 的 qwen vLLM 在 `VLLM_GPU_MEMORY_UTILIZATION=0.65`、`65536` 上下文、`VLLM_MAX_NUM_SEQS=20` 下按 20 个请求槽分配，保留 6 个给聊天，后台 Graph/Wiki/VLM/摘要/问题生成最多共用 14 个。这个值仍要用 vLLM 启动日志和 `waiting` 指标回验；tc232 仍按该机器自己的 vLLM 容量配置。新增机器或调整队列权重时，先按 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) 的推荐值和故障现象表处理。
 
 Embedding 模型也要按角色分清：默认 Embedding 应指向吞吐稳定的 OpenAI-compatible Embedding 服务；Ollama bge-m3 可以保留为备用，但不要同时作为默认和后台常驻主路径。Thor 的默认是 `lexai-thor-vllm-bge-m3-embedding`，入口 `http://bge-m3-vllm:22223/v1`，tc97 使用 `BGE_VLLM_MAX_NUM_SEQS=16`、`BATCH_EMBED_SIZE=8`、`CONCURRENCY_POOL_SIZE=8`。
 

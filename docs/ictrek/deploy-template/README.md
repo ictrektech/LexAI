@@ -137,7 +137,7 @@ Knowledge graph extraction, Wiki synthesis, document summaries, table summaries,
 
 For the tc97 Thor profile, set resource values in this order:
 
-1. Model window: `VLLM_MAX_MODEL_LEN=32768` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=32768`. These two values must match exactly.
+1. Model window: `VLLM_MAX_MODEL_LEN=65536` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=65536`. These two values must match exactly. With `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576`, `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576`, and `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768`, the app keeps about `40192` tokens for retrieved context / tool results and trims overlong context before calling vLLM.
 2. Model service entry: `VLLM_MAX_NUM_SEQS=20` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20`. These two values must match so app-side admission control reflects the real vLLM request cap.
 3. Chat reserve: `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`. This is the target online chat reserve.
 4. Background QA-model gate: `WEKNORA_MODEL_MAX_CONCURRENCY=14`. This is the total number of background Graph/Wiki/Summary/Question/VLM calls that may enter the shared QA model at the same time.
