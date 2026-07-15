@@ -135,14 +135,16 @@ Thinking is disabled by default for LexAI QA responses. vLLM OpenAI-compatible m
 
 Knowledge graph extraction, Wiki synthesis, document summaries, table summaries, VLM/OCR multimodal parsing, and generated-question postprocessing share the main QA model. Configure worker pools, background LLM limits, model server capacity, and embedding request concurrency together; see [CONCURRENCY.md](CONCURRENCY.md). Do not copy only one value from another host.
 
-For the tc97 Thor profile, set resource values in this order:
+For any deployment profile, set resource values in this order. The tc97 Thor values below are examples, not Thor-only rules; tc232 and new machines must recompute the same variables from local vLLM startup logs, `/metrics`, TTFT, output throughput, and available memory.
 
-1. Model window: `VLLM_MAX_MODEL_LEN=65536` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=65536`. These two values must match exactly. With `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=24576`, `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=24576`, and `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768`, the app keeps about `40192` tokens for retrieved context / tool results and trims overlong context before calling vLLM.
-2. Model service entry: `VLLM_MAX_NUM_SEQS=20` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20`. These two values must match so app-side admission control reflects the real vLLM request cap.
-3. Chat reserve: `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`. This is the target online chat reserve.
-4. Background QA-model gate: `WEKNORA_MODEL_MAX_CONCURRENCY=14`. This is the total number of background Graph/Wiki/Summary/Question/VLM calls that may enter the shared QA model at the same time.
-5. Background worker pools: `WEKNORA_ASYNQ_CORE_CONCURRENCY=4`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=2`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=2`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY=0`, `WEKNORA_WIKI_ASYNQ_CONCURRENCY=4`. Core keeps text parsing moving; enrichment and wiki can run slowly without consuming the chat reserve.
-6. Stage-local LLM limits: `WEKNORA_GRAPH_LLM_CONCURRENCY=2`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL=4`, `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=4`. These are still capped by `WEKNORA_MODEL_MAX_CONCURRENCY`.
+1. Model window: set `VLLM_MAX_MODEL_LEN` and `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` to the same value. tc97 currently uses `65536`; smaller machines may need `32768`, `18432`, or another tested value.
+2. Output budgets: set `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS`, `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS`, and `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` as one group. The approximate retrieved-context / tool-result input budget is `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - max(output budget) - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS`; overlong context must be condensed or trimmed before calling vLLM.
+3. Model service entry: set `VLLM_MAX_NUM_SEQS` and `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` to the same real request cap. tc97 currently uses `20`; this value must not exceed the full-context capacity that still has acceptable latency.
+4. Chat reserve: set `WEKNORA_CHAT_RESERVED_CONCURRENCY` as the target online chat reserve. tc97 currently reserves `6`; smaller machines should still keep at least `2-3`.
+5. Background QA-model gate: set `WEKNORA_MODEL_MAX_CONCURRENCY` to `min(VLLM_MAX_NUM_SEQS, floor(vLLM full-context usable concurrency)) - WEKNORA_CHAT_RESERVED_CONCURRENCY`. This is the total number of background Graph/Wiki/Summary/Question/VLM calls that may enter the shared QA model at the same time. tc97 currently uses `14`.
+6. Background worker pools: set `WEKNORA_ASYNQ_CORE_CONCURRENCY`, `WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY`, `WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY`, `WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY`, `WEKNORA_ASYNQ_SHARED_CONCURRENCY`, and `WEKNORA_WIKI_ASYNQ_CONCURRENCY` per machine. Core keeps text parsing moving; enrichment and wiki can run slowly without consuming the chat reserve. tc97 currently uses `4/2/2/1/0/4`.
+7. Stage-local LLM limits: set `WEKNORA_GRAPH_LLM_CONCURRENCY`, `WEKNORA_WIKI_INGEST_MAP_PARALLEL`, and `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` below the background QA-model gate. They are local fan-out controls and are still capped by `WEKNORA_MODEL_MAX_CONCURRENCY`.
+8. Embedding limits: set `BGE_VLLM_MAX_NUM_SEQS`, `CONCURRENCY_POOL_SIZE`, and `BATCH_EMBED_SIZE` independently from the QA model. They should leave enough capacity for online retrieval while document embedding is running. tc97 currently uses `16/8/8`.
 
 Answer length has two layers:
 
@@ -155,7 +157,7 @@ vLLM reports full-context KV capacity at startup, but that number only proves KV
 
 On thor, keep `WEKNORA_REPARSE_WAIT_URLS=http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models`. Both the app startup reparse hook and `trigger-reparse-incomplete.sh` use this list so interrupted parsing is not retried before vLLM is HTTP-ready.
 
-On thor, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through the OpenAI-compatible endpoint `http://bge-m3-vllm:22223/v1`. The tc97 profile uses `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8`; Ollama `bge-m3:latest` remains configured only as a backup. See [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
+Embedding should be tuned separately on every deployment. Prefer an OpenAI-compatible bge-m3 service when available; set the service cap, app-side document embedding concurrency, and per-request batch size together. In the Thor profile, the default Embedding model is `lexai-thor-vllm-bge-m3-embedding`, served by `bge-m3-vllm` through `http://bge-m3-vllm:22223/v1`; tc97 uses `BGE_VLLM_MAX_NUM_SEQS=16`, `BATCH_EMBED_SIZE=8`, and `CONCURRENCY_POOL_SIZE=8`. Ollama `bge-m3:latest` remains configured only as a backup. See [CONCURRENCY.md](CONCURRENCY.md) for the tuning rules.
 
 Thor Wiki generation uses the 9B QA model and keeps source text capped at 12000 characters. For Thor KBs, set `wiki_config.extraction_granularity=focused`; the tc97 deployment defaults keep Wiki ingest map/reduce parallelism at 4 unless a KB explicitly overrides `wiki_config.ingest_map_parallel` or `wiki_config.ingest_reduce_parallel`. On weaker machines, lower the Wiki map/reduce values before lowering chat reserved capacity.
 

@@ -6,9 +6,9 @@
 
 ## 机器资源评估入口
 
-任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考。Thor 部署尤其先看其中「管理界面参数和 env 对照」「Thor 当前参数：每个数字限制什么」和「机器资源评估流程」。当前 tc97 Thor 配置里，`20` 是 QA vLLM 接收上限，`6` 是聊天目标预留，`14` 是后台进入主 QA 模型的总并发上限；这些值不限制在线聊天或 embedding。
+任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考，适用于通用、tc232、Thor 和其他自定义部署。Thor 部署尤其先看其中「管理界面参数和 env 对照」「Thor 当前参数：每个数字限制什么」和「机器资源评估流程」。例如当前 tc97 Thor 配置里，`20` 是 QA vLLM 接收上限，`6` 是聊天目标预留，`14` 是后台进入主 QA 模型的总并发上限；这些值不限制在线聊天或 embedding。
 
-资源参数不要只改一个数字。按下面顺序设置，确保部署文档、env 和 compose 里没有旧值残留：
+资源参数不要只改一个数字。下面顺序适用于 `.env`、`.env.tc232`、`.env.thor` 和机器专用 env；变量名相同，取值要按目标机器资源、模型、上下文和 vLLM 实测结果重算。设置后要确保部署文档、env 和 compose 里没有旧值残留：
 
 1. 先定模型和上下文：`VLLM_MAX_MODEL_LEN` 必须等于 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`，tc97 当前试运行 `65536`。
 2. 同步输出预算：`WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` 和 `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` 会从总上下文里预留输出空间，tc97 当前都是 `24576`；界面只支持调整单个快速问答智能体的 Max completion tokens，部署默认和智能推理最终答案上限仍在 env 中配置。
