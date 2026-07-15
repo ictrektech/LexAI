@@ -14,9 +14,9 @@ type ModelLister interface {
 }
 
 // ResolveModelRef returns ref unchanged when it is already a model id (UUID);
-// otherwise it resolves ref as a model NAME among models of wantType (pass ""
-// to match any type) and returns that model's id. Mirrors the id-or-name policy
-// of --kb so model-referencing flags accept either.
+// otherwise it resolves ref as a model ID or NAME among models of wantType
+// (pass "" to match any type) and returns that model's id. Mirrors the
+// id-or-name policy of --kb so model-referencing flags accept either.
 //
 // Errors with resource.not_found when nothing matches, and
 // input.invalid_argument when the name is ambiguous (so the caller passes an id
@@ -28,6 +28,11 @@ func ResolveModelRef(ctx context.Context, lister ModelLister, ref, wantType stri
 	models, err := lister.ListModels(ctx)
 	if err != nil {
 		return "", WrapHTTP(err, "list models to resolve %q", ref)
+	}
+	for _, m := range models {
+		if m.ID == ref && (wantType == "" || string(m.Type) == wantType) {
+			return m.ID, nil
+		}
 	}
 	var matches []sdk.Model
 	for _, m := range models {
