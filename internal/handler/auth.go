@@ -585,7 +585,7 @@ type updateMyPreferencesRequest struct {
 	EnableMemory *bool `json:"enable_memory"`
 	// LastActiveTenantID lets the SPA persist "after a fresh login,
 	// drop me back into this workspace" across devices. Send a positive
-	// tenant id to set / replace, or 0 to clear. Membership is validated
+	// workspace id to set / replace, or 0 to clear. Membership is validated
 	// at next login, not here. Nil = field omitted from the PATCH and
 	// stays untouched.
 	LastActiveTenantID *uint64 `json:"last_active_tenant_id"`
@@ -716,15 +716,15 @@ func (h *AuthHandler) GetAuthConfig(c *gin.Context) {
 }
 
 // SwitchTenant godoc
-// @Summary      切换激活租户
-// @Description  为当前用户在目标租户重新签发访问令牌；要求该用户在目标租户存在 active 成员关系
+// @Summary      切换激活空间
+// @Description  为当前用户在目标空间重新签发访问令牌；要求该用户在目标空间存在 active 成员关系
 // @Tags         认证
 // @Accept       json
 // @Produce      json
 // @Param        request  body      object{tenant_id=integer,refresh_token=string}  true  "切换请求"
 // @Success      200      {object}  types.LoginResponse
 // @Failure      400      {object}  errors.AppError  "参数错误"
-// @Failure      403      {object}  errors.AppError  "无该租户成员关系"
+// @Failure      403      {object}  errors.AppError  "无该空间成员关系"
 // @Security     Bearer
 // @Router       /auth/switch-tenant [post]
 //
@@ -739,7 +739,7 @@ func (h *AuthHandler) SwitchTenant(c *gin.Context) {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		appErr := errors.NewValidationError("Invalid switch-tenant request").WithDetails(err.Error())
+		appErr := errors.NewValidationError("Invalid workspace switch request").WithDetails(err.Error())
 		c.Error(appErr)
 		return
 	}
@@ -754,7 +754,7 @@ func (h *AuthHandler) SwitchTenant(c *gin.Context) {
 	resp, err := h.userService.SwitchTenant(ctx, user, req.TenantID, req.RefreshToken)
 	if err != nil {
 		logger.Errorf(ctx, "SwitchTenant failed user=%s target=%d: %v", user.ID, req.TenantID, err)
-		appErr := errors.NewForbiddenError("switch tenant failed").WithDetails(err.Error())
+		appErr := errors.NewForbiddenError("workspace switch failed").WithDetails(err.Error())
 		c.Error(appErr)
 		return
 	}
