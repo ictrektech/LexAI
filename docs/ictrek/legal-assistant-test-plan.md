@@ -8,7 +8,6 @@
 
 - [法律小助手用户使用指南](USERGUIDE.md)
 - [法律知识图谱配置指引](legal-knowledge-graph-config.md)
-- [评估功能 API](../api/evaluation.md)
 - [QA 数据集工具](../../dataset/qa_dataset.py)
 
 ## 1. 测试目标
@@ -39,7 +38,6 @@
 - 无依据问题拒答；
 - 多轮追问；
 - 法律知识图谱冒烟测试；
-- 使用 evaluation API 获取基础检索和生成指标。
 
 ### 范围外
 
@@ -90,14 +88,13 @@
 
 | 测试样例 | 覆盖能力 | 准备状态 | 当前说明 | 下一步 |
 | --- | --- | --- | --- | --- |
-| CLI RAG Full Loop E2E | 基础 RAG 闭环：建库、上传、解析、检索、问答、引用 | 已准备，可执行 | 已有自动化测试 `TestRAGFullLoop`，执行方式见 8.1 | 作为基础冒烟保留 |
+| CLI RAG Full Loop E2E | 基础 RAG 闭环：建库、上传、解析、检索、问答、引用 | 已准备，可执行 | 已有自动化测试 `TestRAGFullLoop`，执行方式见 [CLI RAG Full Loop E2E 测试样例](legal-test-samples/cli-rag-full-loop/README.md) | 作为基础冒烟保留 |
 | 法律法规问答样例 | 法条问答、引用校验 | 已准备，可执行 | 已固定 10 条法规问答样例、测试卡、自动执行脚本和执行方式，见 [法律法规问答测试样例](legal-test-samples/legal-qa/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 裁判案例问答样例 | 案件事实、裁判依据、争议焦点 | 已准备，可执行 | 已固定 10 条案例问答样例、测试卡、自动执行脚本和执行方式，见 [裁判案例问答测试样例](legal-test-samples/case-qa/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 合同审查样例 | 风险识别、依据、修改建议、长答案完整性 | 已准备，可执行 | 已固定 5 份人工合同样例、测试卡、自动执行脚本和执行方式，见 [合同审查测试样例](legal-test-samples/contract-review/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 无依据拒答样例 | 无依据问题拒答、材料不足、实时信息限制、个案结论限制 | 已准备，可执行 | 已固定 7 条拒答样例、测试卡、自动执行脚本和执行方式，见 [无依据拒答测试样例](legal-test-samples/no-evidence-refusal/README.md) | 执行脚本后补充人工复核结果和拒答通过率 |
 | 多轮追问样例 | 上下文延续、事实变化识别和追问引用 | 已准备，可执行 | 已固定 5 组多轮追问样例、测试卡、自动执行脚本和执行方式，见 [多轮追问测试样例](legal-test-samples/multi-turn-followup/README.md) | 执行脚本后补充人工复核结果和多轮追问通过率 |
 | 法律知识图谱样例 | 法律实体和关系抽取、法条/案例映射、风险路径图 | 已准备，可执行 | 已固定 7 条知识图谱样例、测试卡、自动执行脚本和执行方式，见 [法律知识图谱测试样例](legal-test-samples/legal-knowledge-graph/README.md) | 执行脚本后补充人工复核结果和图谱可用率 |
-| evaluation API 样例 | 检索和生成指标获取 | 待准备 | 尚未固定 QA 数据集和评估任务参数 | 准备 QA 数据集与评估命令 |
 
 按当前状态，已准备完成的测试样例包括 **8.1 CLI RAG Full Loop E2E**、**8.2 合同审查样例自动测试**、**8.3 法律法规问答样例自动测试**、**8.4 裁判案例问答样例自动测试**、**8.5 法律知识图谱样例自动测试**、**8.6 多轮追问样例自动测试** 和 **8.7 无依据拒答样例自动测试**。CLI E2E 能证明基础 RAG 链路可跑通，但不能代表全部法律专项测试样例已经完成验收。
 
@@ -113,19 +110,11 @@
 | 知识图谱冒烟通过率 | 100% |
 | 单次问答 P95 响应时间 | 待环境确认 |
 
-自动评估指标作为辅助参考：
+法律场景下，最终质量判断以人工检查为主，脚本自动判分和命中统计只能作为辅助参考，不能单独作为通过依据。
 
-| 指标 | 来源 |
-| --- | --- |
-| Precision | evaluation API |
-| Recall | evaluation API |
-| MRR | evaluation API |
-| NDCG@3 / NDCG@10 | evaluation API |
-| BLEU / ROUGE | evaluation API，仅作参考 |
+## 6. 能力级测试用例
 
-法律场景下，最终质量判断以人工检查为主，自动指标不能单独作为通过依据。
-
-## 6. 测试用例
+本节列出法律助手第一版需要覆盖的能力级验收场景，用于说明核心能力、优先级和预期结果。它不等同于 4.1 中的具体可执行测试样例；4.1 记录的是已经准备好的样例资产、脚本和执行材料，第 8 节记录具体执行方式。
 
 | ID | 场景 | 输入 | 前置条件 | 预期结果 | 优先级 |
 | --- | --- | --- | --- | --- | --- |
@@ -140,8 +129,7 @@
 | LA-009 | 长答案完整性 | “请按风险等级输出完整合同审查报告，并给出修改建议” | 已上传合同样例，已记录上下文窗口和输出上限 | 回答结构完整，未因输出上限明显截断，引用来源可复核 | P1 |
 | LA-010 | 图谱配置冒烟 | 开启法律知识图谱并上传示例文本 | Neo4j 可用，已记录 Graph 并发配置 | 能抽取法律法规、法条、案件、当事人等基础实体 | P1 |
 | LA-011 | 图谱关系检查 | 查看抽取关系 | 图谱任务已完成 | 至少出现“引用 / 裁判依据 / 规定 / 违约”等法律关系 | P1 |
-| LA-012 | evaluation API | 创建评估任务并查询结果 | 有 API Key、模型和知识库 ID | 返回 task、params、metric，任务状态成功或失败原因明确 | P1 |
-| LA-013 | 文档重析 | 对失败或已完成文档执行重建知识 | 已上传文档 | 重新进入解析流程并最终完成 | P2 |
+| LA-012 | 文档重析 | 对失败或已完成文档执行重建知识 | 已上传文档 | 重新进入解析流程并最终完成 | P2 |
 
 ## 7. 初步完成度统计方法
 
@@ -192,72 +180,16 @@
 
 ### 8.1 CLI RAG Full Loop E2E
 
-该测试用于验证基础 RAG 闭环，不验证法律专项回答质量。
+该测试用于验证基础 RAG 闭环，不验证法律专项回答质量。详细材料、命令、通过标准和清理规范见 [CLI RAG Full Loop E2E 测试样例](legal-test-samples/cli-rag-full-loop/README.md)。
 
-前置条件：
-
-- WeKnora 后端服务可访问；
-- 已获取可访问该服务的 token；
-- 服务中已注册 QA 模型和 Embedding 模型；
-- 在 `cli/` 目录下执行测试。
-
-本地开发环境变量示例：
-
-```bash
-export WEKNORA_E2E_HOST="http://localhost:8080"
-export WEKNORA_E2E_TOKEN="$(
-  curl -fsS -X POST "$WEKNORA_E2E_HOST/api/v1/auth/auto-setup" \
-    -H "Content-Type: application/json" \
-    -d '{}' \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("token",""))'
-)"
-export WEKNORA_E2E_KB_NAME_PREFIX="cli-e2e-"
-export WEKNORA_E2E_CHAT_MODEL="lexai-vllm-qwen35-9b-awq-qa"
-export WEKNORA_E2E_EMBEDDING_MODEL="lexai-vllm-bge-m3-embedding"
-```
-
-上述 token 获取方式适用于本地开发部署且 `WEKNORA_SINGLE_USER_MODE=true` 的环境；测试服务器或生产环境应替换为对应环境的服务地址、token 和模型 ID。
-
-执行命令：
-
-```bash
-cd cli
-go test -count=1 -tags=acceptance_e2e -run TestRAGFullLoop -v -timeout=8m ./acceptance/e2e/...
-```
-
-说明：`-count=1` 用于禁用 Go test 缓存，确保每次执行都会真实访问后端服务并创建、清理本次测试知识库；如果输出中出现 `(cached)`，表示复用了历史测试结果，本次并未重新执行 E2E 流程。
-
-通过标准：
-
-- 测试知识库创建成功；
-- 测试文档上传成功；
-- 文档状态进入可检索状态；
-- chunk 检索返回至少 1 条结果；
-- RAG chat 返回非空回答；
-- 如服务配置支持引用，回答应返回引用索引；
-- Go test 最终结果为 `PASS`。
-
-清理方式：
-
-- 正常执行完成且清理成功时，测试用例会通过 `t.Cleanup` 自动删除本次创建的测试知识库，常规执行后不用手动清理；
-- `t.Cleanup` 只清理本次测试创建的知识库，不会批量删除历史残留的 `cli-e2e-` 知识库；
-- 如果测试进程被强制中断、机器重启、后端服务不可用或清理请求失败，可能残留名称前缀为 `cli-e2e-` 的测试知识库；
-- 手动清理仅作为异常残留补救手段，执行前应确认待删除知识库属于临时测试数据，不要按前缀以外的条件批量删除业务知识库。
-
-异常残留处理命令：
-
-```bash
-weknora kb list --format json
-weknora kb delete <kb-id> -y --format json
-```
-
-如果确认所有 `cli-e2e-` 前缀知识库均为临时测试数据，可以批量清理：
-
-```bash
-weknora kb list --format json \
-  | jq -r '.data[] | select(.name | startswith("cli-e2e-")) | .id' \
-  | xargs -r -n1 weknora kb delete -y --format json
-```
+| 项目 | 说明 |
+| --- | --- |
+| 测试实现 | [e2e_test.go](../../cli/acceptance/e2e/e2e_test.go) 中的 `TestRAGFullLoop` |
+| 前置条件 | WeKnora 后端服务可访问；已获取 token；服务中已注册 QA 模型和 Embedding 模型 |
+| 覆盖能力 | 基础 RAG 闭环：创建知识库、上传文档、等待解析、chunk 检索、RAG chat 和引用返回 |
+| 执行命令 | `cd cli && go test -count=1 -tags=acceptance_e2e -run TestRAGFullLoop -v -timeout=8m ./acceptance/e2e/...` |
+| 通过标准 | 测试知识库创建、文档上传、文档可检索、chunk 检索、RAG chat 和最终 `PASS` 均成功 |
+| 清理方式 | 正常执行通过 `t.Cleanup` 自动删除本次创建的测试知识库；异常中断后按子目录文档手动清理 `cli-e2e-` 残留知识库 |
 
 ### 8.2 合同审查样例自动测试
 
@@ -548,7 +480,7 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 ## 10. 风险与限制
 
 - 法律回答需要人工复核，测试通过不代表可直接作为正式法律意见；
-- 自动评估指标不能完全衡量法律准确性；
+- 脚本自动判分和命中统计不能完全衡量法律准确性；
 - 测试结果依赖知识库文档质量、分块质量和模型配置；
 - 模型输出存在随机性，关键用例建议重复测试；
 - 知识图谱是增强能力，第一版只做冒烟验证，不作为核心问答通过的硬性前提；
@@ -559,5 +491,5 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 - Test plan 覆盖目标、范围、数据、指标、用例和完成度算法；
 - 每个 P0 用例都有明确输入、前置条件和预期结果；
 - 用例与现有知识库、快速问答、合同审查和知识图谱流程一致；
-- 指标以人工评估为主，evaluation API 指标为辅；
+- 指标以人工评估为主，脚本自动判分和命中统计为辅；
 - 初测可按 30 条样本执行，并能填入通过情况、完成度和问题清单。
