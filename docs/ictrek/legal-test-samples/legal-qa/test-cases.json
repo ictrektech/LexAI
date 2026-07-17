@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "LAWQA-001",
+      "document": "中华人民共和国民法典_20200528.docx",
+      "priority": "P0",
+      "question": "民法典第 577 条规定了什么？",
+      "expected_points": [
+        {"name": "不履行或履行不符合约定", "keywords": ["不履行", "不符合约定"]},
+        {"name": "继续履行或补救措施", "keywords": ["继续履行", "补救措施"]},
+        {"name": "赔偿损失", "keywords": ["赔偿损失"]}
+      ],
+      "citation_terms": ["民法典", "第 577 条", "第五百七十七条"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-002",
+      "document": "中华人民共和国民法典_20200528.docx",
+      "priority": "P0",
+      "question": "根据民法典，违约损失赔偿范围是否包括合同履行后可以获得的利益？",
+      "expected_points": [
+        {"name": "包括可得利益", "keywords": ["获得的利益"]},
+        {"name": "损失赔偿额相当于违约造成的损失", "keywords": ["违约", "损失赔偿额"]},
+        {"name": "可预见规则", "keywords": ["预见", "订立合同时"]}
+      ],
+      "citation_terms": ["民法典", "第 584 条", "第五百八十四条"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-003",
+      "document": "中华人民共和国民法典_20200528.docx",
+      "priority": "P0",
+      "question": "民法典对约定违约金过高或过低如何处理？",
+      "expected_points": [
+        {"name": "违约金过低可请求增加", "keywords": ["过低", "请求增加"]},
+        {"name": "违约金过高可请求减少", "keywords": ["过高", "请求减少"]},
+        {"name": "以造成的损失为参照", "keywords": ["造成的损失"]}
+      ],
+      "citation_terms": ["民法典", "第 585 条", "第五百八十五条"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-004",
+      "document": "最高人民法院关于审理买卖合同纠纷案件适用法律问题的解释_20201229.doc",
+      "priority": "P1",
+      "question": "买卖合同司法解释如何理解买受人检验标的物的合理期限？",
+      "expected_points": [
+        {"name": "综合交易性质目的习惯判断", "keywords": ["交易性质", "目的", "习惯"]},
+        {"name": "结合标的物情况和检验难易", "keywords": ["标的物", "检验", "难易"]},
+        {"name": "合理期限不是固定天数", "keywords": ["合理期限"]}
+      ],
+      "citation_terms": ["买卖合同", "司法解释", "合理期限", "检验"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-005",
+      "document": "中华人民共和国劳动合同法_20121228.docx",
+      "priority": "P0",
+      "question": "劳动合同法对不同期限劳动合同的试用期上限如何规定？",
+      "expected_points": [
+        {"name": "三个月以上不满一年不超过一个月", "keywords": ["三个月以上", "不满一年", "一个月"]},
+        {"name": "一年以上不满三年不超过二个月", "keywords": ["一年以上", "不满三年", "二个月"]},
+        {"name": "三年以上或无固定期限不超过六个月", "keywords": ["三年以上", "无固定期限", "六个月"]},
+        {"name": "同一单位同一劳动者只能约定一次", "keywords": ["同一用人单位", "同一劳动者", "一次"]}
+      ],
+      "citation_terms": ["劳动合同法", "试用期"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-006",
+      "document": "中华人民共和国劳动合同法_20121228.docx",
+      "priority": "P0",
+      "question": "劳动合同法中经济补偿按什么标准计算？",
+      "expected_points": [
+        {"name": "按本单位工作年限", "keywords": ["本单位", "年限"]},
+        {"name": "每满一年支付一个月工资", "keywords": ["每满一年", "一个月工资"]},
+        {"name": "六个月以上不满一年按一年", "keywords": ["六个月以上", "不满一年", "一年"]},
+        {"name": "不满六个月支付半个月工资", "keywords": ["不满六个月", "半个月工资"]}
+      ],
+      "citation_terms": ["劳动合同法", "经济补偿"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-007",
+      "document": "中华人民共和国公司法_20231229.docx",
+      "priority": "P1",
+      "question": "新公司法对有限责任公司股东认缴出资期限有什么要求？",
+      "expected_points": [
+        {"name": "按公司章程规定缴纳", "keywords": ["公司章程", "缴纳"]},
+        {"name": "五年内缴足", "keywords": ["五年", "缴足"]},
+        {"name": "另有规定从其规定", "keywords": ["另有规定", "从其规定"]}
+      ],
+      "citation_terms": ["公司法", "有限责任公司", "五年"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-008",
+      "document": "中华人民共和国个人信息保护法_20210820.docx",
+      "priority": "P1",
+      "question": "个人信息保护法规定个人对自己的个人信息享有哪些主要权利？",
+      "expected_points": [
+        {"name": "知情决定限制拒绝", "keywords": ["知情", "决定", "拒绝"]},
+        {"name": "查阅复制", "keywords": ["查阅", "复制"]},
+        {"name": "更正删除", "keywords": ["更正", "删除"]},
+        {"name": "解释说明处理规则", "keywords": ["解释说明", "处理规则"]}
+      ],
+      "citation_terms": ["个人信息保护法", "个人信息"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-009",
+      "document": "中华人民共和国电子商务法_20180831.docx",
+      "priority": "P1",
+      "question": "电子商务法对平台经营者知道或应当知道平台内经营者侵害消费者权益时有什么责任？",
+      "expected_points": [
+        {"name": "知道或应当知道", "keywords": ["知道", "应当知道"]},
+        {"name": "侵害消费者合法权益", "keywords": ["消费者", "合法权益"]},
+        {"name": "未采取必要措施", "keywords": ["必要措施"]},
+        {"name": "承担连带责任", "keywords": ["连带责任"]}
+      ],
+      "citation_terms": ["电子商务法", "平台经营者", "连带责任"],
+      "required_sections": ["结论", "依据"]
+    },
+    {
+      "id": "LAWQA-010",
+      "document": "中华人民共和国消费者权益保护法_20131025.docx",
+      "priority": "P1",
+      "question": "消费者通过网络购买商品，哪些情况下适用七日无理由退货？有哪些例外？",
+      "expected_points": [
+        {"name": "网络等方式购买商品七日内退货", "keywords": ["网络", "七日", "退货"]},
+        {"name": "无需说明理由", "keywords": ["无需说明理由"]},
+        {"name": "定作鲜活易腐例外", "keywords": ["定作", "鲜活易腐"]},
+        {"name": "下载拆封数字商品或报纸期刊例外", "keywords": ["下载", "拆封", "报纸"]}
+      ],
+      "citation_terms": ["消费者权益保护法", "七日", "退货"],
+      "required_sections": ["结论", "依据"]
+    }
+  ]
+}

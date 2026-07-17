@@ -91,15 +91,15 @@
 | 测试样例 | 覆盖能力 | 准备状态 | 当前说明 | 下一步 |
 | --- | --- | --- | --- | --- |
 | CLI RAG Full Loop E2E | 基础 RAG 闭环：建库、上传、解析、检索、问答、引用 | 已准备，可执行 | 已有自动化测试 `TestRAGFullLoop`，执行方式见 8.1 | 作为基础冒烟保留 |
-| 法律法规问答样例 | 法条问答、引用校验 | 待准备 | 尚未固定法规文档和问题清单 | 准备 3-5 份法规文档和法条问题 |
+| 法律法规问答样例 | 法条问答、引用校验 | 已准备，可执行 | 已固定 10 条法规问答样例、测试卡、自动执行脚本和执行方式，见 [法律法规问答测试样例](legal-test-samples/legal-qa/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 裁判案例问答样例 | 案件事实、裁判依据、争议焦点 | 待准备 | 尚未固定案例文档和问题清单 | 准备 3-5 份案例文档和案例问题 |
-| 合同审查样例 | 风险识别、依据、修改建议、长答案完整性 | 待准备 | 尚未固定合同样例和审查问题 | 准备 3-5 份合同样例和审查问题 |
+| 合同审查样例 | 风险识别、依据、修改建议、长答案完整性 | 已准备，可执行 | 已固定 5 份人工合同样例、测试卡、自动执行脚本和执行方式，见 [合同审查测试样例](legal-test-samples/contract-review/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 无依据拒答样例 | 无依据问题拒答 | 待准备 | 尚未固定负样本问题 | 准备至少 5 条知识库外问题 |
 | 多轮追问样例 | 上下文延续和追问引用 | 待准备 | 尚未固定多轮问题组 | 准备至少 5 组多轮追问 |
 | 法律知识图谱样例 | 法律实体和关系抽取 | 待准备 | 尚未固定图谱冒烟文本和检查项 | 准备图谱示例文本和实体/关系期望 |
 | evaluation API 样例 | 检索和生成指标获取 | 待准备 | 尚未固定 QA 数据集和评估任务参数 | 准备 QA 数据集与评估命令 |
 
-按当前状态，已准备完成的测试样例只有 **8.1 CLI RAG Full Loop E2E**。它能证明基础 RAG 链路可跑通，但不能代表法律专项测试样例已经准备完成。
+按当前状态，已准备完成的测试样例包括 **8.1 CLI RAG Full Loop E2E**、**8.2 合同审查样例自动测试** 和 **8.3 法律法规问答样例自动测试**。CLI E2E 能证明基础 RAG 链路可跑通，但不能代表全部法律专项测试样例已经完成验收。
 
 ## 5. 测试指标与通过标准
 
@@ -213,7 +213,7 @@ export WEKNORA_E2E_TOKEN="$(
 )"
 export WEKNORA_E2E_KB_NAME_PREFIX="cli-e2e-"
 export WEKNORA_E2E_CHAT_MODEL="lexai-vllm-qwen35-9b-awq-qa"
-export WEKNORA_E2E_EMBEDDING_MODEL="lexai-ollama-bge-m3-embedding"
+export WEKNORA_E2E_EMBEDDING_MODEL="lexai-vllm-bge-m3-embedding"
 ```
 
 上述 token 获取方式适用于本地开发部署且 `WEKNORA_SINGLE_USER_MODE=true` 的环境；测试服务器或生产环境应替换为对应环境的服务地址、token 和模型 ID。
@@ -259,18 +259,52 @@ weknora kb list --format json \
   | xargs -r -n1 weknora kb delete -y --format json
 ```
 
+### 8.2 合同审查样例自动测试
+
+该测试用于自动执行合同审查专项样例，验证风险识别、合同原文引用、法律/案例依据引用、修改建议和长答案完整性。详细材料、命令、判分模式和产物说明见 [合同审查测试样例](legal-test-samples/contract-review/README.md)。
+
+| 项目 | 说明 |
+| --- | --- |
+| 测试材料 | 5 份人工合同样例、[测试卡](legal-test-samples/contract-review/test-cards.md)、[结构化用例](legal-test-samples/contract-review/test-cases.json) |
+| 执行脚本 | [run_contract_review_tests.py](legal-test-samples/contract-review/run_contract_review_tests.py) |
+| 前置条件 | 已有「法律条文」和「法律案例」知识库，且文档已完成解析、分块、向量化；已配置合同审查快速问答或智能推理智能体 |
+| 覆盖能力 | 合同风险识别、合同原文依据、法律/案例证据、修改建议、长答案完整性 |
+| 判分方式 | 默认 `--judge-mode auto`；快速问答检查标准引用，智能推理额外统计工具调用证据 |
+| 测试产物 | `results/<时间戳>/summary.md` 和 `results/<时间戳>/results.json` |
+| 统计方式 | `合同审查可用率 = 通过用例数 / 10` |
+| 清理方式 | 第一轮不新建合同知识库，合同样例作为本轮问题文本提交；若后续沉淀为「合同样例库」，按环境数据保留策略清理 |
+
+该测试结果仍需人工复核，不代表正式法律意见质量背书。
+
+### 8.3 法律法规问答样例自动测试
+
+该测试用于自动执行法律法规问答专项样例，验证法条直接问答、跨条款归纳、引用准确性和回答结构完整性。详细材料、命令、判定口径和产物说明见 [法律法规问答测试样例](legal-test-samples/legal-qa/README.md)。
+
+| 项目 | 说明 |
+| --- | --- |
+| 测试材料 | 10 条法规问答样例、[测试卡](legal-test-samples/legal-qa/test-cards.md)、[结构化用例](legal-test-samples/legal-qa/test-cases.json) |
+| 执行脚本 | [run_legal_qa_tests.py](legal-test-samples/legal-qa/run_legal_qa_tests.py) |
+| 前置条件 | 已有「法律条文」知识库，且法规文档已完成解析、分块、向量化 |
+| 覆盖能力 | 法条直接问答、法条适用要点归纳、条文编号引用、来源引用 |
+| 测试产物 | `results/<时间戳>/summary.md` 和 `results/<时间戳>/results.json` |
+| 统计方式 | `法律法规问答可用率 = 通过用例数 / 10` |
+| 清理方式 | 不新建知识库，不上传新文档；仅创建临时会话和本地结果文件 |
+
+该测试结果仍需人工复核，不代表正式法律意见质量背书。
+
 ## 9. 已有自动化冒烟测试结果
 
 ### 9.1 CLI RAG Full Loop E2E
 
 | 项目 | 结果 |
 | --- | --- |
-| 测试日期 | 2026-07-15 |
+| 测试日期 | 2026-07-17 |
+| 测试环境 | tc232 本地开发部署，后端 `http://localhost:8080`，前端 `http://localhost:5177/` |
 | 测试命令 | `go test -count=1 -tags=acceptance_e2e -run TestRAGFullLoop -v -timeout=8m ./acceptance/e2e/...` |
 | QA 模型 | `lexai-vllm-qwen35-9b-awq-qa` |
-| Embedding 模型 | `lexai-ollama-bge-m3-embedding` |
+| Embedding 模型 | `lexai-vllm-bge-m3-embedding` |
 | 结果 | 通过 |
-| 耗时 | 12.30s |
+| 耗时 | 9.55s |
 
 执行结果摘要：
 
@@ -279,11 +313,55 @@ weknora kb list --format json \
 - 文档处理状态达到可用状态，测试中返回 `finalizing`；
 - chunk 检索返回 1 条结果；
 - RAG chat 返回非空回答，并返回 1 个引用索引；
+- 后端健康检查 `GET /health` 返回 `{"status":"ok"}`；
+- 测试清理后未发现残留的 `cli-e2e-` 临时知识库；
 - `TestRAGFullLoop` 最终通过。
 
 该自动化测试覆盖基础 RAG 闭环：知识库创建、文档上传、文档处理状态轮询、chunk 检索、基于知识库的问答和引用返回。
 
 该结果可作为法律助手测试计划中的基础冒烟通过证据，但不代表法律助手专项能力已完成验收。法律法规问答准确性、合同审查质量、无依据拒答、多轮法律追问和法律知识图谱仍需按本计划中的专项用例继续测试。
+
+### 9.2 合同审查智能体单用例对比
+
+该测试用于验证合同审查自动测试脚本、法律条文库、法律案例库和两个合同审查智能体的基础链路是否可用。它只覆盖 1 条 P0 合同审查用例，不代表合同审查专项能力完整验收通过。
+
+| 项目 | 结果 |
+| --- | --- |
+| 测试日期 | 2026-07-17 |
+| 测试环境 | tc232 本地开发部署，后端 `http://localhost:8080` |
+| 测试用例 | `CONTRACT-001-P0`，设备采购合同，站在甲方立场审查违约责任条款 |
+| 法律条文库 | `f07af6bb-2645-428a-8db2-829708e3a2c2` |
+| 法律案例库 | `4ca9a808-83f5-4222-8cc4-424ae24f6656` |
+| 测试脚本 | `docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests.py` |
+| 判分模式 | `--judge-mode auto` |
+
+执行命令摘要：
+
+```bash
+python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --endpoint agent \
+  --agent-id <agent-id> \
+  --only CONTRACT-001-P0
+```
+
+对比结果：
+
+| 智能体 | Agent ID | 结果 | 判分 | 风险命中 | 章节命中 | 标准引用 | 工具证据 | 耗时 | 结果目录 |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 合同审查（快速问答） | `90fd6ab5-ba06-4bff-8a23-878ce00837ef` | 通过 | quick | 3/3 | 3/3 | 5 | 1 | 80.93s | `/tmp/contract-review-agent-quick-v2` |
+| 合同审查（智能推理） | `511258fd-4f3f-419e-8053-09f652ab50a5` | 通过 | reasoning | 3/3 | 3/3 | 0 | 4 | 123.04s | `/tmp/contract-review-agent-reasoning-v2` |
+
+执行结果摘要：
+
+- 两个智能体均能完成同一条合同审查 P0 用例，并输出风险、依据和修改建议；
+- 快速问答智能体返回标准 `knowledge_references`，适合按标准引用数量和风险命中判分；
+- 智能推理智能体没有返回标准 `knowledge_references`，但调用了知识库工具并产生工具证据，适合按 `reasoning` 判分；
+- 自动评测脚本已区分快速问答和智能推理两类输出形态，避免因智能推理工具证据未进入标准引用字段而误判失败；
+- 本结果只能证明合同审查样例脚本和两个智能体的单用例链路可跑通，完整合同审查可用率仍需执行 10 条合同审查样例并进行人工复核。
 
 ## 10. 风险与限制
 

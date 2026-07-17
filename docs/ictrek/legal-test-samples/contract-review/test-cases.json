@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "CONTRACT-001-P0",
+      "contract_id": "CONTRACT-001",
+      "contract_type": "设备采购合同",
+      "contract_file": "contracts/contract-001-equipment-purchase.md",
+      "priority": "P0",
+      "stance": "甲方 / 买方",
+      "question": "请站在甲方立场审查这份合同的违约责任条款，输出风险点、依据和修改建议。",
+      "expected_risks": [
+        {"name": "逾期交付违约金过低且封顶过低", "keywords": ["违约金", "过低", "封顶"]},
+        {"name": "验收标准不清", "keywords": ["验收", "标准", "不清"]},
+        {"name": "排除停产和替代采购损失", "keywords": ["停产", "替代采购", "损失"]}
+      ],
+      "citation_terms": ["第 5 条", "第 9 条", "违约责任", "验收"],
+      "required_sections": ["风险", "依据", "修改建议"]
+    },
+    {
+      "id": "CONTRACT-001-P1",
+      "contract_id": "CONTRACT-001",
+      "contract_type": "设备采购合同",
+      "contract_file": "contracts/contract-001-equipment-purchase.md",
+      "priority": "P1",
+      "stance": "甲方 / 买方",
+      "question": "请按高/中/低风险输出完整合同审查报告，并给出修改建议。报告至少包含审查摘要、总体风险等级、风险清单、重点条款修改、缺失条款建议、待确认事项和免责声明。",
+      "expected_risks": [
+        {"name": "付款节点过早", "keywords": ["付款", "预付款", "过早"]},
+        {"name": "验收标准不清", "keywords": ["验收", "标准", "不清"]},
+        {"name": "质保期过短", "keywords": ["质保", "30 日", "过短"]},
+        {"name": "争议解决地空白", "keywords": ["争议解决", "空白", "管辖"]}
+      ],
+      "citation_terms": ["第 3 条", "第 5 条", "第 7 条", "第 12 条"],
+      "required_sections": ["审查摘要", "总体风险", "风险清单", "重点条款修改", "缺失条款建议", "待确认事项", "免责声明"]
+    },
+    {
+      "id": "CONTRACT-002-P0",
+      "contract_id": "CONTRACT-002",
+      "contract_type": "技术服务合同",
+      "contract_file": "contracts/contract-002-technical-service.md",
+      "priority": "P0",
+      "stance": "甲方 / 委托方",
+      "question": "请站在甲方立场审查这份合同的违约责任条款，输出风险点、依据和修改建议。",
+      "expected_risks": [
+        {"name": "逾期责任不足", "keywords": ["逾期", "退还", "未完成"]},
+        {"name": "付款早于成果交付", "keywords": ["付款", "90%", "交付"]},
+        {"name": "缺少违约金和损失赔偿机制", "keywords": ["违约金", "赔偿", "缺少"]}
+      ],
+      "citation_terms": ["第 4 条", "第 5 条", "第 9 条"],
+      "required_sections": ["风险", "依据", "修改建议"]
+    },
+    {
+      "id": "CONTRACT-002-P1",
+      "contract_id": "CONTRACT-002",
+      "contract_type": "技术服务合同",
+      "contract_file": "contracts/contract-002-technical-service.md",
+      "priority": "P1",
+      "stance": "甲方 / 委托方",
+      "question": "请按高/中/低风险输出完整合同审查报告，并给出修改建议。报告至少包含审查摘要、总体风险等级、风险清单、重点条款修改、缺失条款建议、待确认事项和免责声明。",
+      "expected_risks": [
+        {"name": "服务范围宽泛", "keywords": ["服务范围", "宽泛", "交付清单"]},
+        {"name": "付款早于成果交付", "keywords": ["付款", "90%", "成果"]},
+        {"name": "知识产权归属不利", "keywords": ["知识产权", "乙方", "内部使用"]},
+        {"name": "保密期限较短", "keywords": ["保密", "1 年", "期限"]}
+      ],
+      "citation_terms": ["第 2 条", "第 4 条", "第 6 条", "第 8 条"],
+      "required_sections": ["审查摘要", "总体风险", "风险清单", "重点条款修改", "缺失条款建议", "待确认事项", "免责声明"]
+    },
+    {
+      "id": "CONTRACT-003-P0",
+      "contract_id": "CONTRACT-003",
+      "contract_type": "SaaS 订阅服务合同",
+      "contract_file": "contracts/contract-003-saas-subscription.md",
+      "priority": "P0",
+      "stance": "甲方 / 订阅方",
+      "question": "请站在甲方立场审查这份合同的违约责任条款，输出风险点、依据和修改建议。",
+      "expected_risks": [
+        {"name": "责任上限过低", "keywords": ["责任", "最近 1 个月", "过低"]},
+        {"name": "服务中断补偿不足", "keywords": ["服务中断", "不承担赔偿", "补偿"]},
+        {"name": "排除数据恢复等关键损失", "keywords": ["数据恢复", "间接损失", "第三方索赔"]}
+      ],
+      "citation_terms": ["第 4 条", "第 8 条", "责任限制"],
+      "required_sections": ["风险", "依据", "修改建议"]
+    },
+    {
+      "id": "CONTRACT-003-P1",
+      "contract_id": "CONTRACT-003",
+      "contract_type": "SaaS 订阅服务合同",
+      "contract_file": "contracts/contract-003-saas-subscription.md",
+      "priority": "P1",
+      "stance": "甲方 / 订阅方",
+      "question": "请按高/中/低风险输出完整合同审查报告，并给出修改建议。报告至少包含审查摘要、总体风险等级、风险清单、重点条款修改、缺失条款建议、待确认事项和免责声明。",
+      "expected_risks": [
+        {"name": "缺少 SLA", "keywords": ["SLA", "可用性", "补偿"]},
+        {"name": "单方调整功能和价格", "keywords": ["单方", "变更", "价格"]},
+        {"name": "数据删除和导出安排不足", "keywords": ["数据", "7 日", "导出"]},
+        {"name": "安全事件通知不明确", "keywords": ["安全事件", "通知", "时限"]}
+      ],
+      "citation_terms": ["第 2 条", "第 5 条", "第 6 条", "第 10 条"],
+      "required_sections": ["审查摘要", "总体风险", "风险清单", "重点条款修改", "缺失条款建议", "待确认事项", "免责声明"]
+    },
+    {
+      "id": "CONTRACT-004-P0",
+      "contract_id": "CONTRACT-004",
+      "contract_type": "场地租赁及合作协议",
+      "contract_file": "contracts/contract-004-lease-cooperation.md",
+      "priority": "P0",
+      "stance": "甲方 / 承租及合作方",
+      "question": "请站在甲方立场审查这份合同的违约责任条款，输出风险点、依据和修改建议。",
+      "expected_risks": [
+        {"name": "乙方单方解除权失衡", "keywords": ["单方解除", "经营需要", "不承担补偿"]},
+        {"name": "违约责任不对等", "keywords": ["0.1%", "0.01%", "不对等"]},
+        {"name": "无法经营时乙方责任较轻", "keywords": ["无法正常经营", "仅退还", "基础租金"]}
+      ],
+      "citation_terms": ["第 8 条", "第 9 条", "提前解除", "违约责任"],
+      "required_sections": ["风险", "依据", "修改建议"]
+    },
+    {
+      "id": "CONTRACT-004-P1",
+      "contract_id": "CONTRACT-004",
+      "contract_type": "场地租赁及合作协议",
+      "contract_file": "contracts/contract-004-lease-cooperation.md",
+      "priority": "P1",
+      "stance": "甲方 / 承租及合作方",
+      "question": "请按高/中/低风险输出完整合同审查报告，并给出修改建议。报告至少包含审查摘要、总体风险等级、风险清单、重点条款修改、缺失条款建议、待确认事项和免责声明。",
+      "expected_risks": [
+        {"name": "场地交付文件不足", "keywords": ["产权证明", "消防", "授权文件"]},
+        {"name": "押金退还条件不清", "keywords": ["押金", "60 日", "抵扣"]},
+        {"name": "收益分成口径不清", "keywords": ["分成", "退款", "税费"]},
+        {"name": "经营资质责任过度由甲方承担", "keywords": ["经营资质", "许可", "甲方"]}
+      ],
+      "citation_terms": ["第 2 条", "第 3 条", "第 4 条", "第 6 条"],
+      "required_sections": ["审查摘要", "总体风险", "风险清单", "重点条款修改", "缺失条款建议", "待确认事项", "免责声明"]
+    },
+    {
+      "id": "CONTRACT-005-P0",
+      "contract_id": "CONTRACT-005",
+      "contract_type": "长篇框架采购合同",
+      "contract_file": "contracts/contract-005-long-framework.md",
+      "priority": "P0",
+      "stance": "甲方 / 采购方",
+      "question": "请站在甲方立场审查这份合同的违约责任条款，输出风险点、依据和修改建议。",
+      "expected_risks": [
+        {"name": "逾期责任过低", "keywords": ["逾期", "0.02%", "3%"]},
+        {"name": "责任上限过低", "keywords": ["责任", "最近 3 个月", "为限"]},
+        {"name": "排除关键损失", "keywords": ["停产", "替代采购", "第三方索赔"]}
+      ],
+      "citation_terms": ["第 11 条", "第 12 条", "违约责任", "责任限制"],
+      "required_sections": ["风险", "依据", "修改建议"]
+    },
+    {
+      "id": "CONTRACT-005-P1",
+      "contract_id": "CONTRACT-005",
+      "contract_type": "长篇框架采购合同",
+      "contract_file": "contracts/contract-005-long-framework.md",
+      "priority": "P1",
+      "stance": "甲方 / 采购方",
+      "question": "请按高/中/低风险输出完整合同审查报告，并给出修改建议。报告至少包含审查摘要、总体风险等级、风险清单、重点条款修改、缺失条款建议、待确认事项和免责声明。",
+      "expected_risks": [
+        {"name": "文件优先级不清", "keywords": ["文件优先级", "不一致", "协商"]},
+        {"name": "乙方单方调价", "keywords": ["调价", "5%", "视为接受"]},
+        {"name": "验收期过短", "keywords": ["验收", "5 日", "视为合格"]},
+        {"name": "缺少供应链保障", "keywords": ["供应链", "中断", "替换"]},
+        {"name": "责任上限和损失排除过宽", "keywords": ["责任限制", "累计赔偿", "间接损失"]}
+      ],
+      "citation_terms": ["第 2 条", "第 4 条", "第 6 条", "第 12 条", "第 15 条"],
+      "required_sections": ["审查摘要", "总体风险", "风险清单", "重点条款修改", "缺失条款建议", "待确认事项", "免责声明"]
+    }
+  ]
+}
