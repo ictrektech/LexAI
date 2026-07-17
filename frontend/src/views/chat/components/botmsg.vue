@@ -423,57 +423,6 @@ onBeforeUnmount(() => {
     margin-left: 16px;
 }
 
-.thinking-loading {
-    padding: 8px 0;
-}
-
-.loading-indicator {
-    padding: 8px 0;
-}
-
-.loading-typing {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-
-    span {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--td-brand-color);
-        animation: typingBounce 1.4s ease-in-out infinite;
-        // Composite the dots so the bounce stays smooth and ghost-free while the
-        // answer relayouts each streamed token.
-        will-change: transform;
-        backface-visibility: hidden;
-
-        &:nth-child(1) {
-            animation-delay: 0s;
-        }
-
-        &:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        &:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-    }
-}
-
-@keyframes typingBounce {
-
-    0%,
-    60%,
-    100% {
-        transform: translate3d(0, 0, 0);
-    }
-
-    30% {
-        transform: translate3d(0, -6px, 0);
-    }
-}
-
 .img_loading {
     background: var(--td-bg-color-container-hover);
     height: 230px;
