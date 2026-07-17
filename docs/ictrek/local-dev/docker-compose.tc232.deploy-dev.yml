@@ -1,0 +1,132 @@
+# tc232 deploy-parity local development infrastructure.
+#
+# This file intentionally does not extend the production deploy compose. It
+# starts only the infrastructure needed by a host-side Go/Vite dev workflow and
+# reuses /data/jhu/lexai-tc232-deploy/data for persistence.
+
+services:
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    ports:
+      - "${ICTREK_DEV_DEPLOY_DB_PORT:-15432}:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+    volumes:
+      - ${ICTREK_DEV_DEPLOY_DIR:-/data/jhu/lexai-tc232-deploy}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "${ICTREK_DEV_DEPLOY_REDIS_PORT:-6380}:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - ${ICTREK_DEV_DEPLOY_DIR:-/data/jhu/lexai-tc232-deploy}/data/redis:/data
+    restart: unless-stopped
+
+  docreader:
+    build:
+      context: ../../..
+      dockerfile: docker/Dockerfile.docreader
+    image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
+    ports:
+      - "${ICTREK_DEV_DEPLOY_DOCREADER_PORT:-15051}:50051"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      DOCREADER_ODL_MAX_WORKERS: ${DOCREADER_ODL_MAX_WORKERS:-1}
+      DOCREADER_ODL_HYBRID: ${DOCREADER_ODL_HYBRID:-off}
+      DOCREADER_MARKITDOWN_MAX_WORKERS: ${DOCREADER_MARKITDOWN_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_MAX_WORKERS: ${DOCREADER_PDF_RENDER_MAX_WORKERS:-1}
+      DOCREADER_PDF_RENDER_DPI: ${DOCREADER_PDF_RENDER_DPI:-200}
+      DOCREADER_PDF_JPEG_QUALITY: ${DOCREADER_PDF_JPEG_QUALITY:-90}
+      GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+      GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
+    volumes:
+      - ${ICTREK_DEV_DEPLOY_DIR:-/data/jhu/lexai-tc232-deploy}/data/docreader:/tmp/docreader
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:2025.10.1
+    ports:
+      - "${NEO4J_HTTP_PORT:-30074}:7474"
+      - "${NEO4J_BOLT_PORT:-30087}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4JLABS_PLUGINS: '["apoc"]'
+    volumes:
+      - ${ICTREK_DEV_DEPLOY_DIR:-/data/jhu/lexai-tc232-deploy}/data/neo4j:/data
+    restart: unless-stopped
+
+  bge-m3-vllm:
+    image: ${ICTREK_DEV_BGE_VLLM_IMAGE:-vllm/vllm-openai:v0.18.1-cu130}
+    privileged: true
+    runtime: nvidia
+    shm_size: 4g
+    ports:
+      - "${BGE_VLLM_HOST_PORT:-32223}:22223"
+    volumes:
+      - ${ICTREK_DEV_BGE_VLLM_HF_MODELS_DIR:-/data/jhu/cache/huggingface}:/data/huggingface:ro
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        resolve_model_path() {
+          local candidate="$1"
+          if [ -f "$$candidate/config.json" ]; then
+            printf '%s\n' "$$candidate"
+            return 0
+          fi
+          local resolved
+          resolved="$$(find "$$candidate/snapshots" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/config.json' ';' -print 2>/dev/null | sort | tail -n 1 || true)"
+          if [ -n "$$resolved" ]; then
+            printf '%s\n' "$$resolved"
+            return 0
+          fi
+          echo "No config.json found under $$candidate or $$candidate/snapshots/*" >&2
+          return 1
+        }
+        model_path="$$(resolve_model_path "${BGE_VLLM_MODEL_PATH:-/data/huggingface/hub/models--BAAI--bge-m3}")"
+        echo "Using bge model path: $$model_path"
+        exec vllm serve "$$model_path" \
+          --served-model-name "${BGE_VLLM_SERVED_MODEL_NAME:-bge-m3}" \
+          --runner pooling \
+          --convert embed \
+          --host 0.0.0.0 \
+          --port 22223 \
+          --trust-remote-code \
+          --max-num-seqs "${BGE_VLLM_MAX_NUM_SEQS:-16}" \
+          --max-model-len "${BGE_VLLM_MAX_MODEL_LEN:-8192}" \
+          --max-num-batched-tokens "${BGE_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
+          --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      DEBIAN_FRONTEND: noninteractive
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+      MAX_JOBS: ${VLLM_MAX_JOBS:-4}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

@@ -1,0 +1,97 @@
+# tc232 deploy-parity local-development built-in models.
+#
+# The Go process runs on the host, while deploy-start starts supporting
+# services through docker compose. Keep base URLs localhost-reachable.
+
+builtin_models:
+  - id: lexai-ollama-qwen35-4b-qa
+    name: qwen3.5:4b
+    display_name: qwen3.5:4b (Ollama QA)
+    type: KnowledgeQA
+    source: local
+    description: Backup Ollama QA model on tc232 model hub.
+    is_default: false
+    parameters:
+      base_url: ${ICTREK_DEV_OLLAMA_BASE_URL}
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: lexai-ollama-qwen35-4b-vision
+    name: qwen3.5:4b
+    display_name: qwen3.5:4b (Ollama Vision)
+    type: VLLM
+    source: local
+    description: Backup Ollama vision model on tc232 model hub.
+    is_default: false
+    parameters:
+      base_url: ${ICTREK_DEV_OLLAMA_BASE_URL}
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: lexai-vllm-bge-m3-embedding
+    name: bge-m3
+    display_name: bge-m3 (vLLM Embedding)
+    type: Embedding
+    source: remote
+    description: OpenAI-compatible bge-m3 embedding model started by tc232 deploy-start.
+    is_default: true
+    parameters:
+      base_url: ${ICTREK_DEV_BGE_VLLM_BASE_URL}
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+
+  - id: lexai-ollama-bge-m3-embedding
+    name: bge-m3
+    display_name: bge-m3 (Ollama Embedding)
+    type: Embedding
+    source: local
+    description: Backup Ollama embedding model on tc232 model hub.
+    is_default: false
+    parameters:
+      base_url: ${ICTREK_DEV_OLLAMA_BASE_URL}
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+
+  - id: lexai-vllm-qwen35-9b-awq-qa
+    name: qwen3.5-9b-awq
+    display_name: qwen3.5-9b-awq (vLLM QA)
+    type: KnowledgeQA
+    source: remote
+    description: Main OpenAI-compatible QA model on tc232 vLLM.
+    is_default: true
+    parameters:
+      base_url: ${ICTREK_DEV_VLLM_BASE_URL}
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
+
+  - id: lexai-vllm-qwen35-9b-awq-vision
+    name: qwen3.5-9b-awq
+    display_name: qwen3.5-9b-awq (vLLM Vision)
+    type: VLLM
+    source: remote
+    description: OpenAI-compatible vLLM vision model on tc232 vLLM.
+    is_default: true
+    parameters:
+      base_url: ${ICTREK_DEV_VLLM_BASE_URL}
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
