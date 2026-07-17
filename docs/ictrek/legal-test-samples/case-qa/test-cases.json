@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "CASEQA-001",
+      "document": "吴小秦诉陕西广电网络传媒（集团）股份有限公司捆绑交易纠纷案.md",
+      "priority": "P0",
+      "question": "吴小秦案的基本事实是什么？请说明收费行为、金额构成和原告主张。",
+      "expected_points": [
+        {"name": "缴费时间和金额", "keywords": ["2012年5月10日", "90元"]},
+        {"name": "费用构成", "keywords": ["基本收视维护费", "75元", "数字电视节目费", "15元"]},
+        {"name": "原告主张", "keywords": ["搭售", "自主选择权"]},
+        {"name": "经营者地位", "keywords": ["陕西省", "唯一", "有线电视"]}
+      ],
+      "citation_terms": ["吴小秦", "陕西广电", "捆绑交易", "数字电视节目费"],
+      "required_sections": ["结论", "案件事实", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-002",
+      "document": "吴小秦诉陕西广电网络传媒（集团）股份有限公司捆绑交易纠纷案.md",
+      "priority": "P0",
+      "question": "吴小秦案中，法院为什么认定广电公司构成无正当理由搭售？请区分案件事实和裁判依据。",
+      "expected_points": [
+        {"name": "市场支配地位", "keywords": ["市场支配地位", "市场准入", "市场份额"]},
+        {"name": "捆绑两项服务", "keywords": ["基本收视维护费", "付费节目费", "捆绑"]},
+        {"name": "缺少真实选择", "keywords": ["未告知", "真实选择权"]},
+        {"name": "反垄断法依据", "keywords": ["反垄断法", "第十七条", "第五项"]}
+      ],
+      "citation_terms": ["吴小秦", "反垄断法", "搭售", "裁判理由"],
+      "required_sections": ["案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-003",
+      "document": "孙银山诉南京欧尚超市有限公司江宁店买卖合同纠纷案.md",
+      "priority": "P0",
+      "question": "孙银山案中，消费者明知食品过期是否影响十倍赔偿？请说明事实、裁判结果和理由。",
+      "expected_points": [
+        {"name": "购买过期香肠事实", "keywords": ["15包", "14包", "过保质期"]},
+        {"name": "赔偿金额", "keywords": ["558.6元", "5586元", "十倍"]},
+        {"name": "消费者身份", "keywords": ["生活消费", "消费者"]},
+        {"name": "明知不影响赔偿", "keywords": ["明知", "不影响", "十倍赔偿"]}
+      ],
+      "citation_terms": ["孙银山", "欧尚超市", "食品安全法", "十倍赔偿"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-004",
+      "document": "吴某与某电子商务有限公司买卖合同纠纷案.md",
+      "priority": "P0",
+      "question": "吴某与某电子商务有限公司案中，未履行进货查验义务为什么会被认定为销售明知？",
+      "expected_points": [
+        {"name": "商品和生产日期", "keywords": ["天然虫草素含片", "2018年2月9日"]},
+        {"name": "许可证过期", "keywords": ["生产许可证", "2015年12月16日", "届满"]},
+        {"name": "未履行查验义务", "keywords": ["未查验", "进货查验义务"]},
+        {"name": "法律依据", "keywords": ["食品安全法", "第一百四十八条", "十倍"]}
+      ],
+      "citation_terms": ["吴某", "电子商务", "进货查验", "食品安全民事纠纷"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-005",
+      "document": "用人单位与劳动者约定实行包薪制，是否需要依法支付加班费.md",
+      "priority": "P0",
+      "question": "包薪制案例中，约定月工资包含加班费后，用人单位是否还需要补足加班费？",
+      "expected_points": [
+        {"name": "包薪制约定", "keywords": ["包薪制", "4000元", "包含加班费"]},
+        {"name": "劳动者请求", "keywords": ["17000元", "加班费差额"]},
+        {"name": "强制性标准", "keywords": ["最低工资", "加班费", "强制性"]},
+        {"name": "处理结果", "keywords": ["补足", "差额", "终局裁决"]}
+      ],
+      "citation_terms": ["包薪制", "加班费", "劳动法", "最低工资"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-006",
+      "document": "处理加班费争议，如何分配举证责任.md",
+      "priority": "P1",
+      "question": "处理加班费争议案例中，仲裁委员会如何分配加班事实的举证责任？",
+      "expected_points": [
+        {"name": "劳动者证据", "keywords": ["打卡APP", "工资支付记录"]},
+        {"name": "用人单位掌握证据", "keywords": ["考勤记录", "用人单位", "掌握"]},
+        {"name": "拒不提供的不利后果", "keywords": ["拒不提供", "不利后果"]},
+        {"name": "裁决金额", "keywords": ["10000元", "加班费"]}
+      ],
+      "citation_terms": ["加班费", "举证责任", "劳动争议调解仲裁法", "第四十二条"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-007",
+      "document": "劳动者拒绝违法超时加班安排，用人单位能否解除劳动合同.md",
+      "priority": "P0",
+      "question": "劳动者拒绝违法超时加班安排案中，用人单位能否以不符合录用条件为由解除劳动合同？",
+      "expected_points": [
+        {"name": "违法工作时间安排", "keywords": ["早9时至晚9时", "每周工作6天"]},
+        {"name": "拒绝违法加班", "keywords": ["拒绝", "超时加班"]},
+        {"name": "法律上限", "keywords": ["每日不得超过三小时", "每月不得超过三十六小时"]},
+        {"name": "解除违法和赔偿", "keywords": ["违法解除", "8000元"]}
+      ],
+      "citation_terms": ["劳动者拒绝违法超时加班", "劳动法", "劳动合同法", "张某"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-008",
+      "document": "宁某某诉甘肃省定西市安定区住房和城乡建设局房屋征收补偿安置协议案.md",
+      "priority": "P1",
+      "question": "宁某某征收补偿安置协议案中，法院如何处理行政机关逾期交付安置房和违约金过高问题？",
+      "expected_points": [
+        {"name": "六套安置房和四套未交付", "keywords": ["六套", "四套", "未交付"]},
+        {"name": "每日1000元违约金", "keywords": ["每日1000元", "违约金"]},
+        {"name": "违约金调整标准", "keywords": ["租金收益", "每平方米每月10元"]},
+        {"name": "二审处理结果", "keywords": ["84993元", "1006元", "交付剩余四套"]}
+      ],
+      "citation_terms": ["宁某某", "安定区住建局", "行政协议", "违约金"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-009",
+      "document": "游戏“外挂脚本”被封号 玩家起诉游戏公司被驳回.md",
+      "priority": "P1",
+      "question": "游戏外挂脚本封号案中，法院为什么驳回玩家要求赔偿 10000 元的诉讼请求？",
+      "expected_points": [
+        {"name": "异常游戏行为", "keywords": ["连续82小时", "连续77小时"]},
+        {"name": "后台数据证明", "keywords": ["后台数据", "高度盖然性"]},
+        {"name": "封号条款告知", "keywords": ["封号条款", "充分告知"]},
+        {"name": "诚信和公序良俗", "keywords": ["诚实信用", "公序良俗", "驳回"]}
+      ],
+      "citation_terms": ["外挂脚本", "封号", "民法典", "公序良俗"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    },
+    {
+      "id": "CASEQA-010",
+      "document": "石某某诉A医院医疗服务合同案.md",
+      "priority": "P1",
+      "question": "石某某诉 A 医院案中，配偶死亡后继续履行胚胎移植医疗服务合同的裁判理由是什么？",
+      "expected_points": [
+        {"name": "辅助生殖和配偶死亡事实", "keywords": ["辅助生殖", "梅某某去世", "冷冻囊胚"]},
+        {"name": "丧偶妇女不同于单身妇女", "keywords": ["丧偶妇女", "单身妇女"]},
+        {"name": "后代权益和伦理", "keywords": ["同等法律权利", "伦理道德"]},
+        {"name": "民法典依据", "keywords": ["民法典", "第一千零九条"]}
+      ],
+      "citation_terms": ["石某某", "A医院", "胚胎", "民法典"],
+      "required_sections": ["结论", "案件事实", "裁判依据", "法院观点", "来源引用"],
+      "min_expected_points": 3,
+      "min_references": 1
+    }
+  ]
+}
