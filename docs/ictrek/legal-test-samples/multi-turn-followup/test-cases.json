@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "MTF-001",
+      "title": "劳动合同解除多轮追问",
+      "priority": "P0",
+      "scenario": "劳动合同解除：首轮问违法解除风险，追问补充试用期、严重违纪、未签书面劳动合同等事实。",
+      "knowledge_base_ids": ["law"],
+      "turns": [
+        {
+          "turn": 1,
+          "query": "公司想解除一名入职 5 个月员工的劳动合同，目前只知道绩效不达标，没有书面考核记录。违法解除风险大吗？",
+          "expected_carryover_terms": ["入职 5 个月", "绩效不达标", "书面考核"],
+          "expected_new_points": ["违法解除风险", "证据不足", "考核记录"],
+          "citation_terms": ["劳动合同法", "违法解除", "赔偿金", "经济补偿"],
+          "forbidden_patterns": ["一定合法", "没有风险", "可以直接解除"]
+        },
+        {
+          "turn": 2,
+          "query": "补充一下，这名员工还在试用期内，公司能否因为“不符合录用条件”直接解除？",
+          "expected_carryover_terms": ["解除劳动合同", "绩效不达标", "试用期"],
+          "expected_new_points": ["不符合录用条件", "证明", "不能直接解除"],
+          "citation_terms": ["劳动合同法", "试用期", "录用条件"],
+          "forbidden_patterns": ["试用期.*任意解除", "试用期.*随时解除", "直接解除.*无需证明"]
+        },
+        {
+          "turn": 3,
+          "query": "如果后来发现他多次伪造报销单，公司规章制度中明确列为严重违纪，结论会变化吗？",
+          "expected_carryover_terms": ["试用期", "解除", "伪造报销"],
+          "expected_new_points": ["严重违纪", "规章制度", "风险下降"],
+          "citation_terms": ["劳动合同法", "严重违反", "规章制度"],
+          "forbidden_patterns": ["仍然一定违法", "严重违纪.*没有影响"]
+        },
+        {
+          "turn": 4,
+          "query": "再补充一个事实：公司一直没有和他签书面劳动合同，这会影响解除风险和赔偿责任吗？",
+          "expected_carryover_terms": ["严重违纪", "解除", "未签书面劳动合同"],
+          "expected_new_points": ["双倍工资", "事实劳动关系", "不当然影响解除"],
+          "citation_terms": ["劳动合同法", "书面劳动合同", "二倍工资", "双倍工资"],
+          "forbidden_patterns": ["没有签合同.*不存在劳动关系", "未签合同.*不能解除", "未签合同.*无需赔偿"]
+        }
+      ],
+      "expected_final_sections": ["结论", "依据", "风险", "建议"],
+      "pass_criteria": "多数轮次同时命中承接事实、增量判断和劳动合同法依据，且没有把试用期、严重违纪或未签合同作绝对化处理。"
+    },
+    {
+      "id": "MTF-002",
+      "title": "消费者退货退款多轮追问",
+      "priority": "P0",
+      "scenario": "消费者权益保护：首轮问退货退款，追问补充网购、线下购买、定制商品、超过七日等事实。",
+      "knowledge_base_ids": ["law"],
+      "turns": [
+        {
+          "turn": 1,
+          "query": "消费者买了一件商品后不满意，想要求商家退货退款，法律上一般怎么判断？",
+          "expected_carryover_terms": ["商品", "退货退款"],
+          "expected_new_points": ["质量问题", "无理由退货", "经营者承诺"],
+          "citation_terms": ["消费者权益保护法", "退货", "退款"],
+          "forbidden_patterns": ["所有商品.*必须退", "不满意.*一定可以退"]
+        },
+        {
+          "turn": 2,
+          "query": "如果这是电商平台网购，消费者收到货第 3 天提出退货，是否适用七日无理由退货？",
+          "expected_carryover_terms": ["退货退款", "网购", "第 3 天"],
+          "expected_new_points": ["七日无理由退货", "收到商品", "例外"],
+          "citation_terms": ["消费者权益保护法", "七日", "无理由退货"],
+          "forbidden_patterns": ["超过七日", "线下购买"]
+        },
+        {
+          "turn": 3,
+          "query": "如果同样是第 3 天，但商品是按消费者尺寸定制的西装，还能无理由退货吗？",
+          "expected_carryover_terms": ["第 3 天", "网购", "无理由退货"],
+          "expected_new_points": ["定制", "定作", "退货例外"],
+          "citation_terms": ["消费者权益保护法", "定作", "无理由退货"],
+          "forbidden_patterns": ["定制.*一定可以无理由退", "所有网购.*都能退"]
+        },
+        {
+          "turn": 4,
+          "query": "如果不是网购，而是线下门店购买，并且已经超过 7 天，还能要求退货退款吗？",
+          "expected_carryover_terms": ["退货退款", "线下门店", "超过 7 天"],
+          "expected_new_points": ["不当然适用七日无理由", "质量问题", "商家承诺"],
+          "citation_terms": ["消费者权益保护法", "七日", "质量"],
+          "forbidden_patterns": ["线下.*当然适用七日无理由", "超过.*仍然一定无理由退"]
+        }
+      ],
+      "expected_final_sections": ["结论", "依据", "例外", "建议"],
+      "pass_criteria": "多数轮次能沿着退货退款主线，按网购、定制、线下和超过七日事实变化调整结论，并继续引用消费者权益保护法依据。"
+    },
+    {
+      "id": "MTF-003",
+      "title": "买卖合同违约责任多轮追问",
+      "priority": "P0",
+      "scenario": "买卖合同违约责任：首轮问延期交付责任，追问补充违约金过低、未约定验收标准、已有催告记录等事实。",
+      "knowledge_base_ids": ["law", "case"],
+      "turns": [
+        {
+          "turn": 1,
+          "query": "供应商迟延交付设备 20 天，买方想追究违约责任，通常可以主张哪些责任？",
+          "expected_carryover_terms": ["迟延交付", "设备", "20 天"],
+          "expected_new_points": ["继续履行", "违约金", "赔偿损失"],
+          "citation_terms": ["民法典", "违约责任", "继续履行", "赔偿损失"],
+          "forbidden_patterns": ["只能解除", "不能主张赔偿"]
+        },
+        {
+          "turn": 2,
+          "query": "合同约定逾期违约金每天 100 元，但买方停产损失明显更高，能否要求提高或另行赔偿？",
+          "expected_carryover_terms": ["迟延交付", "逾期违约金", "停产损失"],
+          "expected_new_points": ["违约金过低", "请求增加", "实际损失"],
+          "citation_terms": ["民法典", "违约金", "过低", "损失"],
+          "forbidden_patterns": ["违约金约定后.*不能调整", "只能按每天 100 元"]
+        },
+        {
+          "turn": 3,
+          "query": "合同没有写清验收标准，供应商说已经交货，买方说不能验收，这会影响迟延交付责任吗？",
+          "expected_carryover_terms": ["迟延交付", "违约金", "验收标准"],
+          "expected_new_points": ["验收标准不清", "合格交付", "举证"],
+          "citation_terms": ["民法典", "买卖合同", "验收", "检验"],
+          "forbidden_patterns": ["没有验收标准.*一定不能追责", "供应商说交货.*当然免责"]
+        },
+        {
+          "turn": 4,
+          "query": "买方已经发过两次书面催告并保留邮件记录，这对解除合同或主张损失有什么帮助？",
+          "expected_carryover_terms": ["迟延交付", "验收", "书面催告"],
+          "expected_new_points": ["催告", "解除合同", "证据"],
+          "citation_terms": ["民法典", "催告", "解除", "损失"],
+          "forbidden_patterns": ["发催告.*一定解除成功", "无需证明损失"]
+        }
+      ],
+      "expected_final_sections": ["结论", "依据", "风险", "证据建议"],
+      "pass_criteria": "多数轮次能承接迟延交付主线，并围绕违约金调整、验收争议、催告证据给出递进判断和依据。"
+    },
+    {
+      "id": "MTF-004",
+      "title": "个人信息保护多轮追问",
+      "priority": "P0",
+      "scenario": "个人信息保护：首轮问收集手机号和身份证是否合法，追问补充同意、必要范围、敏感个人信息等事实。",
+      "knowledge_base_ids": ["law"],
+      "turns": [
+        {
+          "turn": 1,
+          "query": "一个 App 注册时要求用户填写手机号和身份证号，这样收集个人信息是否合法？",
+          "expected_carryover_terms": ["App", "手机号", "身份证号"],
+          "expected_new_points": ["告知同意", "必要性", "处理目的"],
+          "citation_terms": ["个人信息保护法", "个人信息", "必要"],
+          "forbidden_patterns": ["收集.*一定合法", "手机号和身份证号.*都可以随意收集"]
+        },
+        {
+          "turn": 2,
+          "query": "如果 App 已经弹窗取得用户同意，是否就一定合法？",
+          "expected_carryover_terms": ["App", "手机号", "身份证号", "同意"],
+          "expected_new_points": ["同意不是唯一条件", "合法正当必要", "最小必要"],
+          "citation_terms": ["个人信息保护法", "同意", "必要"],
+          "forbidden_patterns": ["取得同意.*一定合法", "同意后.*无需考虑必要性"]
+        },
+        {
+          "turn": 3,
+          "query": "如果 App 只是普通资讯阅读应用，却强制收集身份证号才能浏览文章，结论会变化吗？",
+          "expected_carryover_terms": ["App", "身份证号", "普通资讯阅读"],
+          "expected_new_points": ["超出必要范围", "强制收集", "拒绝基本服务"],
+          "citation_terms": ["个人信息保护法", "必要", "拒绝提供服务"],
+          "forbidden_patterns": ["资讯阅读.*必须收集身份证", "强制收集.*当然合法"]
+        },
+        {
+          "turn": 4,
+          "query": "身份证号是否属于敏感个人信息？如果涉及敏感个人信息，处理规则有什么更高要求？",
+          "expected_carryover_terms": ["身份证号", "个人信息", "敏感个人信息"],
+          "expected_new_points": ["敏感个人信息", "单独同意", "特定目的"],
+          "citation_terms": ["个人信息保护法", "敏感个人信息", "单独同意"],
+          "forbidden_patterns": ["身份证号.*不是个人信息", "敏感个人信息.*无需单独同意"]
+        }
+      ],
+      "expected_final_sections": ["结论", "依据", "合规要求", "建议"],
+      "pass_criteria": "多数轮次能承接手机号和身份证号收集主线，按同意、必要性、敏感信息要求调整合规结论，并引用个人信息保护法依据。"
+    },
+    {
+      "id": "MTF-005",
+      "title": "消费者案例争点多轮追问",
+      "priority": "P1",
+      "scenario": "案例追问：首轮要求提炼案例争点，后续追问要求说明裁判理由并比较相似案例。",
+      "knowledge_base_ids": ["case", "law"],
+      "turns": [
+        {
+          "turn": 1,
+          "query": "请从法律案例库中选择一个消费者权益保护相关案例，提炼案件事实、争议焦点和裁判结果。",
+          "expected_carryover_terms": ["消费者", "案例", "争议焦点"],
+          "expected_new_points": ["案件事实", "裁判结果", "法院"],
+          "citation_terms": ["案例", "法院", "判决", "裁判"],
+          "forbidden_patterns": ["虚构案例", "随便举例"]
+        },
+        {
+          "turn": 2,
+          "query": "承接刚才这个案例，请说明法院支持或不支持消费者主张的核心裁判理由。",
+          "expected_carryover_terms": ["刚才这个案例", "消费者主张", "法院"],
+          "expected_new_points": ["裁判理由", "事实认定", "法律适用"],
+          "citation_terms": ["法院认为", "本院认为", "裁判理由", "消费者权益保护法"],
+          "forbidden_patterns": ["换一个案例", "无法知道刚才案例"]
+        },
+        {
+          "turn": 3,
+          "query": "如果有相似案例，请比较它们在事实要素或裁判理由上的差异；如果知识库没有相似案例，也请明确说明。",
+          "expected_carryover_terms": ["刚才", "案例", "裁判理由"],
+          "expected_new_points": ["相似案例", "事实要素", "差异"],
+          "citation_terms": ["案例", "相似", "裁判", "未检索到"],
+          "forbidden_patterns": ["编造", "\\（20\\d{2}\\）[^\\s，。；；、]{3,}999999"]
+        }
+      ],
+      "expected_final_sections": ["案例", "争议焦点", "裁判理由", "差异"],
+      "pass_criteria": "至少 2 轮围绕同一案例继续追问并给出案例依据；如无相似案例，应明确说明而不是编造案号或裁判规则。"
+    }
+  ]
+}
