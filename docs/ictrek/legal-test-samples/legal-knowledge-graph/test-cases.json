@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "LKG-001",
+      "title": "劳动合同解除概念关系图",
+      "priority": "P0",
+      "graph_type": "法律概念关系图",
+      "query": "请围绕“劳动合同解除”建立法律概念关系图，区分协商解除、劳动者单方解除、用人单位单方解除、经济补偿和违法解除责任，并列出依据。",
+      "knowledge_base_ids": ["law"],
+      "expected_nodes": ["劳动合同解除", "协商解除", "劳动者单方解除", "用人单位单方解除", "经济补偿", "违法解除", "继续履行", "赔偿金"],
+      "expected_edges": [
+        {"source": "劳动合同解除", "relation": "包括", "target": "协商解除"},
+        {"source": "劳动合同解除", "relation": "包括", "target": "劳动者单方解除"},
+        {"source": "劳动合同解除", "relation": "包括", "target": "用人单位单方解除"},
+        {"source": "解除情形", "relation": "可能产生", "target": "经济补偿"},
+        {"source": "违法解除", "relation": "导致", "target": "继续履行"},
+        {"source": "违法解除", "relation": "导致", "target": "赔偿金"}
+      ],
+      "expected_sections": ["节点", "关系", "依据"],
+      "citation_terms": ["劳动合同法", "经济补偿", "违法解除", "赔偿金"],
+      "forbidden_patterns": ["不存在的劳动合同法第\\s*999\\s*条", "虚构案号"],
+      "pass_criteria": "核心解除类型、经济补偿和违法解除责任节点齐全，关系不少于 3 条，并有劳动合同法依据。"
+    },
+    {
+      "id": "LKG-002",
+      "title": "个人信息处理法条要件图谱",
+      "priority": "P0",
+      "graph_type": "法条要件图谱",
+      "query": "请从个人信息保护法角度，把“个人信息处理”的主体、行为、合法性基础、个人权利、处理者义务、法律责任和救济路径整理成图谱。",
+      "knowledge_base_ids": ["law"],
+      "expected_nodes": ["个人信息处理者", "个人", "处理行为", "同意", "合法性基础", "查阅复制", "更正删除", "解释说明", "法律责任", "投诉举报"],
+      "expected_edges": [
+        {"source": "个人信息处理者", "relation": "实施", "target": "处理行为"},
+        {"source": "处理行为", "relation": "需要", "target": "合法性基础"},
+        {"source": "个人", "relation": "享有", "target": "查阅复制"},
+        {"source": "个人", "relation": "可以请求", "target": "更正删除"},
+        {"source": "个人信息处理者", "relation": "承担", "target": "处理者义务"},
+        {"source": "违反义务", "relation": "可能承担", "target": "法律责任"}
+      ],
+      "expected_sections": ["主体", "行为", "条件", "责任", "救济", "依据"],
+      "citation_terms": ["个人信息保护法", "个人信息处理者", "个人信息", "投诉", "法律责任"],
+      "forbidden_patterns": ["个人信息保护法第\\s*999\\s*条", "无需任何合法性基础"],
+      "pass_criteria": "按主体-行为-条件-责任-救济组织，命中主要个人权利和责任节点，并有个人信息保护法依据。"
+    },
+    {
+      "id": "LKG-003",
+      "title": "网络购物七日无理由退货要件图谱",
+      "priority": "P1",
+      "graph_type": "法条要件图谱",
+      "query": "请把网络购物七日无理由退货制度抽取为“主体-行为-条件-例外-责任-救济”关系图谱。",
+      "knowledge_base_ids": ["law"],
+      "expected_nodes": ["消费者", "经营者", "网络购物", "七日无理由退货", "收到商品", "退货例外", "定作商品", "鲜活易腐", "退款", "说明"],
+      "expected_edges": [
+        {"source": "消费者", "relation": "通过网络购买", "target": "商品"},
+        {"source": "消费者", "relation": "有权", "target": "七日无理由退货"},
+        {"source": "七日无理由退货", "relation": "起算于", "target": "收到商品"},
+        {"source": "定作商品", "relation": "属于", "target": "退货例外"},
+        {"source": "鲜活易腐", "relation": "属于", "target": "退货例外"},
+        {"source": "经营者", "relation": "应当", "target": "退款"}
+      ],
+      "expected_sections": ["主体", "条件", "例外", "责任", "救济", "依据"],
+      "citation_terms": ["消费者权益保护法", "七日", "无理由退货", "定作", "鲜活易腐"],
+      "forbidden_patterns": ["所有商品都可以七日无理由退货", "无需退回商品即可退款"],
+      "pass_criteria": "七日、收到商品、退货例外和退款责任节点齐全，关系不少于 4 条，并引用消费者权益保护法。"
+    },
+    {
+      "id": "LKG-004",
+      "title": "买卖合同违约责任概念关系图",
+      "priority": "P0",
+      "graph_type": "法律概念关系图",
+      "query": "请围绕买卖合同中的违约责任建立概念关系图，覆盖交付、验收、价款支付、继续履行、赔偿损失、违约金调整和检验期限。",
+      "knowledge_base_ids": ["law"],
+      "expected_nodes": ["买卖合同", "出卖人", "买受人", "交付", "验收", "价款支付", "违约责任", "继续履行", "赔偿损失", "违约金调整", "检验期限"],
+      "expected_edges": [
+        {"source": "出卖人", "relation": "负有", "target": "交付义务"},
+        {"source": "买受人", "relation": "负有", "target": "付款义务"},
+        {"source": "履行不符合约定", "relation": "导致", "target": "违约责任"},
+        {"source": "违约责任", "relation": "包括", "target": "继续履行"},
+        {"source": "违约责任", "relation": "包括", "target": "赔偿损失"},
+        {"source": "违约金过高或过低", "relation": "可以请求", "target": "调整"}
+      ],
+      "expected_sections": ["节点", "关系", "依据"],
+      "citation_terms": ["民法典", "买卖合同", "违约责任", "检验", "违约金"],
+      "forbidden_patterns": ["买卖合同不适用违约责任", "违约金不得调整"],
+      "pass_criteria": "命中买卖合同双方主体、交付/付款/验收义务和违约责任节点，引用民法典或买卖合同司法解释。"
+    },
+    {
+      "id": "LKG-005",
+      "title": "消费者权益或合同纠纷案例争点图谱",
+      "priority": "P0",
+      "graph_type": "案例争点图谱",
+      "query": "请从法律案例库中选择一个消费者权益或合同纠纷案例，抽取“当事人-争议焦点-法院认定-裁判结果-适用依据”的案例争点图谱，并说明引用来源。",
+      "knowledge_base_ids": ["case"],
+      "expected_nodes": ["当事人", "争议焦点", "法院认定", "裁判结果", "适用依据", "消费者权益", "合同纠纷"],
+      "expected_edges": [
+        {"source": "当事人", "relation": "围绕", "target": "争议焦点"},
+        {"source": "法院", "relation": "认定", "target": "关键事实"},
+        {"source": "法院认定", "relation": "支持", "target": "裁判结果"},
+        {"source": "裁判结果", "relation": "依据", "target": "法律条文或原则"},
+        {"source": "案例事实", "relation": "对应", "target": "争议焦点"}
+      ],
+      "expected_sections": ["案例", "节点", "关系", "来源"],
+      "citation_terms": ["法院", "裁判", "争议焦点", "认定", "案例"],
+      "forbidden_patterns": ["案号：?\\(?2026\\)?", "虚构案例", "无法从案例库"],
+      "pass_criteria": "输出一个具体案例，并抽取当事人、争议焦点、法院认定、裁判结果和适用依据之间的关系。"
+    },
+    {
+      "id": "LKG-006",
+      "title": "法条与案例映射图谱",
+      "priority": "P0",
+      "graph_type": "法条与案例映射",
+      "query": "请选取一个买卖合同或消费者权益案例，说明其中裁判观点分别对应哪些法条或法律原则，并输出“案例观点-事实要素-适用依据-裁判结果”的映射图谱。",
+      "knowledge_base_ids": ["law", "case"],
+      "expected_nodes": ["案例观点", "事实要素", "适用依据", "民法典", "消费者权益保护法", "裁判结果", "法律原则"],
+      "expected_edges": [
+        {"source": "案例观点", "relation": "基于", "target": "事实要素"},
+        {"source": "事实要素", "relation": "触发", "target": "适用依据"},
+        {"source": "适用依据", "relation": "支持", "target": "裁判结果"},
+        {"source": "案例观点", "relation": "映射到", "target": "法条或法律原则"},
+        {"source": "法条", "relation": "解释", "target": "裁判理由"}
+      ],
+      "expected_sections": ["案例来源", "法条依据", "节点", "关系"],
+      "citation_terms": ["民法典", "消费者权益保护法", "法院", "裁判", "依据"],
+      "forbidden_patterns": ["仅凭生活经验", "无法律依据仍可确定"],
+      "pass_criteria": "同时区分案例来源和法条依据，能把裁判观点映射到事实要素、法条或原则和裁判结果。"
+    },
+    {
+      "id": "LKG-007",
+      "title": "付款早于验收风险路径图",
+      "priority": "P0",
+      "graph_type": "风险路径图",
+      "query": "合同约定“买方应在设备到货前支付 90% 价款，验收不合格时卖方只负责维修，不退还已付款”。请基于法律条文库和案例库，输出“付款早于验收”如何关联合同风险、违约责任、举证责任和救济方式的风险路径图。",
+      "knowledge_base_ids": ["law", "case"],
+      "expected_nodes": ["付款早于验收", "验收不合格", "价款支付", "合同风险", "违约责任", "举证责任", "维修", "更换", "退货", "赔偿损失", "解除合同"],
+      "expected_edges": [
+        {"source": "付款早于验收", "relation": "增加", "target": "价款追回风险"},
+        {"source": "验收不合格", "relation": "可能构成", "target": "履行不符合约定"},
+        {"source": "履行不符合约定", "relation": "导致", "target": "违约责任"},
+        {"source": "买方", "relation": "需要证明", "target": "验收不合格"},
+        {"source": "买方", "relation": "可以主张", "target": "维修更换退货"},
+        {"source": "买方", "relation": "可以主张", "target": "赔偿损失"}
+      ],
+      "expected_sections": ["风险触发", "责任认定", "举证", "救济", "依据"],
+      "citation_terms": ["民法典", "买卖合同", "违约责任", "验收", "案例", "裁判"],
+      "forbidden_patterns": ["卖方一定构成欺诈", "买方必然胜诉", "无需举证"],
+      "pass_criteria": "展示风险触发-责任认定-举证-救济路径，命中付款早于验收、验收不合格、违约责任、举证和救济节点，并引用条文和案例依据。"
+    }
+  ]
+}
