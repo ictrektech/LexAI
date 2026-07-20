@@ -92,7 +92,7 @@
 | 法律法规问答样例 | 法条问答、引用校验 | 已准备，可执行 | 已固定 10 条法规问答样例、测试卡、自动执行脚本和执行方式，见 [法律法规问答测试样例](legal-test-samples/legal-qa/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 裁判案例问答样例 | 案件事实、裁判依据、争议焦点 | 已准备，可执行 | 已固定 10 条案例问答样例、测试卡、自动执行脚本和执行方式，见 [裁判案例问答测试样例](legal-test-samples/case-qa/README.md) | 执行脚本后补充人工复核结果和可用率 |
 | 合同审查样例 | 风险识别、依据、修改建议、长答案完整性 | 已准备，可执行 | 已固定 5 份人工合同样例、测试卡、自动执行脚本和执行方式，见 [合同审查测试样例](legal-test-samples/contract-review/README.md) | 执行脚本后补充人工复核结果和可用率 |
-| 无依据拒答样例 | 无依据问题拒答、材料不足、实时信息限制、个案结论限制 | 已准备，可执行 | 已固定 7 条拒答样例、测试卡、自动执行脚本和执行方式，见 [无依据拒答测试样例](legal-test-samples/no-evidence-refusal/README.md) | 执行脚本后补充人工复核结果和拒答通过率 |
+| 无依据拒答样例 | 无依据问题拒答、材料不足、实时信息限制、个案结论限制、虚构法条和未上传内部制度 | 已准备，可执行 | 已固定 10 条拒答样例、测试卡、自动执行脚本和执行方式，见 [无依据拒答测试样例](legal-test-samples/no-evidence-refusal/README.md) | 执行脚本后补充人工复核结果和拒答通过率 |
 | 多轮追问样例 | 上下文延续、事实变化识别和追问引用 | 已准备，可执行 | 已固定 5 组多轮追问样例、测试卡、自动执行脚本和执行方式，见 [多轮追问测试样例](legal-test-samples/multi-turn-followup/README.md) | 执行脚本后补充人工复核结果和多轮追问通过率 |
 | 法律知识图谱样例 | 法律实体和关系抽取、法条/案例映射、风险路径图 | 已准备，可执行 | 已固定 7 条知识图谱样例、测试卡、自动执行脚本和执行方式，见 [法律知识图谱测试样例](legal-test-samples/legal-knowledge-graph/README.md) | 执行脚本后补充人工复核结果和图谱可用率 |
 
@@ -159,10 +159,10 @@
 | 法律问答准确性 | 30% | 24 / 25 | 28.80 | 法规问答 `LAWQA-007` 需人工复核；案例问答和多轮追问全量通过 |
 | 检索与引用 | 25% | 自动证据检查基本可用，待人工抽验 | 23.00 | 各专项均返回引用或工具证据，但引用准确率尚未逐条人工定位复核 |
 | 合同审查 | 15% | 5 / 10 | 7.50 | P0 风险识别基本通过，P1 长报告结构完整性和风险覆盖不足，两个合同审查智能体均为 50% |
-| 无依据拒答 | 10% | 6 / 7 | 8.57 | `REFUSAL-003` 命中禁止内容规则，需复核是自动规则过严还是应收紧回答策略 |
+| 无依据拒答 | 10% | 10 / 10 | 10.00 | 已扩展到 10 条专项样例；2026-07-20 重跑全部通过，判定器已修复否定语境和引用标记误伤 |
 | 知识图谱冒烟 | 5% | 3 / 7 | 2.14 | `LKG-004` 超时，`LKG-003`、`LKG-005`、`LKG-006` 关系命中不足 |
 
-本轮自动初测加权完成度约 **85.01%**。该数值只代表脚本初筛完成度，不替代人工法律质量复核；并且合同审查、无依据拒答和知识图谱专项尚未达到第 5 节对应目标。
+本轮自动初测加权完成度约 **86.44%**。该数值只代表脚本初筛完成度，不替代人工法律质量复核；并且合同审查和知识图谱专项尚未达到第 5 节对应目标。
 
 ## 8. 测试执行方式与清理规范
 
@@ -179,6 +179,44 @@
 | 自动清理 | 测试是否会自动删除临时数据 |
 | 手动清理 | 自动清理失败或测试中断后的清理命令 |
 | 风险说明 | 是否会创建、修改或删除测试环境数据 |
+
+### 8.0 完整批次总控脚本
+
+完整法律专项初测可以使用 [run_full_legal_assistant_batch.py](legal-test-samples/run_full_legal_assistant_batch.py) 顺序执行所有专项脚本。该脚本默认遇到某个专项出现 `REVIEW`、`FAIL`、`ERROR` 或退出码非 0 时继续跑后续专项，最后统一生成总 `summary.md` 和 `manifest.json`；如果需要遇到首个非 PASS 专项即停止，可加 `--fail-fast`。
+
+示例：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --output-root /tmp/legal-assistant-full-$(date +%Y%m%d-%H%M%S)
+```
+
+若上一轮已有失败或需复核项，可以基于总控脚本生成的 `manifest.json` 只重跑非 PASS 用例：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --rerun-from /tmp/legal-assistant-full-20260717 \
+  --host http://localhost:8080 \
+  --auto-setup
+```
+
+未显式传 `--output-root` 时，重跑结果默认写入上一轮目录下的 `rerun-<时间戳>/` 子目录，避免覆盖原始结果。
+
+也可以指定单条用例重跑：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --only legal-qa:LAWQA-007 \
+  --only no-evidence-refusal:REFUSAL-003 \
+  --host http://localhost:8080 \
+  --auto-setup
+```
+
+详细说明见 [法律助手测试样例 README](legal-test-samples/README.md)。
 
 ### 8.1 CLI RAG Full Loop E2E
 
@@ -278,16 +316,16 @@
 
 ### 8.7 无依据拒答样例自动测试
 
-该测试用于自动执行无依据拒答专项样例，验证知识库无依据、材料不足、实时信息限制、个案结论限制、替代律师出具意见和境外法范围限制等场景下，助手是否能明确说明依据不足并给出合规下一步。详细材料、命令、判定口径和产物说明见 [无依据拒答测试样例](legal-test-samples/no-evidence-refusal/README.md)。
+该测试用于自动执行无依据拒答专项样例，验证知识库无依据、材料不足、实时信息限制、个案结论限制、替代律师出具意见、境外法范围限制、虚构法条、缺少损失证据和未上传内部制度等场景下，助手是否能明确说明依据不足并给出合规下一步。详细材料、命令、判定口径和产物说明见 [无依据拒答测试样例](legal-test-samples/no-evidence-refusal/README.md)。
 
 | 项目 | 说明 |
 | --- | --- |
-| 测试材料 | 7 条拒答样例、[测试卡](legal-test-samples/no-evidence-refusal/test-cards.md)、[结构化用例](legal-test-samples/no-evidence-refusal/test-cases.json) |
+| 测试材料 | 10 条拒答样例、[测试卡](legal-test-samples/no-evidence-refusal/test-cards.md)、[结构化用例](legal-test-samples/no-evidence-refusal/test-cases.json) |
 | 执行脚本 | [run_no_evidence_refusal_tests.py](legal-test-samples/no-evidence-refusal/run_no_evidence_refusal_tests.py) |
 | 前置条件 | 已有「法律条文」和「法律案例」知识库，且文档已完成解析、分块、向量化 |
-| 覆盖能力 | 无依据拒答、材料不足提示、实时信息限制、禁止编造案号/政策/胜诉率、合规下一步建议 |
+| 覆盖能力 | 无依据拒答、材料不足提示、实时信息限制、禁止编造案号/政策/法条/胜诉率/赔偿金额、未上传内部制度拒绝背书、合规下一步建议 |
 | 测试产物 | `results/<时间戳>/summary.md`、`results/<时间戳>/results.json` 和每条用例的 `response.md` |
-| 统计方式 | `无依据拒答通过率 = 通过用例数 / 7` |
+| 统计方式 | `无依据拒答通过率 = 通过用例数 / 10` |
 | 清理方式 | 不新建知识库，不上传新文档；仅创建临时会话和本地结果文件 |
 
 该测试结果仍需人工复核，不代表正式法律意见质量背书。
@@ -298,7 +336,7 @@
 
 | 项目 | 结果 |
 | --- | --- |
-| 测试日期 | 2026-07-17 |
+| 测试日期 | 2026-07-17；无依据拒答专项重跑 2026-07-20 |
 | 测试环境 | tc232 本地开发部署，后端 `http://localhost:8080`，前端 `http://localhost:5177/` |
 | 测试命令 | `go test -count=1 -tags=acceptance_e2e -run TestRAGFullLoop -v -timeout=8m ./acceptance/e2e/...` |
 | QA 模型 | `lexai-vllm-qwen35-9b-awq-qa` |
@@ -414,7 +452,7 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 - 回答明确说明依据不足和范围限制；
 - 未给出具体胜诉率，也未命中禁止内容模式；
 - 给出了补充材料、提供证据和咨询律师等下一步建议；
-- 本结果只能证明无依据拒答样例脚本的单用例链路可跑通，完整拒答通过率仍需执行 7 条样例并进行人工复核。
+- 本结果只能证明无依据拒答样例脚本的单用例链路可跑通，完整拒答通过率仍需执行 10 条样例并进行人工复核。
 
 ### 9.5 法律知识图谱样例单用例 smoke
 
@@ -499,7 +537,7 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 | --- | --- | ---: | ---: | --- | --- |
 | 法律法规问答 | `knowledge` | 9 / 10 | 90.00% | `/tmp/legal-assistant-full-20260717/legal-qa` | 达到初测可用线，`LAWQA-007` 需人工复核 |
 | 裁判案例问答 | `knowledge` | 10 / 10 | 100.00% | `/tmp/legal-assistant-full-20260717/case-qa` | 通过机器初筛 |
-| 无依据拒答 | `knowledge` | 6 / 7 | 85.71% | `/tmp/legal-assistant-full-20260717/no-evidence-refusal` | 未达到 90% 目标，`REFUSAL-003` 需复核 |
+| 无依据拒答 | `knowledge` | 10 / 10 | 100.00% | `/tmp/legal-assistant-full-20260717/rerun-20260720-151249/no-evidence-refusal` | 已达到 90% 目标，通过机器初筛 |
 | 法律知识图谱 | `knowledge` | 3 / 7 | 42.86% | `/tmp/legal-assistant-full-20260717/legal-knowledge-graph-selected` | 未达到 100% 冒烟目标，关系命中和超时问题明显 |
 | 多轮追问 | `knowledge` | 5 / 5 | 100.00% | `/tmp/legal-assistant-full-20260717/multi-turn-followup` | 通过机器初筛 |
 | 合同审查（快速问答） | `agent` / `90fd6ab5-ba06-4bff-8a23-878ce00837ef` | 5 / 10 | 50.00% | `/tmp/legal-assistant-full-20260717/contract-review-agent-quick` | 未达到 80% 目标，P1 长报告均需复核 |
@@ -509,7 +547,7 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 
 - 法律法规问答整体可用，但 `LAWQA-007` 只命中 2/3 核心要点，需检查回答是否遗漏关键适用条件；
 - 裁判案例问答表现稳定，10 条均命中核心事实、章节和引用词；
-- 无依据拒答中 `REFUSAL-003` 明确说明不能编造指定案号观点，但随后给出“一般裁判思路参考”，触发禁止内容规则；需决定产品策略是完全拒绝，还是允许更明确标注的通用分析；
+- 无依据拒答已扩展到 10 条样例，覆盖虚构案号、虚构政策、虚构法条、材料不足、替代律师意见、境外法范围限制、赔偿金额和未上传内部制度等场景；2026-07-20 重跑 10 条全部通过，期间修复了自动判定对否定语境、下一步同义表达和内联引用标记的误伤；
 - 法律知识图谱中 `LKG-004` 在完整批次中请求超时，保守记为失败；重跑其余 6 条时 `LKG-003`、`LKG-005`、`LKG-006` 因关系命中不足进入 `REVIEW`；
 - 多轮追问 5 组全部通过，并且所有用例均复用同一 `session_id`；
 - 合同审查两个智能体均为 P0 用例全通过、P1 长报告全 `REVIEW`，说明短问题风险识别可用，但完整报告的章节覆盖、风险覆盖和长答案稳定性不足；
@@ -521,7 +559,7 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 | --- | ---: | ---: | --- |
 | 法律法规问答可用率 | 初测参考 >= 80% | 90.00% | 通过 |
 | 裁判案例问答可用率 | 初测参考 >= 80% | 100.00% | 通过 |
-| 无依据拒答通过率 | >= 90% | 85.71% | 未通过 |
+| 无依据拒答通过率 | >= 90% | 100.00% | 通过 |
 | 合同审查可用率 | >= 80% | 50.00% | 未通过 |
 | 知识图谱冒烟通过率 | 100% | 42.86% | 未通过 |
 | 多轮追问通过率 | 初测参考 >= 80% | 100.00% | 通过 |
@@ -529,9 +567,9 @@ python3 docs/ictrek/legal-test-samples/contract-review/run_contract_review_tests
 下一步建议：
 
 1. 优先修复合同审查 P1 长报告：收紧输出模板，降低单次报告范围，要求固定章节，必要时分阶段生成“风险清单”和“修改建议”；
-2. 复核 `REFUSAL-003` 的产品口径：如果不允许通用裁判思路，应提示词明确禁止“补一个常见思路”；如果允许，应调整自动规则避免误伤明确标注的通用分析；
-3. 优化法律知识图谱提示词和判分同义词，尤其是“主体-行为-条件-责任-救济”关系表达；同时为 `LKG-004` 增加输出长度约束，避免超长生成；
-4. 对法律法规问答 `LAWQA-007` 做人工复核，确认是模型遗漏、测试期望过严，还是知识库检索片段不足；
+2. 优化法律知识图谱提示词和判分同义词，尤其是“主体-行为-条件-责任-救济”关系表达；同时为 `LKG-004` 增加输出长度约束，避免超长生成；
+3. 对法律法规问答 `LAWQA-007` 做人工复核，确认是模型遗漏、测试期望过严，还是知识库检索片段不足；
+4. 保留无依据拒答 10 条专项作为回归集，后续提示词或检索链路改动后优先重跑该专项，防止硬拒答能力回退；
 5. 完成上述修复后，重新执行失败和 `REVIEW` 用例，再跑一轮完整批次。
 
 ## 10. 风险与限制

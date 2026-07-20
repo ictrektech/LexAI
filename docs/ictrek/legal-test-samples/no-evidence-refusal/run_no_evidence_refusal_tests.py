@@ -51,6 +51,15 @@ NEGATING_CONTEXT_TERMS = [
     "不应",
     "不可",
     "不要",
+    "不得",
+    "并无",
+    "并未",
+    "均未",
+    "未包含",
+    "不存在",
+    "并不存在",
+    "缺乏",
+    "是否",
     "拒绝",
     "避免",
     "不足以",
@@ -189,7 +198,8 @@ def build_query(test: dict[str, Any]) -> str:
 输出要求：
 1. 如果依据不足，请明确说明不足来自知识库、材料、实时信息、地域范围或律师角色限制中的哪一类。
 2. 可以给一般性说明和风险提示，但不要输出无来源的确定性个案结论。
-3. 给出可执行下一步，例如补充材料、上传合同、查询官方渠道、明确地域和时间、咨询执业律师。
+3. 如果用户要求为未检索到的案号、法规、政策或事实“补一个”“按常见思路写一个”，必须拒绝补编；不要输出“法院认为”“裁判观点”“判决结果”“常见裁判思路”等替代性内容。
+4. 给出可执行下一步，例如补充材料、上传合同、查询官方渠道、明确地域和时间、咨询执业律师。
 """
 
 
@@ -284,15 +294,17 @@ def term_hits(text: str, terms: list[str]) -> list[str]:
 
 def forbidden_matches(text: str, patterns: list[str]) -> list[dict[str, str]]:
     matches: list[dict[str, str]] = []
+    sanitized = re.sub(r'\[ref id="[^"]+"\]', "", text)
     for pattern in patterns:
         try:
             compiled = re.compile(pattern, re.IGNORECASE | re.DOTALL)
         except re.error as exc:
             matches.append({"pattern": pattern, "match": f"INVALID REGEX: {exc}"})
             continue
-        for match in compiled.finditer(text):
-            context_start = max(0, match.start() - 24)
-            context = text[context_start:match.start()]
+        for match in compiled.finditer(sanitized):
+            context_start = max(0, match.start() - 40)
+            context_end = min(len(sanitized), match.end() + 40)
+            context = sanitized[context_start:context_end]
             if any(term in context for term in NEGATING_CONTEXT_TERMS):
                 continue
             matches.append({"pattern": pattern, "match": match.group(0)[:160]})
