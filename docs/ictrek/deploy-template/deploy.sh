@@ -280,6 +280,17 @@ wait_service_healthy() {
   die "service did not become healthy: $service"
 }
 
+ensure_compose_services_running() {
+  local services=()
+  local service
+  for service in "$@"; do
+    compose_has_service "$service" && services+=("$service")
+  done
+  [[ "${#services[@]}" -gt 0 ]] || return 0
+  log "ensure dependency services are running: ${services[*]}"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "${services[@]}"
+}
+
 read_feishu_field() {
   local file="$1"
   local field="$2"
@@ -676,6 +687,15 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
 fi
 
 log "updating services: ${UPDATE_SERVICES[*]}"
+if [[ " ${UPDATE_SERVICES[*]} " == *" app "* \
+  || " ${UPDATE_SERVICES[*]} " == *" docreader "* \
+  || " ${UPDATE_SERVICES[*]} " == *" frontend "* ]]; then
+  ensure_compose_services_running postgres redis neo4j model-hub-ollama model-hub-backend qwen35-9b-vllm bge-m3-vllm
+  for service in postgres redis neo4j model-hub-ollama model-hub-backend; do
+    compose_has_service "$service" && wait_service_healthy "$service" 180
+  done
+fi
+
 FRONTEND_DEFERRED=0
 COMPOSE_UP_SERVICES=("${UPDATE_SERVICES[@]}")
 if [[ " ${UPDATE_SERVICES[*]} " == *" app "* && " ${UPDATE_SERVICES[*]} " == *" frontend "* ]]; then
