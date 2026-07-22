@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/application/repository"
+	modellimiter "github.com/Tencent/WeKnora/internal/models/limiter"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/gin-gonic/gin"
 )
@@ -55,6 +56,14 @@ func (runtimeInvalidSettings) GetInt(_ context.Context, key string, _ string, _ 
 		return -1
 	}
 	return 0
+}
+
+type runtimeModelLister struct {
+	models []*types.Model
+}
+
+func (r runtimeModelLister) ListModels(context.Context) ([]*types.Model, error) {
+	return r.models, nil
 }
 
 type runtimeTestInspector struct{}
@@ -280,6 +289,73 @@ func TestGetRuntimeQueuesFallsBackFromInvalidHistoricalConcurrency(t *testing.T)
 		if pool.Concurrency < 1 {
 			t.Fatalf("pool %q reported non-positive concurrency: %+v", pool.Name, pool)
 		}
+	}
+}
+
+func TestGetRuntimeQueuesIncludesConfiguredModelsBeforeLimiterObservesThem(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := &SystemHandler{
+		systemSettingSvc: runtimeTestSettings{},
+		taskInspector:    runtimeTestInspector{},
+		modelSvc: runtimeModelLister{models: []*types.Model{
+			{
+				ID:     "lexai-thor-vllm-qwen35-9b-qa",
+				Name:   "Qwen3.5-9B-AWQ",
+				Type:   types.ModelTypeKnowledgeQA,
+				Status: types.ModelStatusActive,
+				Parameters: types.ModelParameters{
+					MaxConcurrency: 14,
+				},
+			},
+			{
+				ID:     "lexai-thor-vllm-bge-m3-embedding",
+				Name:   "bge-m3",
+				Type:   types.ModelTypeEmbedding,
+				Status: types.ModelStatusActive,
+			},
+			{
+				ID:     "disabled-vlm",
+				Name:   "disabled",
+				Type:   types.ModelTypeVLLM,
+				Status: types.ModelStatusDownloadFailed,
+			},
+		}},
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/admin/runtime/queues", nil)
+	req = req.WithContext(context.WithValue(req.Context(), types.TenantIDContextKey, uint64(10000)))
+	ctx.Request = req
+
+	handler.GetRuntimeQueues(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response RuntimeQueuesResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	got := map[string]modellimiter.RuntimeStat{}
+	for _, model := range response.Models {
+		got[model.ModelID] = model
+	}
+	qa, ok := got["lexai-thor-vllm-qwen35-9b-qa"]
+	if !ok {
+		t.Fatalf("configured QA model missing from runtime stats: %+v", response.Models)
+	}
+	if qa.Name != "Qwen3.5-9B-AWQ" || qa.Limit != 14 || qa.Active != 0 || qa.Waiting != 0 {
+		t.Fatalf("unexpected QA runtime stat: %+v", qa)
+	}
+	embedding, ok := got["lexai-thor-vllm-bge-m3-embedding"]
+	if !ok {
+		t.Fatalf("configured embedding model missing from runtime stats: %+v", response.Models)
+	}
+	if embedding.Limit != 32 {
+		t.Fatalf("embedding should use default model limit, got %+v", embedding)
+	}
+	if _, ok := got["disabled-vlm"]; ok {
+		t.Fatalf("inactive model should not be shown: %+v", response.Models)
 	}
 }
 

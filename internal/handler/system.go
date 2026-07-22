@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,11 @@ type SystemHandler struct {
 	// runtime task console. It updates business state and tracing before queue
 	// records are removed, unlike a raw Redis deletion.
 	knowledgeSvc runtimeKnowledgeCanceller
+	// modelSvc lets the runtime dashboard show configured model budgets even
+	// before a model has been observed by the background limiter.
+	modelSvc interface {
+		ListModels(context.Context) ([]*types.Model, error)
+	}
 	// storageBackendRepo lets GetStorageEngineStatus report multi-instance
 	// storage backends (Settings → Storage) as "available", not just the legacy
 	// singleton tenant.StorageEngineConfig. Optional — nil in partially-wired
@@ -76,6 +82,7 @@ func NewSystemHandler(cfg *config.Config,
 	auditSvc interfaces.AuditLogService,
 	taskInspector interfaces.TaskInspector,
 	knowledgeSvc interfaces.KnowledgeService,
+	modelSvc interfaces.ModelService,
 	storageBackendRepo interfaces.StorageBackendRepository,
 ) *SystemHandler {
 	return &SystemHandler{
@@ -88,6 +95,7 @@ func NewSystemHandler(cfg *config.Config,
 		auditSvc:           auditSvc,
 		taskInspector:      taskInspector,
 		knowledgeSvc:       knowledgeSvc,
+		modelSvc:           modelSvc,
 		storageBackendRepo: storageBackendRepo,
 	}
 }
@@ -1775,6 +1783,79 @@ func sameQueueWeights(left, right map[string]int) bool {
 	return true
 }
 
+const runtimeModelDefaultLimit = 32
+
+func (h *SystemHandler) runtimeModelDefaultConcurrency(ctx context.Context) int {
+	if h.systemSettingSvc == nil {
+		return runtimeModelDefaultLimit
+	}
+	return int(h.systemSettingSvc.GetInt(ctx, "model.max_concurrency",
+		"WEKNORA_MODEL_MAX_CONCURRENCY", runtimeModelDefaultLimit))
+}
+
+func isRuntimeLimitedModel(modelType types.ModelType) bool {
+	switch modelType {
+	case types.ModelTypeEmbedding, types.ModelTypeKnowledgeQA, types.ModelTypeVLLM:
+		return true
+	default:
+		return false
+	}
+}
+
+func modelRuntimeLimit(model *types.Model, fallback int) int {
+	if model != nil && model.Parameters.MaxConcurrency > 0 {
+		return model.Parameters.MaxConcurrency
+	}
+	return fallback
+}
+
+func (h *SystemHandler) mergeConfiguredModelRuntimeStats(
+	ctx context.Context,
+	stats []modellimiter.RuntimeStat,
+) []modellimiter.RuntimeStat {
+	if h.modelSvc == nil {
+		if stats == nil {
+			return []modellimiter.RuntimeStat{}
+		}
+		return stats
+	}
+	if _, ok := types.TenantIDFromContext(ctx); !ok {
+		return stats
+	}
+	models, err := h.modelSvc.ListModels(ctx)
+	if err != nil {
+		logger.Errorf(ctx, "list models for runtime stats failed: %v", err)
+		return stats
+	}
+	defaultLimit := h.runtimeModelDefaultConcurrency(ctx)
+	byID := make(map[string]int, len(stats)+len(models))
+	for i := range stats {
+		byID[stats[i].ModelID] = i
+	}
+	for _, model := range models {
+		if model == nil || model.Status != types.ModelStatusActive || !isRuntimeLimitedModel(model.Type) {
+			continue
+		}
+		if idx, ok := byID[model.ID]; ok {
+			if stats[idx].Name == "" {
+				stats[idx].Name = model.Name
+			}
+			if stats[idx].Limit <= 0 {
+				stats[idx].Limit = modelRuntimeLimit(model, defaultLimit)
+			}
+			continue
+		}
+		byID[model.ID] = len(stats)
+		stats = append(stats, modellimiter.RuntimeStat{
+			ModelID: model.ID,
+			Name:    model.Name,
+			Limit:   modelRuntimeLimit(model, defaultLimit),
+		})
+	}
+	sort.Slice(stats, func(i, j int) bool { return stats[i].ModelID < stats[j].ModelID })
+	return stats
+}
+
 // GetRuntimeQueues godoc
 // @Summary      获取解析任务队列运行时状态
 // @Description  返回各 asynq 队列的实时深度（pending/active/scheduled/retry 等）与 worker 并发配置，仅系统管理员可见
@@ -1838,7 +1919,7 @@ func (h *SystemHandler) GetRuntimeQueues(c *gin.Context) {
 		logger.Errorf(ctx, "get model concurrency stats failed: %v", modelErr)
 	}
 	resp.ModelLimiterAvailable = modelSupported
-	resp.Models = modelStats
+	resp.Models = h.mergeConfiguredModelRuntimeStats(ctx, modelStats)
 
 	c.JSON(http.StatusOK, resp)
 }
