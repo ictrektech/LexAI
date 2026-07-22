@@ -192,7 +192,6 @@ services:
       TRANSFORMERS_CACHE: /data/huggingface
     volumes:
       - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/data
-      - ${MODEL_HUB_HF_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models/huggingface}:/data/huggingface
       - ${OLLAMA_MODELS_DIR:-/data/jhu/dev/workspace/lexai/ollama/models}:/data/ollama/models
     depends_on:
       model-hub-ollama:
@@ -293,7 +292,7 @@ services:
     ports:
       - "${VLLM_HOST_PORT:-32222}:22222"
     volumes:
-      - ${VLLM_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models}:/data/models
+      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/modelhub:ro
       - ${THOR_HOST_HOME:-/home/jhu}:${THOR_CONTAINER_HOME:-/home/jhu}
     working_dir: ${THOR_CONTAINER_HOME:-/home/jhu}
     entrypoint: ["/bin/bash", "-lc"]
@@ -326,7 +325,7 @@ services:
           fi
           printf '%s\n' "$$candidate"
         }
-        model_path="$$(resolve_model_path "${VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ}")"
+        model_path="$$(resolve_model_path "${VLLM_MODEL_PATH:-/modelhub/export/hf/QuantTrio/Qwen3.5-9B-AWQ/current}")"
         echo "Using qwen model path: $$model_path"
         exec vllm serve "$$model_path" \
           --served-model-name "${VLLM_SERVED_MODEL_NAME:-Qwen3.5-9B-AWQ}" \
@@ -375,8 +374,7 @@ services:
     ports:
       - "${BGE_VLLM_HOST_PORT:-32223}:22223"
     volumes:
-      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/data/model_hub
-      - ${VLLM_MODELS_DIR:-/data/jhu/dev/workspace/lexai/models}:/data/models
+      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/modelhub:ro
       - ${THOR_HOST_HOME:-/home/jhu}:${THOR_CONTAINER_HOME:-/home/jhu}
     working_dir: ${THOR_CONTAINER_HOME:-/home/jhu}
     entrypoint: ["/bin/bash", "-lc"]
@@ -396,7 +394,7 @@ services:
           fi
           printf '%s\n' "$$candidate"
         }
-        model_path="$$(resolve_model_path "${BGE_VLLM_MODEL_PATH:-/data/models/huggingface/hub/models--BAAI--bge-m3}")"
+        model_path="$$(resolve_model_path "${BGE_VLLM_MODEL_PATH:-/modelhub/export/hf/BAAI/bge-m3/current}")"
         echo "Using bge model path: $$model_path"
         exec vllm serve "$$model_path" \
           --served-model-name "${BGE_VLLM_SERVED_MODEL_NAME:-bge-m3}" \

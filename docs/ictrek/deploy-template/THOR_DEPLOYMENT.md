@@ -20,7 +20,8 @@ cp .env.thor.example .env.thor
 Edit secrets in `.env.thor`. Keep the thor model defaults unless the source doc changes:
 
 ```dotenv
-VLLM_MODEL_PATH=/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ
+MODEL_HUB_DATA_DIR=/data/jhu/dev/workspace/lexai/model_hub
+VLLM_MODEL_PATH=/modelhub/export/hf/QuantTrio/Qwen3.5-9B-AWQ/current
 VLLM_SERVED_MODEL_NAME=Qwen3.5-9B-AWQ
 VLLM_GPU_MEMORY_UTILIZATION=0.65
 VLLM_MAX_MODEL_LEN=65536
@@ -29,7 +30,7 @@ VLLM_MAX_NUM_BATCHED_TOKENS=4096
 VLLM_MAX_JOBS=4
 VLLM_ENFORCE_EAGER=true
 THOR_VLLM_ENABLE_MTP=false
-BGE_VLLM_MODEL_PATH=/data/models/huggingface/hub/models--BAAI--bge-m3
+BGE_VLLM_MODEL_PATH=/modelhub/export/hf/BAAI/bge-m3/current
 BGE_VLLM_SERVED_MODEL_NAME=bge-m3
 BGE_VLLM_GPU_MEMORY_UTILIZATION=0.1
 BGE_VLLM_MAX_NUM_SEQS=16
@@ -76,11 +77,11 @@ For answer length, distinguish UI-level agent settings from deployment-level saf
 4. Both env values reserve output tokens before RAG context or tool results are packed. With tc97's current values, `65536 - 24576 - 768 = 40192` tokens remain for retrieved context and tool output. Raising answer output without raising the vLLM/app context window reduces input budget and can make retrieval weaker.
 5. If a host cannot keep chat smooth at 64k, lower all three values together, for example `49152` model/context window, `16384` output, and the same safety margin.
 
-`VLLM_MODEL_PATH` and `BGE_VLLM_MODEL_PATH` must be paths that exist inside the vLLM containers. The compose file mounts `${VLLM_MODELS_DIR}` as `/data/models` and resolves a Hugging Face model root such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ` to its newest `snapshots/<hash>` directory automatically. Avoid host absolute paths such as `/data/jhu/dev/workspace/lexai/...` inside these variables.
+`VLLM_MODEL_PATH` and `BGE_VLLM_MODEL_PATH` must be paths that exist inside the vLLM containers. Thor vLLM services mount `${MODEL_HUB_DATA_DIR}` as read-only `/modelhub`; point the model path to Model Hub's stable export entry, for example `/modelhub/export/hf/QuantTrio/Qwen3.5-9B-AWQ/current` and `/modelhub/export/hf/BAAI/bge-m3/current`. Avoid host absolute paths such as `/data/jhu/dev/workspace/lexai/...` inside these variables.
 
 ## Model preparation
 
-The persistent model/data root is `/data/jhu/dev/workspace/lexai`. Keep model-hub, vLLM models, Ollama models, uploaded files, database volumes, docreader cache, and future migrated data under this root.
+The persistent model/data root is `/data/jhu/dev/workspace/lexai`. Keep Model Hub, Ollama models, uploaded files, database volumes, docreader cache, and future migrated data under this root. Model Hub owns the non-Ollama model tree under `${MODEL_HUB_DATA_DIR}` and exposes stable model paths as `${MODEL_HUB_DATA_DIR}/export/hf/<org>/<repo>/current` or `${MODEL_HUB_DATA_DIR}/export/ms/<org>/<repo>/current`.
 
 If the models are missing, start only model_hub first and pull:
 
@@ -96,6 +97,8 @@ hf://BAAI/bge-m3
 hf://QuantTrio/Qwen3.5-9B-AWQ
 ```
 
+When upgrading from the older Thor layout, the old HF cache may still be under `/data/jhu/dev/workspace/lexai/models/huggingface`. Stop app/vLLM/model_hub first, move that directory to `${MODEL_HUB_DATA_DIR}/huggingface`, then start the new Model Hub backend and call `POST /api/v1/models/sync`. The new Model Hub migrates legacy `huggingface/hub/models--...` entries into `export/hf/.../current`. Do not keep vLLM mounted to the old `models/huggingface` tree after migration.
+
 If Hugging Face is slow, keep:
 
 ```dotenv
@@ -107,8 +110,8 @@ On the validated tc97 model_hub backend, `ms://BAAI/bge-m3` failed with a ModelS
 Confirm the snapshot exists:
 
 ```bash
-find /data/jhu/dev/workspace/lexai/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ/snapshots -mindepth 1 -maxdepth 1 -name '*' -exec test -f '{}/config.json' ';' -print
-find /data/jhu/dev/workspace/lexai/models/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 1 -maxdepth 1 -name '*' -exec test -f '{}/config.json' ';' -print
+test -f /data/jhu/dev/workspace/lexai/model_hub/export/hf/QuantTrio/Qwen3.5-9B-AWQ/current/config.json
+test -f /data/jhu/dev/workspace/lexai/model_hub/export/hf/BAAI/bge-m3/current/config.json
 ```
 
 ## Cleanup before deployment
@@ -138,7 +141,7 @@ done
 ./deploy-thor.sh
 ```
 
-`deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend model_hub tags are resolved separately because their latest versions can differ.
+`deploy-thor.sh` creates the `lexai` Docker network if needed, reads the latest thor component tags from Feishu, writes the image variables into `.env.thor`, and runs compose. Frontend and backend Model Hub tags are resolved separately because their latest versions can differ. Manual deployment checks LexAI, sandbox, Model Hub, and Ollama image variables and replaces only services whose image changed. The web "检测更新" button intentionally uses `--check-only` and only checks LexAI runtime images (`lexai`, `lexai-ui`, `lexai-docreader`, `lexai-sandbox`); it does not replace Model Hub or Ollama.
 
 Agent Skills are available only when the backend sandbox is enabled. The thor
 template uses Docker sandbox mode by default: `app` mounts the host Docker

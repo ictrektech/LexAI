@@ -157,6 +157,8 @@ cd /data/jhu/dev/workspace/lexai/deploy
 ./deploy-thor.sh
 ```
 
+Thor 部署使用 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 中的专用路径约定：Model Hub 的共享目录由 `MODEL_HUB_DATA_DIR` 控制，vLLM 容器只读挂载为 `/modelhub`，模型路径应写成 `/modelhub/export/hf/<org>/<repo>/current` 或 `/modelhub/export/ms/<org>/<repo>/current`。不要在 Thor 的 `VLLM_MODEL_PATH` / `BGE_VLLM_MODEL_PATH` 中继续使用旧的 `/data/models/huggingface` 路径。
+
 [deploy.sh](deploy-template/deploy.sh) 会分别查找这些组件的最新镜像，允许 LexAI 组件、sandbox runtime 和 model_hub/ollama 使用不同版本：
 
 ```text
@@ -170,6 +172,8 @@ OLLAMA_SERVER_IMAGE
 ```
 
 脚本会把查到的镜像写回 `.env`、`.env.tc232` 或 `.env.thor`，然后执行对应 compose 文件的 `up -d`。
+
+网页右上角“检测更新”按钮使用 `deploy.sh --check-only`，只检测和替换 LexAI 运行镜像与 sandbox 镜像，不替换 model_hub 或 Ollama。纯手动首次部署或在服务器上直接执行部署脚本时，会继续检测 model_hub / Ollama 镜像，确保新机器首次部署拿到匹配版本。
 
 `--platform l4t` 默认读取飞书表格里的 `l4t` sheet。全 Ollama 模板中的 `model-hub-ollama` 已显式配置 `runtime: nvidia`、`NVIDIA_VISIBLE_DEVICES=all` 和 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`，避免 Orin NX / Jetson 主机按 Docker 默认 `runc` 启动后模型落到 CPU。部署后可用下面命令确认：
 

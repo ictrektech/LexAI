@@ -652,13 +652,16 @@ else
   if service_needs_image_update frontend "$LEXAI_UI_IMAGE"; then append_service_once frontend; fi
   if service_needs_image_update app "$LEXAI_APP_IMAGE"; then append_service_once app; fi
   if service_needs_image_update docreader "$LEXAI_DOCREADER_IMAGE"; then append_service_once docreader; fi
+  if service_needs_image_update model-hub-backend "$MODEL_HUB_BACKEND_IMAGE"; then append_service_once model-hub-backend; fi
+  if service_needs_image_update model-hub-frontend "$MODEL_HUB_FRONTEND_IMAGE"; then append_service_once model-hub-frontend; fi
+  if service_needs_image_update model-hub-ollama "$OLLAMA_SERVER_IMAGE"; then append_service_once model-hub-ollama; fi
   if [[ "${PREVIOUS_SANDBOX_IMAGE:-}" != "$LEXAI_SANDBOX_IMAGE" ]]; then append_service_once app; fi
   if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && service_needs_image_update deploy-updater "$LEXAI_APP_IMAGE"; then append_service_once deploy-updater; fi
 fi
 
 if [[ "$CONFIG_CHANGED" == "1" ]]; then
   if [[ "$CHECK_ONLY" != "1" ]]; then
-    for service in frontend app docreader; do
+    for service in frontend app docreader model-hub-backend model-hub-frontend model-hub-ollama qwen35-9b-vllm bge-m3-vllm; do
       compose_has_service "$service" && append_service_once "$service"
     done
     if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" != "true" ]] && compose_has_service deploy-updater; then
@@ -715,6 +718,15 @@ fi
 if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]] && compose_has_service docreader; then
   wait_service_healthy docreader 180
 fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-backend "* ]] && compose_has_service model-hub-backend; then
+  wait_service_healthy model-hub-backend 180
+fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-ollama "* ]] && compose_has_service model-hub-ollama; then
+  wait_service_healthy model-hub-ollama 180
+fi
+if [[ " ${UPDATE_SERVICES[*]} " == *" qwen35-9b-vllm "* || " ${UPDATE_SERVICES[*]} " == *" bge-m3-vllm "* ]]; then
+  wait_vllm_ready
+fi
 if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] && compose_has_service app; then
   wait_service_healthy app 180
 fi
@@ -733,13 +745,6 @@ if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" == "true" ]] \
     cd "$ROOT_DIR"
     WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE=false docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps deploy-updater
   ) >>"${ROOT_DIR}/update-and-deploy.log" 2>&1 &
-fi
-
-if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-backend "* ]] && compose_has_service model-hub-backend; then
-  wait_service_healthy model-hub-backend 180
-fi
-if [[ " ${UPDATE_SERVICES[*]} " == *" model-hub-ollama "* ]] && compose_has_service model-hub-ollama; then
-  wait_service_healthy model-hub-ollama 180
 fi
 
 if [[ " ${UPDATE_SERVICES[*]} " == *" qwen35-9b-vllm "* || " ${UPDATE_SERVICES[*]} " == *" bge-m3-vllm "* ]]; then

@@ -175,7 +175,7 @@ cp .env.thor.example .env.thor
 ./deploy-thor.sh
 ```
 
-Thor persistent data defaults to `/data/jhu/dev/workspace/lexai` for LexAI, model_hub, Ollama, Postgres, Redis, Neo4j, files, and docreader. Both qwen and bge vLLM containers mount `/data/jhu/dev/workspace/lexai/models:/data/models`; use container paths such as `/data/models/huggingface/hub/models--QuantTrio--Qwen3.5-9B-AWQ`, not host absolute paths.
+Thor persistent data defaults to `/data/jhu/dev/workspace/lexai` for LexAI, model_hub, Ollama, Postgres, Redis, Neo4j, files, and docreader. Model Hub owns the Hugging Face / ModelScope model cache under `${MODEL_HUB_DATA_DIR}` and exports stable model entries under `export/hf/.../current` or `export/ms/.../current`. Both qwen and bge vLLM containers mount `${MODEL_HUB_DATA_DIR}` as read-only `/modelhub`; use container paths such as `/modelhub/export/hf/QuantTrio/Qwen3.5-9B-AWQ/current`, not host absolute paths or the legacy `/data/models/huggingface` tree.
 
 When updating the tc232 deploy directory from this repo, use:
 
