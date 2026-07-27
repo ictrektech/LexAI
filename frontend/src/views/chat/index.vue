@@ -879,6 +879,16 @@ const showGlobalTypingIndicator = computed(() =>
     shouldShowGlobalTypingIndicator(messagesList, loading.value, isImRecovering.value),
 );
 
+const getRenderedMessageAnswerText = (message) => {
+    const content = String(message?.content || '');
+    if (content.trim()) return content;
+    if (!Array.isArray(message?.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
+};
+
 const normalizeRenderedMessageContent = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
 const getRenderedAssistantScore = (message) => {
@@ -891,7 +901,7 @@ const getRenderedAssistantScore = (message) => {
     if (message?.isAgentMode) score += 10;
     if (message?.request_id) score += 2;
     if (message?.id) score += 1;
-    score += normalizeRenderedMessageContent(message?.content).length / 10000;
+    score += normalizeRenderedMessageContent(getRenderedMessageAnswerText(message)).length / 10000;
     return score;
 };
 
@@ -908,7 +918,7 @@ const renderedMessagesList = computed(() => {
 
         if (
             message.role === 'assistant' &&
-            normalizeRenderedMessageContent(message.content)
+            normalizeRenderedMessageContent(getRenderedMessageAnswerText(message))
         ) {
             if (currentTurnAssistantIndex >= 0) {
                 const existing = result[currentTurnAssistantIndex];

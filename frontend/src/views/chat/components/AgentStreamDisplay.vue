@@ -1292,6 +1292,10 @@ watch(eventStream, (stream) => {
 
 // Check if conversation is done (based on answer event with done=true or stop event)
 const isConversationDone = computed(() => {
+  if (props.session?.is_completed) {
+    return true;
+  }
+
   const stream = eventStream.value;
   if (!stream || stream.length === 0) {
     console.log('[Collapse] No stream or empty stream');
@@ -1324,10 +1328,81 @@ const streamingMermaidSvgCache = ref<string | null>(null);
 let streamingMermaidRenderTask: Promise<void> | null = null;
 let streamingMermaidRenderId = 0;
 
-const activeAnswerMarkdown = computed(() => {
+const normalizeAnswerEventContent = (event: any): string => {
+  return String(event?.content || '').replace(/\s+/g, ' ').trim();
+};
+
+const mergeAnswerText = (previousValue: unknown, nextValue: unknown): string => {
+  const previous = String(previousValue || '');
+  const next = String(nextValue || '');
+  if (!previous) return next;
+  if (!next) return previous;
+  if (previous === next) return previous;
+  if (next.startsWith(previous)) return next;
+  if (previous.startsWith(next)) return previous;
+
+  const maxOverlap = Math.min(previous.length, next.length);
+  for (let size = maxOverlap; size > 0; size -= 1) {
+    if (previous.endsWith(next.slice(0, size))) {
+      return previous + next.slice(size);
+    }
+  }
+
+  return previous + next;
+};
+
+const compactAnswerEvents = (events: any[]): any[] => {
+  const retained: any[] = [];
+  let answerIndex = -1;
+
+  for (const event of events) {
+    if (!event || event.type !== 'answer') {
+      retained.push(event);
+      continue;
+    }
+
+    if (event.superseded) {
+      retained.push(event);
+      continue;
+    }
+
+    if (answerIndex < 0) {
+      answerIndex = retained.length;
+      retained.push({ ...event });
+      continue;
+    }
+
+    const existing = retained[answerIndex];
+    retained[answerIndex] = {
+      ...existing,
+      ...event,
+      event_id: existing.event_id || event.event_id,
+      content: mergeAnswerText(existing.content, event.content),
+      done: Boolean(existing.done || event.done),
+      is_fallback: Boolean(existing.is_fallback || event.is_fallback),
+    };
+  }
+
+  return retained;
+};
+
+const markCompletedAnswerEvents = (events: any[]): any[] => {
+  if (!props.session?.is_completed) return events;
+  return events.map((event) => {
+    if (!event || event.type !== 'answer' || event.superseded || event.done) return event;
+    return { ...event, done: true };
+  });
+};
+
+const visibleAnswerEvents = computed(() => {
   const stream = eventStream.value;
-  if (!stream?.length) return '';
-  const answers = stream.filter((e: any) => e.type === 'answer' && !e.superseded);
+  if (!stream?.length) return [];
+  return markCompletedAnswerEvents(compactAnswerEvents(buildFullEventList(stream)))
+    .filter((e: any) => e.type === 'answer' && !e.superseded);
+});
+
+const activeAnswerMarkdown = computed(() => {
+  const answers = visibleAnswerEvents.value;
   const active = answers.find((e: any) => !e.done) ?? answers[answers.length - 1];
   return typeof active?.content === 'string' ? active.content : '';
 });
@@ -1335,9 +1410,7 @@ const activeAnswerMarkdown = computed(() => {
 // The answer event whose text is currently streaming. The template renders the
 // smoothed typewriter text for this event and the raw content for any others.
 const activeAnswerEventRef = computed(() => {
-  const stream = eventStream.value;
-  if (!stream?.length) return null;
-  const answers = stream.filter((e: any) => e.type === 'answer' && !e.superseded);
+  const answers = visibleAnswerEvents.value;
   return answers.find((e: any) => !e.done) ?? answers[answers.length - 1] ?? null;
 });
 
@@ -1777,7 +1850,7 @@ const hiddenThinkingEventIds = computed<Set<string>>(() => {
 const intermediateEvents = computed(() => {
   const stream = eventStream.value;
   if (!stream || !Array.isArray(stream)) return [];
-  const result = buildFullEventList(stream);
+  const result = markCompletedAnswerEvents(compactAnswerEvents(buildFullEventList(stream)));
   const hidden = hiddenThinkingEventIds.value;
   return result.filter((e: any) => {
     if (e.type === 'answer' || e.type === 'agent_complete') return false;
@@ -1798,7 +1871,7 @@ const displayEvents = computed(() => {
     return [];
   }
 
-  const result = buildFullEventList(stream);
+  const result = markCompletedAnswerEvents(compactAnswerEvents(buildFullEventList(stream)));
 
   // Quick-answer RAG: pipeline steps (including attachment prep) live in
   // RagPipelineProgress; this component only renders the answer stream.
@@ -1813,7 +1886,7 @@ const displayEvents = computed(() => {
   }
 
   // Done: the steps live in the collapsed tree; show only the answer here.
-  const answerEvents = result.filter((e: any) => e.type === 'answer');
+  const answerEvents = result.filter((e: any) => e.type === 'answer' && !e.superseded);
   if (answerEvents.length > 0) {
     return answerEvents;
   }
@@ -1854,10 +1927,6 @@ const displayEvents = computed(() => {
 
   return result;
 });
-
-const normalizeAnswerEventContent = (event: any): string => {
-  return String(event?.content || '').replace(/\s+/g, ' ').trim();
-};
 
 const dedupeAnswerEvents = (events: any[]): any[] => {
   const retained: any[] = [];
