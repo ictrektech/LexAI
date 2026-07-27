@@ -896,6 +896,7 @@ const {
                 return;
             }
             isAttachingContinueStream.value = true;
+            fullContent.value = '';
             await startStream({
                 session_id: targetSessionId,
                 query: targetMessageId,
@@ -1122,6 +1123,7 @@ const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
 const replayBackgroundChunks = (targetSessionId) => {
     const chunks = drainSessionChunks(targetSessionId);
     if (!chunks?.length || session_id.value !== targetSessionId) return;
+    fullContent.value = '';
     chunks.forEach((chunk) => processStreamChunk(chunk));
 };
 

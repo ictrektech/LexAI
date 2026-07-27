@@ -204,12 +204,20 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         existing.request_id === currentAssistantMessageId.value)
     const streamId = existing.id
     const streamRequestId = existing.request_id
+    const existingContent = existing.content
+    const incomingContent = item.content
 
     Object.assign(existing, item)
 
     if (keepStreamIdentity) {
       if (streamId) existing.id = streamId
       if (streamRequestId) existing.request_id = streamRequestId
+      if (String(existingContent || '').length > String(incomingContent || '').length) {
+        existing.content = existingContent
+      }
+      if (!existing.is_completed && existing.__stream_active === undefined) {
+        existing.__stream_active = true
+      }
     }
   }
 
@@ -766,7 +774,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             if (eventId) eventMap.set(eventId, thinkingEvent)
           }
           if (data.content) {
-            thinkingEvent.content = String(thinkingEvent.content || '') + String(data.content)
+            thinkingEvent.content += data.content
             log('[Thinking] Event', eventId, 'accumulated:', String(thinkingEvent.content).length, 'chars')
           }
         } else {
@@ -1003,7 +1011,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (eventId) eventMap.set(eventId, answerEvent)
         }
         if (data.content) {
-          answerEvent.content = mergeStreamText(answerEvent.content, data.content)
+          answerEvent.content += data.content
           message.content = recomposeAgentAnswer(message)
           fullContent.value = String(message.content || '')
         } else if (!answerEvent.content && message.content && String(message.content).trim()) {
