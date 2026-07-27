@@ -131,3 +131,17 @@ test('completed agent answers leave streaming text and render markdown immediate
   assert.match(agentStreamSource, /<pre v-if="isAnswerEventStreaming\(event\)" class="streaming-answer-text">/)
   assert.match(agentStreamSource, /const answerFullyRendered = computed\(\s*\(\) => isConversationDone\.value \|\| !hasActiveAnswerStream\.value,\s*\)/)
 })
+
+test('switching back to an in-flight stream anchors at the active turn start', () => {
+  assert.match(source, /:data-message-index="index"/)
+  assert.match(source, /const pendingInFlightTurnAnchorSessionId = ref\(''\)/)
+  assert.match(source, /const findActiveTurnUserRenderedIndex = \(\) => \{/)
+  assert.match(source, /message\?\.role !== 'assistant'[\s\S]*message\.is_completed && !message\.__stream_active/)
+  assert.match(source, /const anchorRestoredInFlightTurn = \(targetSessionId = session_id\.value\) => \{/)
+  assert.match(source, /const userIndex = findActiveTurnUserRenderedIndex\(\);[\s\S]*if \(userIndex < 0\) return;[\s\S]*pendingInFlightTurnAnchorSessionId\.value = '';/)
+  assert.match(source, /pendingInFlightTurnAnchorSessionId\.value = targetSessionId/)
+  assert.match(source, /if \(!isScrollType && pendingInFlightTurnAnchorSessionId\.value === targetSessionId\) \{[\s\S]*isFirstEnter\.value = false;[\s\S]*userHasScrolledUp\.value = true;/)
+  assert.match(source, /onBeforeAfterMsgList: \(\) => anchorRestoredInFlightTurn\(session_id\.value\)/)
+  assert.match(source, /restoreCachedInFlightTurn\(targetSessionId\);[\s\S]*replayBackgroundChunks\(targetSessionId\);[\s\S]*anchorRestoredInFlightTurn\(targetSessionId\);/)
+  assert.match(source, /\.chat \{[\s\S]*height: 100%;[\s\S]*overflow: hidden;/)
+})

@@ -74,7 +74,8 @@
                   仅对极少数尚未拿到 id 的本地占位消息 fallback 到 role+created_at+index。
                 -->
                 <div v-for="(session, index) in renderedMessagesList"
-                    :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper">
+                    :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper"
+                    :data-message-index="index" :data-message-role="session.role">
 
                     <div v-if="session.role == 'user'">
                         <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
@@ -690,6 +691,7 @@ watch([() => route.params], async (newvalue) => {
         isReplying.value = false;
         currentAssistantMessageId.value = '';
         userHasScrolledUp.value = false;
+        pendingInFlightTurnAnchorSessionId.value = targetSessionId;
 
         // 跨会话切换：先把旧会话覆盖前的全局默认还原，再让新会话重新拍快照
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
@@ -838,6 +840,7 @@ const {
     isFirstEnter,
     scrollContainer,
     debug: import.meta.env.DEV,
+    onBeforeAfterMsgList: () => anchorRestoredInFlightTurn(session_id.value),
     onAfterMsgList: async () => {
         for (const message of messagesList) {
             if (message.role === 'assistant' && message.is_completed && message.suggestionSet === undefined) {
@@ -966,6 +969,44 @@ const renderedMessagesList = computed(() => {
     return result;
 });
 
+const pendingInFlightTurnAnchorSessionId = ref('');
+
+const findActiveTurnUserRenderedIndex = () => {
+    for (let i = renderedMessagesList.value.length - 1; i >= 0; i -= 1) {
+        const message = renderedMessagesList.value[i];
+        if (message?.role !== 'assistant') continue;
+        if (message.is_completed && !message.__stream_active) continue;
+        for (let j = i - 1; j >= 0; j -= 1) {
+            if (renderedMessagesList.value[j]?.role === 'user') return j;
+        }
+    }
+    return -1;
+};
+
+const scrollToRenderedMessageIndex = (index) => {
+    if (index < 0) return false;
+    nextTick(() => {
+        window.requestAnimationFrame(() => {
+            const container = scrollContainer.value;
+            const target = container?.querySelector(`[data-message-index="${index}"]`);
+            if (!container || !target) return;
+            container.scrollTop = Math.max(0, target.offsetTop - container.offsetTop - 8);
+            lastScrollTop = container.scrollTop;
+        });
+    });
+    return true;
+};
+
+const anchorRestoredInFlightTurn = (targetSessionId = session_id.value) => {
+    if (pendingInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    const userIndex = findActiveTurnUserRenderedIndex();
+    if (userIndex < 0) return;
+    pendingInFlightTurnAnchorSessionId.value = '';
+    isFirstEnter.value = false;
+    userHasScrolledUp.value = true;
+    scrollToRenderedMessageIndex(userIndex);
+};
+
 const replayBackgroundChunks = (targetSessionId) => {
     const chunks = drainSessionChunks(targetSessionId);
     if (!chunks?.length || session_id.value !== targetSessionId) return;
@@ -987,6 +1028,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
             } else {
                 restoreCachedInFlightTurn(targetSessionId);
                 replayBackgroundChunks(targetSessionId);
+                anchorRestoredInFlightTurn(targetSessionId);
             }
             return;
         }
@@ -1002,10 +1044,15 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
             hasMoreHistory.value = false;
         }
         created_at.value = nextCursor;
+        if (!isScrollType && pendingInFlightTurnAnchorSessionId.value === targetSessionId) {
+            isFirstEnter.value = false;
+            userHasScrolledUp.value = true;
+        }
         await handleMsgList(batch, isScrollType, scrollHeight);
         if (!isScrollType) {
             restoreCachedInFlightTurn(targetSessionId);
             replayBackgroundChunks(targetSessionId);
+            anchorRestoredInFlightTurn(targetSessionId);
         }
     }).catch((err) => {
         console.error('Failed to load messages:', err);
@@ -1411,6 +1458,8 @@ onBeforeRouteUpdate((to, from, next) => {
     // own flex:1 child (.chat_scroll_box) can shrink below its content
     // height and scroll instead of pushing .input-container out of view.
     min-height: 0;
+    height: 100%;
+    overflow: hidden;
     position: relative;
     display: flex;
     flex-direction: column;

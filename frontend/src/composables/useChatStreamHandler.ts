@@ -20,6 +20,7 @@ export interface UseChatStreamHandlerOptions {
   isFirstEnter?: Ref<boolean>
   scrollContainer?: Ref<HTMLElement | null>
   onAfterMsgList?: () => void | Promise<void>
+  onBeforeAfterMsgList?: () => void
   onAgentQuery?: (
     data: ChatMessage,
     existingMessage: ChatMessage | undefined,
@@ -49,6 +50,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     isFirstEnter,
     scrollContainer,
     onAfterMsgList,
+    onBeforeAfterMsgList,
     onAgentQuery,
     onMessageCreated,
     onMessageUpdated,
@@ -600,6 +602,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         scrollContainer.value.scrollTop = scrollHeight - newScrollHeight
       })
     }
+
+    onBeforeAfterMsgList?.()
 
     if (onAfterMsgList) {
       await onAfterMsgList()
