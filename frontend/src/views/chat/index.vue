@@ -447,7 +447,9 @@ const cloneMessageForInFlightCache = (message) => {
     if (Array.isArray(message.attachments)) cloned.attachments = message.attachments.slice();
     if (Array.isArray(message.mentioned_items)) cloned.mentioned_items = message.mentioned_items.slice();
     if (Array.isArray(message.knowledge_references)) cloned.knowledge_references = message.knowledge_references.slice();
-    if (Array.isArray(message.agentEventStream)) cloned.agentEventStream = message.agentEventStream.slice();
+    if (Array.isArray(message.agentEventStream)) {
+        cloned.agentEventStream = message.agentEventStream.map((event) => ({ ...event }));
+    }
     if (message._eventMap instanceof Map) cloned._eventMap = new Map(message._eventMap);
     if (message._pendingToolCalls instanceof Map) cloned._pendingToolCalls = new Map(message._pendingToolCalls);
     return cloned;
@@ -490,18 +492,102 @@ const messageIdentityMatches = (left, right) => {
     return false;
 };
 
+const mergeStreamText = (prefixValue, suffixValue) => {
+    const prefix = String(prefixValue || '');
+    const suffix = String(suffixValue || '');
+    if (!prefix) return suffix;
+    if (!suffix) return prefix;
+    if (prefix === suffix) return prefix;
+    if (suffix.startsWith(prefix)) return suffix;
+    if (prefix.startsWith(suffix)) return prefix;
+    if (prefix.endsWith(suffix)) return prefix;
+
+    const maxOverlap = Math.min(prefix.length, suffix.length);
+    for (let size = maxOverlap; size > 0; size--) {
+        if (prefix.endsWith(suffix.slice(0, size))) {
+            return prefix + suffix.slice(size);
+        }
+    }
+    return prefix + suffix;
+};
+
+const cloneAgentEvent = (event) => ({ ...event });
+
+const agentEventIdentityMatches = (left, right) => {
+    if (!left || !right) return false;
+    if (left.event_id && right.event_id && left.event_id === right.event_id) return true;
+    if (left.type !== right.type) return false;
+    if (left.type === 'answer') {
+        return !left.event_id && !right.event_id && left.superseded === right.superseded;
+    }
+    return false;
+};
+
+const mergeAgentEvent = (target, source) => {
+    if (!target || !source) return;
+    if (!target.event_id && source.event_id) target.event_id = source.event_id;
+    if (source.type && !target.type) target.type = source.type;
+    if (source.type === 'answer' || target.type === 'answer') {
+        target.content = mergeStreamText(source.content, target.content);
+    } else if (!target.content && source.content) {
+        target.content = source.content;
+    }
+    if (source.done) target.done = true;
+    if (source.pending === false) target.pending = false;
+    if (source.superseded) target.superseded = true;
+    if (source.status && !target.status) target.status = source.status;
+    if (source.title && !target.title) target.title = source.title;
+    if (source.metadata && !target.metadata) target.metadata = source.metadata;
+};
+
+const rebuildAgentEventMap = (message) => {
+    if (!Array.isArray(message.agentEventStream)) return;
+    const eventMap = new Map();
+    for (const event of message.agentEventStream) {
+        if (event?.event_id) eventMap.set(event.event_id, event);
+    }
+    message._eventMap = eventMap;
+};
+
+const composeAgentAnswerContent = (message) => {
+    if (!Array.isArray(message.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
+};
+
+const mergeAgentEventStreams = (target, source) => {
+    if (!Array.isArray(source?.agentEventStream) || !source.agentEventStream.length) return;
+    const merged = source.agentEventStream.map(cloneAgentEvent);
+    if (Array.isArray(target.agentEventStream)) {
+        for (const targetEvent of target.agentEventStream) {
+            const existing = merged.find((event) => agentEventIdentityMatches(event, targetEvent));
+            if (existing) {
+                mergeAgentEvent(existing, targetEvent);
+            } else {
+                merged.push(cloneAgentEvent(targetEvent));
+            }
+        }
+    }
+    target.agentEventStream = merged;
+    rebuildAgentEventMap(target);
+};
+
 const mergeCachedAssistantMessage = (target, source) => {
     if (!target || !source) return;
     if (!target.id && source.id) target.id = source.id;
     if (!target.request_id && source.request_id) target.request_id = source.request_id;
     const targetContent = String(target.content || '');
     const sourceContent = String(source.content || '');
-    if (sourceContent.length > targetContent.length) target.content = source.content;
+    target.content = mergeStreamText(sourceContent, targetContent);
     if (!target.knowledge_references?.length && source.knowledge_references?.length) {
         target.knowledge_references = source.knowledge_references.slice();
     }
-    if (!target.agentEventStream?.length && source.agentEventStream?.length) {
-        target.agentEventStream = source.agentEventStream.slice();
+    mergeAgentEventStreams(target, source);
+    const agentAnswerContent = composeAgentAnswerContent(target);
+    if (agentAnswerContent) {
+        target.content = mergeStreamText(target.content, agentAnswerContent);
     }
     if (!target.agent_steps && source.agent_steps) target.agent_steps = source.agent_steps;
     if (source.is_completed) target.is_completed = true;
@@ -540,7 +626,7 @@ const restoreCachedInFlightTurn = (targetSessionId) => {
     for (const cachedMessage of cached) {
         const existing = messagesList.find((message) => messageIdentityMatches(message, cachedMessage));
         if (existing) {
-            if (existing.role === 'assistant' && !existing.is_completed) {
+            if (existing.role === 'assistant') {
                 mergeCachedAssistantMessage(existing, cachedMessage);
             }
             continue;
