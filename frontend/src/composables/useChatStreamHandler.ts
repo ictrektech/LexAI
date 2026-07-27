@@ -63,6 +63,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
   const getChunkType = (data: ChatMessage) =>
     String(data.response_type || data.type || '')
+  const getChunkSessionId = (data: ChatMessage) =>
+    String(
+      data.__stream_session_id ||
+        data.session_id ||
+        ((data.data as ChatMessage | undefined)?.session_id as string | undefined) ||
+        '',
+    )
   let pendingKnowledgeReferences: unknown[] = []
 
   const findLastMessage = (predicate: (item: ChatMessage) => boolean) => {
@@ -305,7 +312,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     return message
   }
 
-  const ensureAgentMessageShell = (message: ChatMessage, requestId?: string) => {
+  const ensureAgentMessageShell = (
+    message: ChatMessage,
+    requestId?: string,
+    streamSessionId?: string,
+  ) => {
     message.isAgentMode = true
     if (!isAgentStreamSession()) {
       message.isRagMode = true
@@ -317,6 +328,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       if (!message.id) message.id = requestId
       if (!message.request_id) message.request_id = requestId
     }
+    if (streamSessionId) message.__stream_session_id = streamSessionId
   }
 
   const shouldRenderAssistantMessage = (session: ChatMessage) => {
@@ -664,6 +676,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
   const handleAgentChunk = (data: ChatMessage) => {
     const dataId = data.id as string | undefined
+    const streamSessionId = getChunkSessionId(data)
     let message = resolveActiveAssistantMessage(data)
     let created = false
 
@@ -678,6 +691,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         agentEventStream: [],
         _eventMap: new Map(),
         knowledge_references: [],
+        __stream_session_id: streamSessionId || undefined,
       }
       messagesList.push(newMsg)
       onMessageCreated?.(newMsg)
@@ -693,7 +707,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       onAgentChunkBound?.(message, true)
     }
 
-    ensureAgentMessageShell(message, dataId)
+    ensureAgentMessageShell(message, dataId, streamSessionId)
 
     const responseType = getChunkType(data)
 
@@ -999,6 +1013,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         loading.value = false
         isReplying.value = false
         message.is_completed = true
+        if (message.agentEventStream) {
+          const stream = message.agentEventStream as ChatMessage[]
+          stream.forEach((event) => {
+            if (event.type === 'answer' && !event.superseded) event.done = true
+          })
+        }
         onReplyComplete?.(String(message.content || ''))
         onTurnComplete?.(message)
         fullContent.value = ''
@@ -1084,6 +1104,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           _eventMap: new Map(),
           _pendingToolCalls: new Map(),
           knowledge_references: [],
+          __stream_session_id: getChunkSessionId(data) || undefined,
         }
         messagesList.push(existingMessage)
         onMessageCreated?.(existingMessage)
@@ -1091,7 +1112,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         scrollToBottom(true)
         log('[Agent Query] Created agent placeholder message')
       } else if (isAgentStreamSession()) {
-        ensureAgentMessageShell(existingMessage, data.id as string | undefined)
+        ensureAgentMessageShell(existingMessage, data.id as string | undefined, getChunkSessionId(data))
         log('[Agent Query] Continuing stream for existing message')
       } else {
         existingMessage.isRagMode = true
@@ -1190,6 +1211,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       role: 'assistant',
       showThink: false,
       is_completed: false,
+      __stream_session_id: getChunkSessionId(data) || undefined,
     }
 
     if ((data.data as ChatMessage | undefined)?.is_fallback) obj.is_fallback = true

@@ -302,7 +302,7 @@
             <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
               <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
-                <pre v-if="!event.done || !answerFullyRendered" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
+                <pre v-if="!event.done && !isConversationDone" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
                 <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
               <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
@@ -1386,8 +1386,15 @@ const compactAnswerEvents = (events: any[]): any[] => {
   return retained;
 };
 
+const hasTerminalAnswerEvent = (events: any[]): boolean =>
+  events.some((event: any) =>
+    event?.type === 'agent_complete' ||
+    event?.type === 'stop' ||
+    event?.type === 'complete'
+  );
+
 const markCompletedAnswerEvents = (events: any[]): any[] => {
-  if (!props.session?.is_completed) return events;
+  if (!props.session?.is_completed && !hasTerminalAnswerEvent(events)) return events;
   return events.map((event) => {
     if (!event || event.type !== 'answer' || event.superseded || event.done) return event;
     return { ...event, done: true };
@@ -1461,12 +1468,11 @@ watch(activeAnswerMarkdown, () => {
 // at completion; throttling stops the chunk-by-chunk 404 spam during streaming,
 // and this final pass guarantees they load without waiting out the cooldown.
 //
-// Gate this on the typewriter having fully revealed the answer: when done flips,
-// the smoothed text may still be catching up, so the <img> tag is not in the DOM
-// yet. Hydrating too early would find nothing and leave a permanent placeholder
-// (until a manual reload). Waiting for full reveal guarantees the image exists.
+// Stream as plain text while the answer is still running. As soon as the turn is
+// complete, switch to Markdown rendering immediately so restored in-flight turns
+// cannot stay in the grey streaming block.
 const answerFullyRendered = computed(
-  () => isConversationDone.value && typedAnswer.value.length >= activeAnswerMarkdown.value.length,
+  () => isConversationDone.value,
 );
 watch(answerFullyRendered, (ready) => {
   emit('render-complete-change', ready);

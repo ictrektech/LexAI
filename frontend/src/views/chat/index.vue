@@ -557,6 +557,38 @@ const composeAgentAnswerContent = (message) => {
         .join('');
 };
 
+const getMessageStreamSessionId = (message) => String(message?.__stream_session_id || message?.session_id || '');
+
+const getAssistantAnswerText = (message) => {
+    const content = String(message?.content || '');
+    if (content.trim()) return content;
+    if (!Array.isArray(message?.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
+};
+
+const normalizeAssistantAnswerText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const hasCompletedAssistantAfterCachedUser = (cachedUserMessage) => {
+    if (!cachedUserMessage) return false;
+    const userIndex = messagesList.findIndex((message) => messageIdentityMatches(message, cachedUserMessage));
+    if (userIndex < 0) return false;
+    for (let i = userIndex + 1; i < messagesList.length; i += 1) {
+        const message = messagesList[i];
+        if (message?.role === 'user') break;
+        if (
+            message?.role === 'assistant' &&
+            message.is_completed &&
+            normalizeAssistantAnswerText(getAssistantAnswerText(message))
+        ) {
+            return true;
+        }
+    }
+    return false;
+};
+
 const mergeAgentEventStreams = (target, source) => {
     if (!Array.isArray(source?.agentEventStream) || !source.agentEventStream.length) return;
     const merged = source.agentEventStream.map(cloneAgentEvent);
@@ -606,6 +638,10 @@ const restoreCachedInFlightTurn = (targetSessionId) => {
     }
 
     const cachedUserMessage = cached.find((message) => message.role === 'user');
+    if (hasCompletedAssistantAfterCachedUser(cachedUserMessage)) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
     const hasCachedUserMessage = cachedUserMessage
         ? messagesList.some((message) => messageIdentityMatches(message, cachedUserMessage))
         : true;
@@ -870,8 +906,11 @@ const {
         pendingStreamDebug.value = null;
     },
     onTurnComplete: (message) => {
-        inFlightTurnCache.delete(session_id.value);
-        void loadFollowUpSuggestions(message, true);
+        const completedSessionId = getMessageStreamSessionId(message) || session_id.value;
+        inFlightTurnCache.delete(completedSessionId);
+        if (completedSessionId === session_id.value) {
+            void loadFollowUpSuggestions(message, true);
+        }
     },
 });
 
@@ -880,16 +919,10 @@ const showGlobalTypingIndicator = computed(() =>
 );
 
 const getRenderedMessageAnswerText = (message) => {
-    const content = String(message?.content || '');
-    if (content.trim()) return content;
-    if (!Array.isArray(message?.agentEventStream)) return '';
-    return message.agentEventStream
-        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
-        .map((event) => event.content)
-        .join('');
+    return getAssistantAnswerText(message);
 };
 
-const normalizeRenderedMessageContent = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeRenderedMessageContent = normalizeAssistantAnswerText;
 
 const getRenderedAssistantScore = (message) => {
     let score = 0;
