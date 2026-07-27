@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const botMessage = readFileSync(new URL('./botmsg.vue', import.meta.url), 'utf8')
 const agentStream = readFileSync(new URL('./AgentStreamDisplay.vue', import.meta.url), 'utf8')
+const embedBotMessage = readFileSync(new URL('../../embed/EmbedBotMessage.vue', import.meta.url), 'utf8')
 const chatView = readFileSync(new URL('../index.vue', import.meta.url), 'utf8')
 const sharedStyles = readFileSync(
   new URL('../../../components/css/chat-message-shared.less', import.meta.url),
@@ -20,6 +21,19 @@ test('agent actions reuse the fully-rendered answer state', () => {
   assert.match(agentStream, /const answerFullyRendered = computed/)
   assert.match(agentStream, /typedAnswer\.value\.length >= activeAnswerMarkdown\.value\.length/)
   assert.match(agentStream, /v-if="answerFullyRendered && event\.done/)
+})
+
+test('answers stay plain text while streaming and render markdown only after completion', () => {
+  for (const component of [botMessage, embedBotMessage]) {
+    assert.match(component, /<pre v-if="!answerFullyRendered" class="streaming-answer-text">/)
+    assert.match(component, /v-else class="ai-markdown-template markdown-content"/)
+    assert.match(component, /streaming: false/)
+    assert.match(component, /revealMode: 'character'/)
+  }
+
+  assert.match(agentStream, /<pre v-if="!event\.done \|\| !answerFullyRendered" class="streaming-answer-text">/)
+  assert.match(agentStream, /<div v-else v-html="renderAnswerContent\(event\.content\)" \/>/)
+  assert.match(agentStream, /revealMode: 'character'/)
 })
 
 test('follow-up loading is shown compactly inside both answer toolbars', () => {

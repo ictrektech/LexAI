@@ -302,7 +302,8 @@
             <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
               <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
-                <div v-html="renderAnswerContent(event.content)" />
+                <pre v-if="!event.done || !answerFullyRendered" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
+                <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
               <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
                 class="answer-toolbar">
@@ -1346,6 +1347,7 @@ const activeAnswerEventRef = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
   () => activeAnswerMarkdown.value,
   () => isConversationDone.value,
+  { revealMode: 'character' },
 );
 
 const cacheStreamingMermaidSvg = async () => {
