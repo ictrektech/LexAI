@@ -305,7 +305,7 @@
                 <pre v-if="isAnswerEventStreaming(event)" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
                 <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
-              <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
+              <div v-if="answerFullyRendered && event.content && event.content.trim() && !embeddedMode"
                 class="answer-toolbar">
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleCopyAnswer(event)"
                   :title="$t('agent.copy')">
@@ -1417,17 +1417,19 @@ const visibleAnswerEvents = computed(() => {
     .filter((e: any) => e.type === 'answer' && !e.superseded);
 });
 
-const activeAnswerMarkdown = computed(() => {
-  const answers = visibleAnswerEvents.value;
-  const active = answers.find((e: any) => !e.done) ?? answers[answers.length - 1];
-  return typeof active?.content === 'string' ? active.content : '';
-});
-
 // The answer event whose text is currently streaming. The template renders the
 // smoothed typewriter text for this event and the raw content for any others.
 const activeAnswerEventRef = computed(() => {
   const answers = visibleAnswerEvents.value;
-  return answers.find((e: any) => !e.done) ?? answers[answers.length - 1] ?? null;
+  if (hasActiveAnswerStream.value) {
+    return answers.find((e: any) => !e.done) ?? answers[answers.length - 1] ?? null;
+  }
+  return answers[answers.length - 1] ?? null;
+});
+
+const activeAnswerMarkdown = computed(() => {
+  const active = activeAnswerEventRef.value;
+  return typeof active?.content === 'string' ? active.content : '';
 });
 
 // Smooth the streamed answer into a steady typewriter cadence (shared with the

@@ -20,7 +20,7 @@ test('non-agent actions wait for the typewriter buffer to finish', () => {
 test('agent actions reuse the fully-rendered answer state', () => {
   assert.match(agentStream, /const answerFullyRendered = computed/)
   assert.match(agentStream, /\(\) => isConversationDone\.value \|\| !hasActiveAnswerStream\.value/)
-  assert.match(agentStream, /v-if="answerFullyRendered && event\.done/)
+  assert.match(agentStream, /v-if="answerFullyRendered && event\.content/)
 })
 
 test('answers stay plain text while streaming and render markdown only after completion', () => {

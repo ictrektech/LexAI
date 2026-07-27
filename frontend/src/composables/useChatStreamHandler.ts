@@ -219,9 +219,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   }
 
   const markAssistantStopped = (message: ChatMessage) => {
-    if (!message || message.is_completed) return
-    message.is_completed = true
+    if (!message) return
     message.__stream_active = false
+    if (message.is_completed) return
+    message.is_completed = true
     if (message.isAgentMode) {
       if (!message.agentEventStream) message.agentEventStream = []
       const stream = message.agentEventStream as ChatMessage[]
