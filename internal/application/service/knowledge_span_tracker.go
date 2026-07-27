@@ -288,6 +288,7 @@ func (t *spanTracker) OpenAttempt(ctx context.Context, knowledgeID, langfuseTrac
 		SpanID:      rootID,
 		Name:        "knowledge_processing",
 		Kind:        types.SpanKindRoot,
+		Status:      types.SpanStatusRunning,
 		StartedAt:   now,
 	}, attempt, nil
 }
@@ -374,6 +375,7 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 			ParentSpanID: existing.ParentSpanID,
 			Name:         existing.Name,
 			Kind:         existing.Kind,
+			Status:       types.SpanStatusRunning,
 			StartedAt:    now,
 		}
 	}
@@ -403,6 +405,7 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 		ParentSpanID: rootID,
 		Name:         stage,
 		Kind:         types.SpanKindStage,
+		Status:       types.SpanStatusRunning,
 		StartedAt:    now,
 	}
 }
@@ -450,6 +453,7 @@ func (t *spanTracker) BeginSubSpan(ctx context.Context, parent *Span, name, kind
 		ParentSpanID: parent.SpanID,
 		Name:         name,
 		Kind:         kind,
+		Status:       types.SpanStatusRunning,
 		StartedAt:    now,
 	}
 }

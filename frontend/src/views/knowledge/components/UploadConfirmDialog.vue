@@ -805,6 +805,9 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
     if (ec.custom_instructions != null) s.nodeExtractConfig.customInstructions = ec.custom_instructions
   }
   if (o.graph_enabled != null) s.graphEnabled = o.graph_enabled
+  // Older saved overrides may contain mismatched graph/extract flags. Keep
+  // the single visible switch aligned with the backend's effective state.
+  s.nodeExtractConfig.enabled = s.nodeExtractConfig.enabled && s.graphEnabled
   if (o.parser_engine_overrides && o.parser_engine_overrides.pdf_force_scanned === 'true') {
     s.pdfForceScanned = true
   } else {
@@ -902,6 +905,9 @@ const handleQuestionGenerationUpdate = (config: { enabled: boolean; questionCoun
 
 const handleNodeExtractUpdate = (config: UploadUIState['nodeExtractConfig']) => {
   uiState.value.nodeExtractConfig = { ...config }
+  // GraphSettings is the only graph switch in the upload dialog. Update both
+  // backend flags; otherwise the hidden KB default can silently override the
+  // user's checked switch and prevent graph tasks from being created.
   uiState.value.graphEnabled = !!config.enabled
 }
 

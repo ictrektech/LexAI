@@ -423,6 +423,11 @@
                 <div v-if="mode === 'edit' && kbId && currentSection === 'share'" class="section">
                   <KBShareSettings :kb-id="kbId" :can-share="canShareKB" />
                 </div>
+
+                <!-- 活动记录（仅编辑模式，KB 所属租户内 Owner/Admin） -->
+                <div v-if="mode === 'edit' && kbId && canViewActivity && currentSection === 'activity'" class="section">
+                  <KnowledgeBaseActivitySettings :kb-id="kbId" :active="currentSection === 'activity'" />
+                </div>
               </div>
 
               <!-- 保存按钮 -->
@@ -467,6 +472,7 @@ import ModelSelector from '@/components/ModelSelector.vue'
 import GraphSettings from './settings/GraphSettings.vue'
 import KBShareSettings from './settings/KBShareSettings.vue'
 import DataSourceSettings from './settings/DataSourceSettings.vue'
+import KnowledgeBaseActivitySettings from './settings/KnowledgeBaseActivitySettings.vue'
 import { useI18n } from 'vue-i18n'
 import { disabledLegalGraphPreset } from '@/config/legalGraphPreset'
 
@@ -543,6 +549,7 @@ const dsCount = ref(0)
 // that predate per-KB ownership tracking; those KBs have no "owner" and
 // only tenant Admin+ can mutate their share settings.
 const kbCreatorId = ref<string>('')
+const kbTenantId = ref<number>(0)
 
 // Backend gate for /knowledge-bases/:id/shares (POST/PUT/DELETE) is
 // g.OwnedKBOrAdmin(): only the KB creator or tenant Admin+ may mutate
@@ -554,6 +561,17 @@ const canShareKB = computed(() => {
   const userId = authStore.user?.id || ''
   if (kbCreatorId.value && userId && kbCreatorId.value === userId) return true
   return authStore.hasRole('admin')
+})
+
+const isKbOwner = computed(() => {
+  const userId = authStore.user?.id || ''
+  return Boolean(kbCreatorId.value && userId && kbCreatorId.value === userId)
+})
+
+const canViewActivity = computed(() => {
+  if (props.mode !== 'edit' || !props.kbId) return false
+  if (Number(kbTenantId.value || 0) !== Number(authStore.currentTenantId || 0)) return false
+  return isKbOwner.value || authStore.hasRole('admin')
 })
 // 用户是否在分块设置中手动改过任何值。一旦为 true，就不再根据索引策略自动调整默认分块参数。
 const chunkingDirty = ref(false)
@@ -604,6 +622,9 @@ const navItems = computed(() => {
   if (props.mode === 'edit' && props.kbId && !authStore.isLiteMode) {
     items.push({ key: 'share', icon: 'share', label: t('knowledgeEditor.sidebar.share') })
   }
+  if (canViewActivity.value) {
+    items.push({ key: 'activity', icon: 'history', label: t('knowledgeEditor.sidebar.activity') })
+  }
   return items
 })
 
@@ -632,6 +653,11 @@ const navGroups = computed(() => {
       key: 'integration',
       label: t('knowledgeEditor.navGroups.integration'),
       items: pickItems(['share']),
+    },
+    {
+      key: 'management',
+      label: t('knowledgeEditor.navGroups.management'),
+      items: pickItems(['activity']),
     },
   ].filter((group) => group.items.length > 0)
 })
@@ -801,6 +827,7 @@ const loadKBData = async () => {
       relations: kb.extract_config?.relations || [],
       customInstructions: kb.extract_config?.custom_instructions || ''
     } : disabledLegalGraphPreset()
+    kbTenantId.value = Number((kb as any).tenant_id || 0)
 
     // 设置表单数据
     const kbType = (kb.type as 'document' | 'faq') || 'document'
@@ -1465,6 +1492,7 @@ const resetState = () => {
   loading.value = false
   chunkingDirty.value = false
   kbCreatorId.value = ''
+  kbTenantId.value = 0
 }
 
 // 关闭弹窗
