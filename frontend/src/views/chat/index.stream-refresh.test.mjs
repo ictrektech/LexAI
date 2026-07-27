@@ -90,6 +90,8 @@ test('answer stream chunks merge snapshots without duplicating the same answer',
 
 test('chat view renders a deduped message list', () => {
   assert.match(source, /v-for=\"\(session, index\) in renderedMessagesList\"/)
+  assert.match(source, /:user-query="getRenderedUserQuery\(index\)"/)
+  assert.match(source, /const getRenderedUserQuery = \(index\) => \{[\s\S]*renderedMessagesList\.value\[i\]/)
   assert.match(source, /const renderedMessagesList = computed\(\(\) => \{/)
   assert.match(source, /let currentTurnAssistantIndex = -1/)
   assert.match(source, /const getRenderedMessageAnswerText = \(message\) => \{/)
@@ -108,9 +110,9 @@ test('completed background streams clear their own session cache', () => {
 })
 
 test('restored in-flight cache is discarded when history already has the completed answer', () => {
-  assert.match(source, /const hasCompletedAssistantAfterCachedUser = \(cachedUserMessage\) => \{/)
-  assert.match(source, /message\?\.role === 'assistant' &&[\s\S]*message\.is_completed/)
-  assert.match(source, /if \(hasCompletedAssistantAfterCachedUser\(cachedUserMessage\)\) \{[\s\S]*inFlightTurnCache\.delete\(targetSessionId\)/)
+  assert.match(source, /const hasPersistedAssistantAfterCachedUser = \(cachedUserMessage\) => \{/)
+  assert.match(source, /message\?\.role === 'assistant' &&[\s\S]*normalizeAssistantAnswerText\(getAssistantAnswerText\(message\)\)/)
+  assert.match(source, /if \(!hasActiveStream\(targetSessionId\) && hasPersistedAssistantAfterCachedUser\(cachedUserMessage\)\) \{[\s\S]*inFlightTurnCache\.delete\(targetSessionId\)/)
 })
 
 test('rag answer display dedupes identical answer events', () => {
@@ -124,6 +126,8 @@ test('completed agent answers leave streaming text and render markdown immediate
   assert.match(agentStreamSource, /const hasTerminalAnswerEvent = \(events: any\[\]\): boolean =>/)
   assert.match(agentStreamSource, /event\?\.type === 'agent_complete'/)
   assert.match(agentStreamSource, /if \(!props\.session\?\.is_completed && !hasTerminalAnswerEvent\(events\)\) return events/)
-  assert.match(agentStreamSource, /<pre v-if="!event\.done && !isConversationDone" class="streaming-answer-text">/)
-  assert.match(agentStreamSource, /const answerFullyRendered = computed\(\s*\(\) => isConversationDone\.value,\s*\)/)
+  assert.match(agentStreamSource, /const hasActiveAnswerStream = computed\(\(\) =>/)
+  assert.match(agentStreamSource, /return hasActiveAnswerStream\.value && !event\.done/)
+  assert.match(agentStreamSource, /<pre v-if="isAnswerEventStreaming\(event\)" class="streaming-answer-text">/)
+  assert.match(agentStreamSource, /const answerFullyRendered = computed\(\s*\(\) => isConversationDone\.value \|\| !hasActiveAnswerStream\.value,\s*\)/)
 })

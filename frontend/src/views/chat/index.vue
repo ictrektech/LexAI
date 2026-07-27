@@ -84,7 +84,7 @@
                     </div>
                     <div v-if="session.role == 'assistant' && shouldRenderAssistantMessage(session)">
                         <botmsg :content="session.content" :session="session" :session-id="session_id"
-                            :user-query="getUserQuery(index)" @scroll-bottom="scrollToBottom"
+                            :user-query="getRenderedUserQuery(index)" @scroll-bottom="scrollToBottom"
                             :isFirstEnter="isFirstEnter" :embeddedMode="embeddedMode"
                             :follow-up-loading="Boolean(session.suggestionLoading && !session.suggestionSet?.questions?.length)"
                             @render-complete-change="(ready) => handleAnswerRenderComplete(session, ready)">
@@ -430,13 +430,11 @@ function fileToBase64(file) {
     });
 }
 
-const getUserQuery = (index) => {
-    if (index <= 0) {
-        return '';
-    }
-    const previous = messagesList[index - 1];
-    if (previous && previous.role === 'user') {
-        return previous.content || '';
+const getRenderedUserQuery = (index) => {
+    if (index <= 0) return '';
+    for (let i = index - 1; i >= 0; i -= 1) {
+        const previous = renderedMessagesList.value[i];
+        if (previous?.role === 'user') return previous.content || '';
     }
     return '';
 };
@@ -571,7 +569,7 @@ const getAssistantAnswerText = (message) => {
 
 const normalizeAssistantAnswerText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
-const hasCompletedAssistantAfterCachedUser = (cachedUserMessage) => {
+const hasPersistedAssistantAfterCachedUser = (cachedUserMessage) => {
     if (!cachedUserMessage) return false;
     const userIndex = messagesList.findIndex((message) => messageIdentityMatches(message, cachedUserMessage));
     if (userIndex < 0) return false;
@@ -580,7 +578,6 @@ const hasCompletedAssistantAfterCachedUser = (cachedUserMessage) => {
         if (message?.role === 'user') break;
         if (
             message?.role === 'assistant' &&
-            message.is_completed &&
             normalizeAssistantAnswerText(getAssistantAnswerText(message))
         ) {
             return true;
@@ -638,7 +635,7 @@ const restoreCachedInFlightTurn = (targetSessionId) => {
     }
 
     const cachedUserMessage = cached.find((message) => message.role === 'user');
-    if (hasCompletedAssistantAfterCachedUser(cachedUserMessage)) {
+    if (!hasActiveStream(targetSessionId) && hasPersistedAssistantAfterCachedUser(cachedUserMessage)) {
         inFlightTurnCache.delete(targetSessionId);
         return;
     }

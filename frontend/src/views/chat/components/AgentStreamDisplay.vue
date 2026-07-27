@@ -302,7 +302,7 @@
             <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
               <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
-                <pre v-if="!event.done && !isConversationDone" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
+                <pre v-if="isAnswerEventStreaming(event)" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
                 <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
               <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
@@ -1324,6 +1324,15 @@ const isConversationDone = computed(() => {
   return !!doneAnswer;
 });
 
+const hasActiveAnswerStream = computed(() =>
+  Boolean(props.session?.__stream_active) && !isConversationDone.value
+);
+
+const isAnswerEventStreaming = (event: any): boolean => {
+  if (!event || event.type !== 'answer') return false;
+  return hasActiveAnswerStream.value && !event.done;
+};
+
 const streamingMermaidSvgCache = ref<string | null>(null);
 let streamingMermaidRenderTask: Promise<void> | null = null;
 let streamingMermaidRenderId = 0;
@@ -1472,7 +1481,7 @@ watch(activeAnswerMarkdown, () => {
 // complete, switch to Markdown rendering immediately so restored in-flight turns
 // cannot stay in the grey streaming block.
 const answerFullyRendered = computed(
-  () => isConversationDone.value,
+  () => isConversationDone.value || !hasActiveAnswerStream.value,
 );
 watch(answerFullyRendered, (ready) => {
   emit('render-complete-change', ready);

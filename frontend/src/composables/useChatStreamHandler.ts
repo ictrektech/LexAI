@@ -221,6 +221,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const markAssistantStopped = (message: ChatMessage) => {
     if (!message || message.is_completed) return
     message.is_completed = true
+    message.__stream_active = false
     if (message.isAgentMode) {
       if (!message.agentEventStream) message.agentEventStream = []
       const stream = message.agentEventStream as ChatMessage[]
@@ -318,6 +319,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     streamSessionId?: string,
   ) => {
     message.isAgentMode = true
+    message.__stream_active = true
     if (!isAgentStreamSession()) {
       message.isRagMode = true
     }
@@ -640,7 +642,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         message.knowledge_references = []
       }
       if (payload.is_fallback) message.is_fallback = true
-      if (payload.is_completed) message.is_completed = true
+      if (payload.is_completed) {
+        message.is_completed = true
+        message.__stream_active = false
+      }
       restoreCompletedQuickAnswerPipeline(message)
       if (payload.is_completed) {
         message = dedupeCurrentTurnCompletedAssistants(message) || message
@@ -951,6 +956,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             const errorMsg = String(data.content || t('chat.processError'))
             message.content = errorMsg
             message.is_completed = true
+            message.__stream_active = false
             isReplying.value = false
             loading.value = false
             fullContent.value = ''
@@ -962,6 +968,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           const errorMsg = String(data.content || t('chat.processError'))
           message.content = errorMsg
           message.is_completed = true
+          message.__stream_active = false
           isReplying.value = false
           loading.value = false
           fullContent.value = ''
@@ -1000,6 +1007,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         if (data.done && !answerEvent.done) {
           answerEvent.done = true
+          message.__stream_active = false
           onAgentAnswerDone?.(message)
           loading.value = false
           isReplying.value = false
@@ -1013,6 +1021,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         loading.value = false
         isReplying.value = false
         message.is_completed = true
+        message.__stream_active = false
         if (message.agentEventStream) {
           const stream = message.agentEventStream as ChatMessage[]
           stream.forEach((event) => {
@@ -1041,6 +1050,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           reason: dataPayload?.reason || 'user_requested',
         })
         message.is_completed = true
+        message.__stream_active = false
         loading.value = false
         isReplying.value = false
         fullContent.value = ''
@@ -1188,6 +1198,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         return item.id === data.id
       })
       if (stoppedMessage) stoppedMessage.is_completed = true
+      if (stoppedMessage) stoppedMessage.__stream_active = false
       loading.value = false
       isReplying.value = false
       fullContent.value = ''
@@ -1236,6 +1247,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     if (data.done) {
       obj.is_completed = true
+      obj.__stream_active = false
       onReplyComplete?.(String(obj.content || ''))
       isReplying.value = false
       fullContent.value = ''
