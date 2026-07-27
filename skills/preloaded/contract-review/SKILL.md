@@ -18,8 +18,10 @@ Use this skill to turn a general legal assistant into a structured contract revi
    - Incremental review: compare old/new versions and review only material changes.
    - Party/signature review: check parties, authorization, signature, seal, and effectiveness.
 4. Grade risks as high/medium/low and explain trigger, consequence, evidence, and fix.
-5. If evidence is missing, say "现有资料不足，无法判断" and list the missing materials.
-6. End with a clear preliminary-review disclaimer.
+5. For a complete review report, cover enough issues before drafting: ordinary contracts should include at least 4 distinct risks when evidence supports them; long framework, master purchase, SaaS, technical service, lease/cooperation, or other multi-clause business contracts should include at least 6 distinct risks when evidence supports them.
+6. Before drafting a complete report, scan for concrete clause triggers and preserve the wording in the final risk item: prepayment/high upfront percentages, payment before delivery/acceptance/results, short or unclear acceptance/deemed acceptance, blank dispute venue or jurisdiction, broad service scope and missing deliverable list, unilateral changes to function/scope/price, security incident notice time limit, data export/deletion, title/fire-safety/authorization files, operating qualification/license, document priority, supply-chain interruption/replacement supply, liability caps, and indirect loss exclusions.
+7. If evidence is missing, say "现有资料不足，无法判断" and list the missing materials.
+8. End with a clear preliminary-review disclaimer.
 
 ## Reference Loading
 
@@ -44,3 +46,4 @@ Load only the references needed for the user's task:
 - Be direct, business-readable, and specific.
 - Give replacement wording only when the original text and business intent are clear.
 - Mark any commercial parameter that needs user confirmation, such as amount, term, cap, percentage, jurisdiction, notice period, or acceptance window.
+- When the user asks for a complete report, use the exact headings from `references/output-formats.md`; do not merge "缺失条款建议" and "待确认事项", and do not rename "重点条款修改".

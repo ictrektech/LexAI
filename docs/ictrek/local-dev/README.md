@@ -132,6 +132,10 @@ bge-m3 vLLM 默认在容器内读取 `/data/huggingface/hub/models--BAAI--bge-m3
 
 `start-vllm` 会把 `ICTREK_DEV_VLLM_MODEL_DIR` 指向的目录挂载到容器内 `/model`。如果该目录是 HF cache 的 `models--...` 目录，脚本会自动选择最新的 `snapshots/*/config.json` 所在目录，避免把 snapshot 父目录直接交给 vLLM。
 
+启动或复用容器前，`start-vllm` 会输出一条等价的 `docker run` 部署指令，里面包含当前环境变量解析后的镜像、挂载、端口和完整 vLLM 启动参数。已有同名容器仍会复用旧参数；这条输出可用于确认当前配置，或删除旧容器后手动重建。
+
+`start-vllm` 默认最多等待 900 秒检查 `http://localhost:38118/v1/models` 是否可用。首次加载模型或显存缓存冷启动时可能超过 300 秒；如需临时调整，可设置 `ICTREK_DEV_VLLM_WAIT_SEC`。
+
 默认主模型参数：
 
 - `ICTREK_DEV_VLLM_MAX_MODEL_LEN=65536`

@@ -659,9 +659,43 @@ connect_network_if_exists() {
     fi
 }
 
+quote_shell_arg() {
+    printf "%q" "$1"
+}
+
+print_vllm_docker_command() {
+    local resolved_model_dir="$1"
+    shift
+    local vllm_args=("$@")
+    local i
+
+    printf '  docker run -d \\\n'
+    printf '    --name %s \\\n' "$(quote_shell_arg "$VLLM_CONTAINER")"
+    printf '    --gpus all \\\n'
+    printf '    --ipc host \\\n'
+    printf '    --network lexai \\\n'
+    printf '    -p %s \\\n' "$(quote_shell_arg "${VLLM_PORT}:8000")"
+    printf '    -v %s \\\n' "$(quote_shell_arg "${resolved_model_dir}:/model:ro")"
+    printf '    -e %s \\\n' "$(quote_shell_arg "HF_HOME=$VLLM_HF_HOME")"
+    printf "    %s" "$(quote_shell_arg "$VLLM_IMAGE")"
+
+    for ((i = 0; i < ${#vllm_args[@]}; i++)); do
+        case "${vllm_args[$i]}" in
+            --host|--port|--model|--max-model-len|--max-num-batched-tokens|--gpu-memory-utilization|--served-model-name|--max-num-seqs|--reasoning-parser|--tool-call-parser|--kv-cache-dtype|--attention-backend|--moe-backend|--load-format)
+                printf ' \\\n    %s %s' "$(quote_shell_arg "${vllm_args[$i]}")" "$(quote_shell_arg "${vllm_args[$((i + 1))]}")"
+                i=$((i + 1))
+                ;;
+            *)
+                printf ' \\\n    %s' "$(quote_shell_arg "${vllm_args[$i]}")"
+                ;;
+        esac
+    done
+    printf "\n"
+}
+
 wait_for_vllm() {
     local models_url="${VLLM_BASE_URL%/}/models"
-    local max_wait="${ICTREK_DEV_VLLM_WAIT_SEC:-300}"
+    local max_wait="${ICTREK_DEV_VLLM_WAIT_SEC:-900}"
     local waited=0
     local interval=5
 
@@ -670,7 +704,7 @@ wait_for_vllm() {
         return 0
     fi
 
-    log_info "Waiting for vLLM: $models_url"
+    log_info "Waiting for vLLM: $models_url (timeout ${max_wait}s)"
     while [ "$waited" -lt "$max_wait" ]; do
         if curl -fsS "$models_url" >/dev/null 2>&1; then
             log_success "vLLM is ready: $models_url"
@@ -690,6 +724,7 @@ start_vllm() {
     refresh_runtime_config
     check_docker
     local resolved_model_dir
+    local docker_run_args
     local vllm_args
     local extra_args
 
@@ -706,23 +741,6 @@ start_vllm() {
 
     ensure_docker_network "lexai"
 
-    if docker ps -a --format '{{.Names}}' | grep -Fxq "$VLLM_CONTAINER"; then
-        if docker ps --format '{{.Names}}' | grep -Fxq "$VLLM_CONTAINER"; then
-            log_success "Container already running: $VLLM_CONTAINER"
-        else
-            docker start "$VLLM_CONTAINER" >/dev/null
-            log_success "Started existing container: $VLLM_CONTAINER"
-        fi
-        log_info "Existing containers keep their original vLLM args; remove ${VLLM_CONTAINER} to apply changed tuning"
-        connect_network_if_exists "lexai"
-        connect_network_if_exists "lexai_WeKnora-network-dev"
-        wait_for_vllm || true
-        return 0
-    fi
-
-    log_info "Starting ${VLLM_CONTAINER} on localhost:${VLLM_PORT}"
-    log_info "Model: ${resolved_model_dir}"
-    log_info "vLLM tuning: max_model_len=${VLLM_MAX_MODEL_LEN}, max_num_seqs=${VLLM_MAX_NUM_SEQS}, gpu_memory_utilization=${VLLM_GPU_MEMORY_UTILIZATION}"
     vllm_args=(
         --host 0.0.0.0
         --port 8000
@@ -765,16 +783,41 @@ start_vllm() {
         read -r -a extra_args <<< "$ICTREK_DEV_VLLM_EXTRA_ARGS"
         vllm_args+=("${extra_args[@]}")
     fi
-    docker run -d \
-        --name "$VLLM_CONTAINER" \
-        --gpus all \
-        --ipc host \
-        --network lexai \
-        -p "${VLLM_PORT}:8000" \
-        -v "${resolved_model_dir}:/model:ro" \
-        -e HF_HOME="$VLLM_HF_HOME" \
-        "$VLLM_IMAGE" \
-        "${vllm_args[@]}" >/dev/null
+
+    docker_run_args=(
+        docker run -d
+        --name "$VLLM_CONTAINER"
+        --gpus all
+        --ipc host
+        --network lexai
+        -p "${VLLM_PORT}:8000"
+        -v "${resolved_model_dir}:/model:ro"
+        -e "HF_HOME=$VLLM_HF_HOME"
+        "$VLLM_IMAGE"
+        "${vllm_args[@]}"
+    )
+
+    log_info "Equivalent docker deployment command:"
+    print_vllm_docker_command "$resolved_model_dir" "${vllm_args[@]}"
+
+    if docker ps -a --format '{{.Names}}' | grep -Fxq "$VLLM_CONTAINER"; then
+        if docker ps --format '{{.Names}}' | grep -Fxq "$VLLM_CONTAINER"; then
+            log_success "Container already running: $VLLM_CONTAINER"
+        else
+            docker start "$VLLM_CONTAINER" >/dev/null
+            log_success "Started existing container: $VLLM_CONTAINER"
+        fi
+        log_info "Existing containers keep their original vLLM args; remove ${VLLM_CONTAINER} to apply changed tuning"
+        connect_network_if_exists "lexai"
+        connect_network_if_exists "lexai_WeKnora-network-dev"
+        wait_for_vllm || true
+        return 0
+    fi
+
+    log_info "Starting ${VLLM_CONTAINER} on localhost:${VLLM_PORT}"
+    log_info "Model: ${resolved_model_dir}"
+    log_info "vLLM tuning: max_model_len=${VLLM_MAX_MODEL_LEN}, max_num_seqs=${VLLM_MAX_NUM_SEQS}, gpu_memory_utilization=${VLLM_GPU_MEMORY_UTILIZATION}"
+    "${docker_run_args[@]}" >/dev/null
 
     connect_network_if_exists "lexai_WeKnora-network-dev"
     log_success "Started container: $VLLM_CONTAINER"

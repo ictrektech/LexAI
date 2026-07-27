@@ -45,9 +45,22 @@ python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
 --allow-failures
 ```
 
+合同审查专项可以并发跑用例，加快出结果：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --suite contract-review-quick \
+  --suite contract-review-reasoning \
+  --contract-workers 2 \
+  --host http://localhost:8080 \
+  --auto-setup
+```
+
+`--contract-workers` 默认是 `1`，只影响两个合同审查专项。tc232 上建议先用 `2`；如果后端、Redis 队列和 vLLM 都稳定，再尝试 `3`。过高会更快暴露模型排队、SSE 超时或后端拒连问题。
+
 ## 只重跑失败项
 
-完整批次结束后，可以根据上一轮 `manifest.json` 自动只重跑 `REVIEW`、`FAIL`、`ERROR` 和 `NON_PASS` 用例：
+完整批次结束后，可以根据上一轮 `manifest.json` 自动只重跑 `REVIEW`、`FAIL`、`ERROR`、`NON_PASS` 和 `MISSING` 用例：
 
 ```bash
 python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
@@ -70,7 +83,32 @@ python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
 
 `--dry-run` 只打印计划执行的子命令，不创建结果目录，也不写 `manifest.json`。
 
-对于总控脚本出现前手工跑出来的旧批次，如果目录下没有 `manifest.json`，脚本会尝试扫描各专项子目录中的 `results.json` 来推导需要重跑的用例。
+如果只是想查看某个明确批次中有哪些用例需要重跑，优先显式指定该批次目录：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --dry-run \
+  --rerun-from /tmp/legal-assistant-full-20260717 \
+  --host http://localhost:8080 \
+  --auto-setup
+```
+
+如果需要找最近一次由总控脚本生成、带 `manifest.json` 的批次目录，可以先执行：
+
+```bash
+latest=$(find docs/ictrek/legal-test-samples/results /tmp \
+  -path '*/manifest.json' \
+  -printf '%T@ %h\n' 2>/dev/null \
+  | sort -nr \
+  | head -1 \
+  | cut -d' ' -f2-)
+
+echo "最近批次目录: $latest"
+```
+
+然后把 `$latest` 传给 `--rerun-from`。如果要回看总控脚本出现前手工跑出的旧批次，例如 `/tmp/legal-assistant-full-20260717`，建议直接指定该目录，避免误选到其他临时 dry-run 或专项结果目录。
+
+对于总控脚本出现前手工跑出来的旧批次，如果目录下没有 `manifest.json`，脚本会尝试扫描各专项子目录和 `rerun-*` 子目录中的 `results.json` 来推导需要重跑的用例。同一用例如果在后续 `rerun-*` 中已经重跑，按最新结果判断；已经 PASS 的用例不会继续列入重跑计划。脚本还会基于各专项 `test-cases.json` 标记缺失用例为 `MISSING`，用于捕捉请求超时、中断或未写入 `results.json` 的用例。
 
 也可以只重跑某几类状态：
 
@@ -115,3 +153,18 @@ python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
 ```
 
 `--suite` 可以重复传入。未传时默认跑完整批次。
+
+## 专项补跑
+
+各专项脚本可以脱离总控脚本单独补跑。为了保留原始完整批次，建议把专项补跑结果写入原批次目录下的 `rerun-<时间戳>/` 子目录。例如无依据拒答专项完整重跑 10 条：
+
+```bash
+python3 docs/ictrek/legal-test-samples/no-evidence-refusal/run_no_evidence_refusal_tests.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --output-dir /tmp/legal-assistant-full-20260717/rerun-$(date +%Y%m%d-%H%M%S)/no-evidence-refusal
+```
+
+专项脚本通常支持重复传 `--only` 来只补跑指定用例；具体命令见各子目录 README。

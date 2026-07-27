@@ -65,7 +65,7 @@ python3 docs/ictrek/legal-test-samples/legal-knowledge-graph/run_legal_knowledge
 | `--only <用例编号>` | 只执行指定用例，可重复传入 |
 | `--output-dir <目录>` | 指定结果输出目录 |
 | `--dry-run` | 只打印将执行的用例，不调用服务 |
-| `--timeout <秒>` | 单次 HTTP/SSE 请求超时时间 |
+| `--timeout <秒>` | 单次 HTTP/SSE 请求超时时间，默认 360 秒 |
 
 输出目录默认为 `results/<时间戳>/`，包含：
 
@@ -77,6 +77,37 @@ python3 docs/ictrek/legal-test-samples/legal-knowledge-graph/run_legal_knowledge
 
 - `0`：所有用例机器检查为 `PASS`；
 - `1`：至少 1 条用例为 `REVIEW`、`FAIL` 或执行失败。
+
+## 专项重跑
+
+如果从完整批次中只补跑知识图谱未通过项，可以使用总控脚本先预览：
+
+```bash
+python3 docs/ictrek/legal-test-samples/run_full_legal_assistant_batch.py \
+  --dry-run \
+  --rerun-from /tmp/legal-assistant-full-20260717 \
+  --host http://localhost:8080 \
+  --auto-setup
+```
+
+对总控脚本出现前的历史批次，脚本会扫描原批次和 `rerun-*` 子目录里的 `results.json`，并把没有结果文件的用例标为 `MISSING`。例如 `LKG-004` 如果因为请求超时没有写入结果，会自动进入默认重跑计划。
+
+也可以直接补跑知识图谱专项的指定用例：
+
+```bash
+python3 docs/ictrek/legal-test-samples/legal-knowledge-graph/run_legal_knowledge_graph_tests.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --only LKG-003 \
+  --only LKG-004 \
+  --only LKG-005 \
+  --only LKG-006 \
+  --output-dir /tmp/legal-assistant-full-20260717/rerun-$(date +%Y%m%d-%H%M%S)/legal-knowledge-graph
+```
+
+首轮 `LKG-003`、`LKG-005`、`LKG-006` 的主要问题是输出已经有结构和依据，但边关系命名没有稳定落到“源节点 | 关系 | 目标节点 | 依据”的标准边表，导致机器关系命中不足；`LKG-004` 的主要问题是请求超时且未写入结果。当前脚本已收紧输出规模、要求末尾输出标准关系边表，并扩展部分法律图谱关系同义词。
 
 ## 判定口径
 

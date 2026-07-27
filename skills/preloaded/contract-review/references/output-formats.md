@@ -2,16 +2,28 @@
 
 ## Overall Review Report
 
+Use this format when the user asks for a complete review report, a business-facing report, or high/medium/low risk output. Keep the headings exactly as written; do not merge or rename them.
+
 ```markdown
 ## 审查摘要
 - 合同类型：
 - 审查立场：
-- 总体风险等级：
 - 最重要的 3 个问题：
 
+## 总体风险等级
+- 结论：高风险 / 中风险 / 低风险
+- 理由：
+
 ## 风险清单
-| 序号 | 风险等级 | 条款/位置 | 问题说明 | 可能后果 | 依据 | 修改建议 |
-|---|---|---|---|---|---|---|
+| 序号 | 风险等级 | 条款/位置 | 问题说明 | 可能后果 | 合同原文依据 | 法律/案例依据 | 修改建议 |
+|---|---|---|---|---|---|---|---|
+
+Minimum coverage:
+- Ordinary contract report: at least 4 distinct risks when evidence supports them.
+- Long framework/master purchase/SaaS/technical service/lease cooperation/multi-clause commercial contract: at least 6 distinct risks when evidence supports them.
+- Include at least one high-risk item and one medium-risk item when the contract evidence supports that grading.
+- Keep table cells short and name concrete triggers such as numbers, periods, percentages, blank fields, deemed acceptance wording, or missing files.
+- Keep the report compact enough to finish every heading: use no more than 8 risk rows, limit key clause revisions to 3 items, use no more than 5 concise bullets for missing clauses and confirmation items, and always end with the disclaimer heading.
 
 ## 重点条款修改
 ### 修改建议 1：标题

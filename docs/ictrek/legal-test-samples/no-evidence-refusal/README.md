@@ -64,6 +64,37 @@ python3 docs/ictrek/legal-test-samples/no-evidence-refusal/run_no_evidence_refus
   --output-dir /tmp/no-evidence-refusal-smoke
 ```
 
+## 专项重跑
+
+无依据拒答专项脚本本身不读取上一轮 `manifest.json`；如果需要基于历史完整批次补跑该专项，建议把新结果写到原批次目录下的 `rerun-<时间戳>/` 子目录，避免覆盖原始结果。
+
+重跑全部 10 条拒答用例：
+
+```bash
+python3 docs/ictrek/legal-test-samples/no-evidence-refusal/run_no_evidence_refusal_tests.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --output-dir /tmp/legal-assistant-full-20260717/rerun-$(date +%Y%m%d-%H%M%S)/no-evidence-refusal
+```
+
+只重跑指定失败项时重复传 `--only`：
+
+```bash
+python3 docs/ictrek/legal-test-samples/no-evidence-refusal/run_no_evidence_refusal_tests.py \
+  --host http://localhost:8080 \
+  --auto-setup \
+  --law-kb-id f07af6bb-2645-428a-8db2-829708e3a2c2 \
+  --case-kb-id 4ca9a808-83f5-4222-8cc4-424ae24f6656 \
+  --only REFUSAL-006 \
+  --only REFUSAL-007 \
+  --only REFUSAL-008 \
+  --output-dir /tmp/legal-assistant-full-20260717/rerun-$(date +%Y%m%d-%H%M%S)/no-evidence-refusal-failed-only
+```
+
+如果要预览专项脚本当前会执行哪些用例，可以使用 `--dry-run`；如果要根据完整批次 `manifest.json` 自动找出非 PASS 用例，请使用上一级目录的 `run_full_legal_assistant_batch.py --dry-run --rerun-from <批次目录>`。
+
 输出目录默认为 `results/<时间戳>/`，包含：
 
 - `summary.md`：通过数、拒答通过率和每条用例的机器判断；

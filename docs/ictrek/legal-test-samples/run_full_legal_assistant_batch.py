@@ -19,7 +19,7 @@ DEFAULT_LAW_KB_ID = "f07af6bb-2645-428a-8db2-829708e3a2c2"
 DEFAULT_CASE_KB_ID = "4ca9a808-83f5-4222-8cc4-424ae24f6656"
 DEFAULT_CONTRACT_QUICK_AGENT_ID = "90fd6ab5-ba06-4bff-8a23-878ce00837ef"
 DEFAULT_CONTRACT_REASONING_AGENT_ID = "511258fd-4f3f-419e-8053-09f652ab50a5"
-DEFAULT_RERUN_STATUSES = {"REVIEW", "FAIL", "ERROR", "NON_PASS"}
+DEFAULT_RERUN_STATUSES = {"REVIEW", "FAIL", "ERROR", "NON_PASS", "MISSING"}
 
 
 @dataclass(frozen=True)
@@ -179,6 +179,12 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Optional timeout in seconds for each child suite. 0 means no orchestrator timeout.",
     )
+    parser.add_argument(
+        "--contract-workers",
+        type=int,
+        default=int(os.getenv("CONTRACT_REVIEW_WORKERS", "1")),
+        help="Number of contract-review cases to run concurrently inside each contract suite.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print planned child commands without running them.")
     return parser.parse_args()
 
@@ -207,33 +213,70 @@ def load_manifest(path: Path) -> dict[str, Any]:
     manifest_path = path / "manifest.json"
     if not manifest_path.exists():
         return legacy_manifest(path)
+    if any(path.glob("rerun-*/*/results.json")):
+        return legacy_manifest(path)
     with manifest_path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def legacy_results_paths(path: Path) -> list[Path]:
+    paths = [*path.glob("*/results.json"), *path.glob("rerun-*/*/results.json")]
+    return sorted(paths, key=lambda item: (item.stat().st_mtime_ns, str(item)))
+
+
+def suite_case_ids(suite: Suite) -> list[str]:
+    cases_path = suite.script.parent / "test-cases.json"
+    if not cases_path.exists():
+        return []
+    try:
+        with cases_path.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    ids = []
+    for item in payload.get("tests", []):
+        if item.get("id"):
+            ids.append(item["id"])
+    return ids
 
 
 def legacy_manifest(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise SystemExit(f"Missing batch directory: {path}")
-    suites: list[dict[str, Any]] = []
-    for results_path in sorted(path.glob("*/results.json")):
+    suite_cases: dict[str, dict[str, dict[str, str]]] = {}
+    suite_output_dirs: dict[str, str] = {}
+    for results_path in legacy_results_paths(path):
         output_name = results_path.parent.name
         suite_key = OUTPUT_NAME_TO_SUITE.get(output_name)
         if not suite_key:
             continue
         suite = SUITES[suite_key]
         parsed = parse_suite_output(suite, results_path.parent)
+        suite_output_dirs[suite_key] = str(results_path.parent)
+        current_cases = suite_cases.setdefault(suite_key, {})
+        for case in parsed.get("cases", []):
+            current_cases[case["id"]] = case
+    if not suite_cases:
+        raise SystemExit(f"Missing manifest and no child results.json files found in: {path}")
+    suites: list[dict[str, Any]] = []
+    for suite_key in DEFAULT_SUITE_ORDER:
+        if suite_key not in suite_cases:
+            continue
+        suite = SUITES[suite_key]
+        for test_id in suite_case_ids(suite):
+            suite_cases[suite_key].setdefault(test_id, {"id": test_id, "status": "MISSING"})
+        cases = sorted(suite_cases[suite_key].values(), key=lambda case: case["id"])
+        non_pass_cases = [case for case in cases if case["status"] != "PASS"]
         suites.append(
             {
                 "key": suite.key,
                 "title": suite.title,
-                "output_dir": str(results_path.parent),
-                "total": parsed.get("total", 0),
-                "passed": parsed.get("passed", 0),
-                "non_pass_cases": parsed.get("non_pass_cases", []),
+                "output_dir": suite_output_dirs[suite_key],
+                "total": len(cases),
+                "passed": sum(1 for case in cases if case["status"] == "PASS"),
+                "non_pass_cases": non_pass_cases,
             }
         )
-    if not suites:
-        raise SystemExit(f"Missing manifest and no child results.json files found in: {path}")
     return {
         "generated_at": None,
         "host": None,
@@ -295,6 +338,8 @@ def build_command(suite: Suite, args: argparse.Namespace, output_dir: Path, only
             cmd.extend(["--agent-id", agent_id])
     if suite.judge_mode:
         cmd.extend(["--judge-mode", suite.judge_mode])
+    if suite.key.startswith("contract-review-") and args.contract_workers != 1:
+        cmd.extend(["--workers", str(args.contract_workers)])
     for test_id in only_ids:
         cmd.extend(["--only", test_id])
     return cmd
@@ -320,6 +365,7 @@ def parse_suite_output(suite: Suite, output_dir: Path) -> dict[str, Any]:
         "summary_path": str(summary_path),
         "total": 0,
         "passed": 0,
+        "cases": [],
         "non_pass_cases": [],
     }
     if not results_path.exists():
@@ -337,15 +383,15 @@ def parse_suite_output(suite: Suite, output_dir: Path) -> dict[str, Any]:
     parsed["total"] = len(results)
     for item in results:
         status = result_status(suite, item)
+        case = {
+            "id": item.get("id") or item.get("test_id") or "unknown",
+            "status": status,
+        }
+        parsed["cases"].append(case)
         if status == "PASS":
             parsed["passed"] += 1
         else:
-            parsed["non_pass_cases"].append(
-                {
-                    "id": item.get("id") or item.get("test_id") or "unknown",
-                    "status": status,
-                }
-            )
+            parsed["non_pass_cases"].append(case)
     return parsed
 
 
@@ -444,6 +490,8 @@ def write_summary(batch_root: Path, manifest: dict[str, Any]) -> None:
 
 def main() -> int:
     args = parse_args()
+    if args.contract_workers < 1:
+        raise SystemExit("--contract-workers must be >= 1")
     batch_root = args.output_root or (default_rerun_output_root(args.rerun_from) if args.rerun_from else default_output_root())
 
     explicit_only = only_map(args.only)
