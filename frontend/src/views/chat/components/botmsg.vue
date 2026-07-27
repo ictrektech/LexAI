@@ -33,8 +33,8 @@
             <!-- 直接渲染完整内容，避免切分导致的问题，样式与 thinking 一致 -->
             <!-- 只有当有实际内容时才显示包围框 -->
             <div class="content-wrapper" v-if="hasActualContent">
-                <div class="ai-markdown-template markdown-content" v-stable-html="renderedHTML">
-                </div>
+                <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+                <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML"></div>
             </div>
             <!-- Streaming indicator (non-Agent mode) -->
             <div v-if="!session.is_completed" class="loading-indicator">
@@ -198,8 +198,8 @@ const mentionedItems = computed(() => {
     return props.session?.mentioned_items || [];
 });
 
-// Smooth the streamed answer into a steady typewriter cadence (shared with the
-// Agent path). Copy/toolbar still read the full content; only display is paced.
+// Smooth the streamed answer into a steady typewriter cadence. Copy/toolbar
+// still read the full content; only display is paced.
 const answerText = computed(() => {
     const text = props.content || props.session?.content || '';
     return typeof text === 'string' ? text : '';
@@ -207,6 +207,7 @@ const answerText = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
     () => answerText.value,
     () => Boolean(props.session?.is_completed),
+    { revealMode: 'character' },
 );
 
 // The backend completion event can arrive while the local typewriter still has
@@ -224,15 +225,15 @@ watch(
     { immediate: true },
 );
 
-// 单次渲染整个 Markdown 内容（替代 token-by-token，修复 KaTeX 公式在 streaming 时闪烁消失的问题）
+// 流式阶段用纯文本逐字显示；完成后再一次性渲染 Markdown，避免表格/公式在 streaming 中闪烁。
 const renderedHTML = computed(() => {
-    const text = typedAnswer.value;
+    const text = answerText.value;
     if (!text || typeof text !== 'string') return '';
     return renderChatMarkdown(text, {
         renderer: markdownRenderer,
         escapeMarkdown: safeMarkdownToHTML,
         sanitizeHtml: sanitizeMarkdownHTML,
-        streaming: !props.session?.is_completed,
+        streaming: false,
         knowledgeReferences: props.session?.knowledge_references,
     });
 });
@@ -366,6 +367,14 @@ onBeforeUnmount(() => {
     // Do not add element-level Markdown rules here; update the shared mixin.
     .chat-markdown-typography();
     .chat-citation-pills();
+}
+
+.streaming-answer-text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    color: inherit;
 }
 
 .mentioned_items {

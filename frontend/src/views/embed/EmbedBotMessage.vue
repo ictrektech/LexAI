@@ -15,7 +15,8 @@
     <DeepThink v-if="session?.showThink && !session?.isAgentMode" :deep-session="session" />
     <div v-if="!session?.hideContent && !session?.isAgentMode" ref="parentMd">
       <div v-if="hasActualContent" class="content-wrapper">
-        <div class="ai-markdown-template markdown-content" v-stable-html="renderedHTML" />
+        <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+        <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML" />
       </div>
     </div>
     <Teleport to="body">
@@ -146,22 +147,27 @@ const scheduleCitationClose = () => {
   }, 120)
 }
 
-// Smooth the streamed answer into a steady typewriter cadence (shared with the
-// Agent path). History reloads arrive complete and snap to full.
+// Smooth the streamed answer into a steady typewriter cadence. History reloads
+// arrive complete and snap to full.
 const answerText = computed(() => String(props.content || props.session?.content || ''))
 const { displayed: typedAnswer } = useTypewriter(
   () => answerText.value,
   () => Boolean(props.session?.is_completed),
+  { revealMode: 'character' },
+)
+
+const answerFullyRendered = computed(
+  () => Boolean(props.session?.is_completed) && typedAnswer.value.length >= answerText.value.length,
 )
 
 const renderedHTML = computed(() => {
-  const text = typedAnswer.value
+  const text = answerText.value
   if (!text.trim()) return ''
   return renderChatMarkdown(text, {
     renderer: markdownRenderer,
     escapeMarkdown: safeMarkdownToHTML,
     sanitizeHtml: sanitizeMarkdownHTML,
-    streaming: !props.session?.is_completed,
+    streaming: false,
   })
 })
 
@@ -245,6 +251,14 @@ onMounted(() => {
   // Do not add element-level Markdown rules here; update the shared mixin.
   .chat-markdown-typography();
   .chat-citation-pills();
+}
+
+.streaming-answer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: inherit;
 }
 
 .embed-citation-float {
