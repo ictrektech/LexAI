@@ -461,19 +461,6 @@ const getLastUserMessageIndex = () => {
     return -1;
 };
 
-const cacheCurrentInFlightTurn = (targetSessionId = session_id.value) => {
-    if (!targetSessionId || messagesList.length === 0) return;
-    const lastUserIndex = getLastUserMessageIndex();
-    if (lastUserIndex < 0) return;
-    const tail = messagesList.slice(lastUserIndex);
-    const hasIncompleteAssistant = tail.some((message) => message.role === 'assistant' && !message.is_completed);
-    if (!hasIncompleteAssistant && !hasActiveStream(targetSessionId)) {
-        inFlightTurnCache.delete(targetSessionId);
-        return;
-    }
-    inFlightTurnCache.set(targetSessionId, tail.map(cloneMessageForInFlightCache));
-};
-
 const messageIdentityMatches = (left, right) => {
     if (!left || !right) return false;
     if (left.id && right.id && left.id === right.id) return true;
@@ -499,6 +486,8 @@ const mergeStreamText = (prefixValue, suffixValue) => {
     if (prefix === suffix) return prefix;
     if (suffix.startsWith(prefix)) return suffix;
     if (prefix.startsWith(suffix)) return prefix;
+    if (prefix.includes(suffix)) return prefix;
+    if (suffix.includes(prefix)) return suffix;
     if (prefix.endsWith(suffix)) return prefix;
 
     const maxOverlap = Math.min(prefix.length, suffix.length);
@@ -626,6 +615,45 @@ const mergeCachedAssistantMessage = (target, source) => {
     if (source.isAgentMode) target.isAgentMode = true;
 };
 
+const mergeCachedUserMessage = (target, source) => {
+    if (!target || !source) return;
+    if (!target.id && source.id) target.id = source.id;
+    if (!target.request_id && source.request_id) target.request_id = source.request_id;
+    if (!target.content && source.content) target.content = source.content;
+    if (!target.created_at && source.created_at) target.created_at = source.created_at;
+};
+
+const mergeInFlightTurnCache = (targetSessionId, incomingMessages) => {
+    const merged = (inFlightTurnCache.get(targetSessionId) || []).map(cloneMessageForInFlightCache);
+    for (const incomingMessage of incomingMessages) {
+        const incoming = cloneMessageForInFlightCache(incomingMessage);
+        const existing = merged.find((message) => messageIdentityMatches(message, incoming));
+        if (!existing) {
+            merged.push(incoming);
+            continue;
+        }
+        if (existing.role === 'assistant') {
+            mergeCachedAssistantMessage(existing, incoming);
+        } else if (existing.role === 'user') {
+            mergeCachedUserMessage(existing, incoming);
+        }
+    }
+    inFlightTurnCache.set(targetSessionId, merged);
+};
+
+const cacheCurrentInFlightTurn = (targetSessionId = session_id.value) => {
+    if (!targetSessionId || messagesList.length === 0) return;
+    const lastUserIndex = getLastUserMessageIndex();
+    if (lastUserIndex < 0) return;
+    const tail = messagesList.slice(lastUserIndex);
+    const hasIncompleteAssistant = tail.some((message) => message.role === 'assistant' && !message.is_completed);
+    if (!hasIncompleteAssistant && !hasActiveStream(targetSessionId)) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
+    mergeInFlightTurnCache(targetSessionId, tail);
+};
+
 const restoreCachedInFlightTurn = (targetSessionId) => {
     const cached = inFlightTurnCache.get(targetSessionId);
     if (!cached?.length) return;
@@ -692,7 +720,8 @@ watch([() => route.params], async (newvalue) => {
         currentAssistantMessageId.value = '';
         userHasScrolledUp.value = false;
         clearInFlightTurnAnchor();
-        pendingInFlightTurnAnchorSessionId.value = targetSessionId;
+        pendingInFlightTurnAnchorSessionId.value =
+            hasActiveStream(targetSessionId) || inFlightTurnCache.has(targetSessionId) ? targetSessionId : '';
 
         // 跨会话切换：先把旧会话覆盖前的全局默认还原，再让新会话重新拍快照
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
@@ -1021,18 +1050,18 @@ const applyRenderedMessageAnchor = (index) => {
 
 const scheduleInFlightTurnAnchor = (targetSessionId = session_id.value) => {
     if (!targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-    if (!hasActiveStream(targetSessionId) && Date.now() > inFlightTurnAnchorUntil) {
+    const streamIsActive = hasActiveStream(targetSessionId);
+    if (!streamIsActive && Date.now() > inFlightTurnAnchorUntil) {
         clearInFlightTurnAnchor();
         return;
     }
-    if (Date.now() > inFlightTurnAnchorUntil) return;
     if (inFlightTurnAnchorRaf) return;
     inFlightTurnAnchorRaf = window.requestAnimationFrame(() => {
         inFlightTurnAnchorRaf = 0;
         if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
         const userIndex = findActiveTurnUserRenderedIndex();
         if (userIndex >= 0) applyRenderedMessageAnchor(userIndex);
-        if (Date.now() <= inFlightTurnAnchorUntil) {
+        if (hasActiveStream(targetSessionId) || Date.now() <= inFlightTurnAnchorUntil) {
             inFlightTurnAnchorTimer = window.setTimeout(() => {
                 inFlightTurnAnchorTimer = 0;
                 scheduleInFlightTurnAnchor(targetSessionId);
@@ -1048,7 +1077,7 @@ const anchorRestoredInFlightTurn = (targetSessionId = session_id.value) => {
     isFirstEnter.value = false;
     userHasScrolledUp.value = true;
     activeInFlightTurnAnchorSessionId.value = targetSessionId;
-    inFlightTurnAnchorUntil = Date.now() + 4000;
+    inFlightTurnAnchorUntil = Date.now() + 1500;
     nextTick(() => {
         window.requestAnimationFrame(() => {
             if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
@@ -1064,7 +1093,7 @@ const keepInFlightTurnAnchor = (targetSessionId = session_id.value) => {
         clearInFlightTurnAnchor();
         return;
     }
-    inFlightTurnAnchorUntil = Date.now() + 1200;
+    inFlightTurnAnchorUntil = Date.now() + 1500;
     userHasScrolledUp.value = true;
     scheduleInFlightTurnAnchor(targetSessionId);
 };

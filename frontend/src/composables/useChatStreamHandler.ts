@@ -408,6 +408,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!current) return incoming
     if (current === incoming) return current
     if (incoming.startsWith(current)) return incoming
+    if (current.startsWith(incoming)) return current
+    if (current.includes(incoming)) return current
+    if (incoming.includes(current)) return incoming
     if (current.endsWith(incoming)) return current
 
     const maxOverlap = Math.min(current.length, incoming.length)
@@ -632,7 +635,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
     if (message) {
       if (payload.id && !message.request_id) message.request_id = payload.id
-      message.content = payload.content
+      message.content = mergeStreamText(message.content, payload.content)
       message.thinking = payload.thinking
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
