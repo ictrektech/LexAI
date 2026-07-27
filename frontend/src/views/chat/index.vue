@@ -720,8 +720,9 @@ watch([() => route.params], async (newvalue) => {
         currentAssistantMessageId.value = '';
         userHasScrolledUp.value = false;
         clearInFlightTurnAnchor();
-        pendingInFlightTurnAnchorSessionId.value =
-            hasActiveStream(targetSessionId) || inFlightTurnCache.has(targetSessionId) ? targetSessionId : '';
+        const hasTargetInFlightTurn = hasActiveStream(targetSessionId) || inFlightTurnCache.has(targetSessionId);
+        pendingInFlightTurnAnchorSessionId.value = hasTargetInFlightTurn ? targetSessionId : '';
+        if (!hasTargetInFlightTurn) clearInFlightTurnScrollPreservation(targetSessionId);
 
         // 跨会话切换：先把旧会话覆盖前的全局默认还原，再让新会话重新拍快照
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
@@ -738,6 +739,7 @@ watch([() => route.params], async (newvalue) => {
     }
 });
 const scrollToBottom = (force = false) => {
+    if (preserveInFlightTurnScrollSessionId.value === session_id.value) return;
     if (!force && userHasScrolledUp.value) return;
     nextTick(() => {
         if (scrollContainer.value) {
@@ -747,6 +749,7 @@ const scrollToBottom = (force = false) => {
 }
 const onClickScrollToBottom = () => {
     clearInFlightTurnAnchor();
+    clearInFlightTurnScrollPreservation(session_id.value);
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 }
@@ -1006,6 +1009,7 @@ const renderedMessagesList = computed(() => {
 
 const pendingInFlightTurnAnchorSessionId = ref('');
 const activeInFlightTurnAnchorSessionId = ref('');
+const preserveInFlightTurnScrollSessionId = ref('');
 let inFlightTurnAnchorRaf = 0;
 let inFlightTurnAnchorTimer = 0;
 let inFlightTurnAnchorUntil = 0;
@@ -1021,6 +1025,12 @@ const clearInFlightTurnAnchor = () => {
     if (inFlightTurnAnchorTimer) {
         window.clearTimeout(inFlightTurnAnchorTimer);
         inFlightTurnAnchorTimer = 0;
+    }
+};
+
+const clearInFlightTurnScrollPreservation = (targetSessionId = '') => {
+    if (!targetSessionId || preserveInFlightTurnScrollSessionId.value === targetSessionId) {
+        preserveInFlightTurnScrollSessionId.value = '';
     }
 };
 
@@ -1045,13 +1055,13 @@ const applyRenderedMessageAnchor = (index) => {
     const nextTop = container.scrollTop + targetRect.top - containerRect.top - 8;
     container.scrollTop = Math.max(0, nextTop);
     lastScrollTop = container.scrollTop;
+    userHasScrolledUp.value = true;
     return true;
 };
 
 const scheduleInFlightTurnAnchor = (targetSessionId = session_id.value) => {
     if (!targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-    const streamIsActive = hasActiveStream(targetSessionId);
-    if (!streamIsActive && Date.now() > inFlightTurnAnchorUntil) {
+    if (Date.now() > inFlightTurnAnchorUntil) {
         clearInFlightTurnAnchor();
         return;
     }
@@ -1060,12 +1070,16 @@ const scheduleInFlightTurnAnchor = (targetSessionId = session_id.value) => {
         inFlightTurnAnchorRaf = 0;
         if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
         const userIndex = findActiveTurnUserRenderedIndex();
-        if (userIndex >= 0) applyRenderedMessageAnchor(userIndex);
-        if (hasActiveStream(targetSessionId) || Date.now() <= inFlightTurnAnchorUntil) {
+        if (userIndex >= 0 && applyRenderedMessageAnchor(userIndex)) {
+            activeInFlightTurnAnchorSessionId.value = '';
+            inFlightTurnAnchorUntil = 0;
+            return;
+        }
+        if (Date.now() <= inFlightTurnAnchorUntil) {
             inFlightTurnAnchorTimer = window.setTimeout(() => {
                 inFlightTurnAnchorTimer = 0;
                 scheduleInFlightTurnAnchor(targetSessionId);
-            }, 120);
+            }, 80);
         }
     });
 };
@@ -1076,33 +1090,33 @@ const anchorRestoredInFlightTurn = (targetSessionId = session_id.value) => {
     if (userIndex < 0) return;
     isFirstEnter.value = false;
     userHasScrolledUp.value = true;
+    preserveInFlightTurnScrollSessionId.value = targetSessionId;
     activeInFlightTurnAnchorSessionId.value = targetSessionId;
-    inFlightTurnAnchorUntil = Date.now() + 1500;
+    inFlightTurnAnchorUntil = Date.now() + 2000;
     nextTick(() => {
         window.requestAnimationFrame(() => {
             if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
             applyRenderedMessageAnchor(userIndex);
-            scheduleInFlightTurnAnchor(targetSessionId);
+            activeInFlightTurnAnchorSessionId.value = '';
+            inFlightTurnAnchorUntil = 0;
         });
     });
 };
 
 const keepInFlightTurnAnchor = (targetSessionId = session_id.value) => {
-    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-    if (!hasActiveStream(targetSessionId)) {
-        clearInFlightTurnAnchor();
-        return;
-    }
-    inFlightTurnAnchorUntil = Date.now() + 1500;
-    userHasScrolledUp.value = true;
-    scheduleInFlightTurnAnchor(targetSessionId);
+    if (preserveInFlightTurnScrollSessionId.value !== targetSessionId) return;
+    if (hasActiveStream(targetSessionId)) userHasScrolledUp.value = true;
 };
 
 const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
-    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
     pendingInFlightTurnAnchorSessionId.value = '';
-    inFlightTurnAnchorUntil = Date.now() + 1000;
-    scheduleInFlightTurnAnchor(targetSessionId);
+    if (activeInFlightTurnAnchorSessionId.value === targetSessionId) {
+        activeInFlightTurnAnchorSessionId.value = '';
+        inFlightTurnAnchorUntil = 0;
+    }
+    if (preserveInFlightTurnScrollSessionId.value === targetSessionId) {
+        userHasScrolledUp.value = true;
+    }
 };
 
 const replayBackgroundChunks = (targetSessionId) => {
@@ -1171,6 +1185,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
 const handleStopGeneration = () => {
     console.log('[Stop Generation] Immediately clearing loading state');
     clearInFlightTurnAnchor();
+    clearInFlightTurnScrollPreservation(session_id.value);
     stopStream(session_id.value);
     loading.value = false;
     isReplying.value = false;
@@ -1181,6 +1196,8 @@ const handleStopGeneration = () => {
 
 const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = [], attachmentFiles = []) => {
     stopStream(session_id.value);
+    clearInFlightTurnAnchor();
+    clearInFlightTurnScrollPreservation(session_id.value);
     prepareForNewOutgoingMessage();
     isReplying.value = true;
     loading.value = true;
