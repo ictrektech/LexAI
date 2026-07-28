@@ -147,13 +147,12 @@ const scheduleCitationClose = () => {
   }, 120)
 }
 
-// Smooth the streamed answer into a steady typewriter cadence. History reloads
-// arrive complete and snap to full.
+// Render the current stream buffer immediately; the backend controls token cadence.
 const answerText = computed(() => String(props.content || props.session?.content || ''))
 const { displayed: typedAnswer } = useTypewriter(
   () => answerText.value,
   () => Boolean(props.session?.is_completed),
-  { revealMode: 'character', revealInitialTarget: true },
+  { displayMode: 'immediate' },
 )
 
 const answerFullyRendered = computed(

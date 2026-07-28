@@ -202,7 +202,7 @@ test('renderChatMarkdown shows unfinished citation tags while streaming', () => 
     streaming: true,
   }))
 
-  assert.match(streamingHtml, /&lt;kb doc="中华人民共和国教育法\.pdf" chunk_id="/)
+  assert.match(streamingHtml, /&lt;kb doc=(?:"|&quot;)中华人民共和国教育法\.pdf(?:"|&quot;) chunk_id=(?:"|&quot;)/)
   assert.doesNotMatch(streamingHtml, /citation-kb/)
 
   const completeHtml = renderChatMarkdown(prefix + complete, {
@@ -314,7 +314,7 @@ test('renderChatMarkdown repairs bare-colon table delimiter cells', () => {
     sanitizeHtml: (value: string) => value,
   })
   assert.match(html, /<table>/)
-  assert.match(html, /<td>C<\/td>/)
+  assert.match(html, /<td[^>]*>C<\/td>/)
 })
 
 test('repairMalformedTableDelimiters leaves fenced code untouched', () => {
@@ -640,14 +640,14 @@ test('joinCitationTagsToPreviousLine does not merge citations onto an unlabeled 
   assert.equal(joinCitationTagsToPreviousLine(input), '```\nAPR = principal\n```\n' + tag)
 })
 
-test('applyStreamingTailFade wraps the trailing text run', () => {
+test('applyStreamingTailFade keeps the trailing text visible', () => {
   const out = applyStreamingTailFade('<p>Great, that narrows it down a lot. Two more quick</p>')
-  assert.match(out, /<span class="stream-fade-tail">[^<]*Two more quick<\/span><\/p>$/)
+  assert.equal(out, '<p>Great, that narrows it down a lot. Two more quick</p>')
 })
 
-test('applyStreamingTailFade skips whitespace-only runs and fades the last list item', () => {
+test('applyStreamingTailFade does not wrap list items', () => {
   const out = applyStreamingTailFade('<ol>\n<li>第一项</li>\n<li>正在生成的第二项</li>\n</ol>')
-  assert.match(out, /<li><span class="stream-fade-tail">正在生成的第二项<\/span><\/li>/)
+  assert.equal(out, '<ol>\n<li>第一项</li>\n<li>正在生成的第二项</li>\n</ol>')
 })
 
 test('applyStreamingTailFade is a no-op for empty content', () => {
@@ -655,7 +655,7 @@ test('applyStreamingTailFade is a no-op for empty content', () => {
   assert.equal(applyStreamingTailFade('<p></p>'), '<p></p>')
 })
 
-test('renderChatMarkdown adds the tail fade only while streaming', () => {
+test('renderChatMarkdown keeps streamed text fully visible', () => {
   const renderer = createChatMarkdownRenderer()
   const opts = {
     renderer,
@@ -663,7 +663,7 @@ test('renderChatMarkdown adds the tail fade only while streaming', () => {
     sanitizeHtml: (html: string) => html,
   }
   const streamed = renderChatMarkdown('正在生成中的回答内容', { ...opts, streaming: true })
-  assert.match(streamed, /stream-fade-tail/)
+  assert.doesNotMatch(streamed, /stream-fade-tail/)
   const settled = renderChatMarkdown('正在生成中的回答内容', { ...opts, streaming: false })
   assert.doesNotMatch(settled, /stream-fade-tail/)
 })

@@ -1452,13 +1452,12 @@ const getAnswerDisplayContent = (event: any): string => {
   return typeof event?.content === 'string' ? event.content : '';
 };
 
-// Smooth the streamed answer into a steady typewriter cadence (shared with the
-// non-Agent markdown path). History reloads arrive already complete and snap to
-// full instead of replaying.
+// Render the currently received stream buffer immediately; remounting this
+// view should show the full accumulated answer, not replay a local buffer.
 const { displayed: typedAnswer } = useTypewriter(
   () => activeAnswerMarkdown.value,
   () => isConversationDone.value,
-  { revealMode: 'character', revealInitialTarget: true },
+  { displayMode: 'immediate' },
 );
 
 const cacheStreamingMermaidSvg = async () => {
@@ -3029,7 +3028,6 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
 // Answer Event - 无边框，直接显示内容
 .answer-event {
-  animation: fadeInUp 0.25s ease-out;
   min-height: 20px;
 
   .fallback-icon-btn {

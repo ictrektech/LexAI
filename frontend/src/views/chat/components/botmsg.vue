@@ -199,8 +199,8 @@ const mentionedItems = computed(() => {
     return props.session?.mentioned_items || [];
 });
 
-// Smooth the streamed answer into a steady typewriter cadence. Copy/toolbar
-// still read the full content; only display is paced.
+// Render the currently received stream buffer immediately; the backend already
+// controls token cadence.
 const answerText = computed(() => {
     const text = props.content || props.session?.content || '';
     return typeof text === 'string' ? text : '';
@@ -208,7 +208,7 @@ const answerText = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
     () => answerText.value,
     () => Boolean(props.session?.is_completed),
-    { revealMode: 'character', revealInitialTarget: true },
+    { displayMode: 'immediate' },
 );
 
 // The backend completion event can arrive while the local typewriter still has

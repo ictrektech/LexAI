@@ -1,6 +1,11 @@
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef } from 'vue';
 
 export interface TypewriterOptions {
+  /**
+   * `immediate` renders the current stream buffer exactly as received. Keep the
+   * paced typewriter only for views that explicitly want synthetic pacing.
+   */
+  displayMode?: 'immediate' | 'paced';
   /** Comfortable reveal floor in characters per second. */
   minCps?: number;
   /** Time window (seconds) over which ordinary backlog is drained. */
@@ -93,6 +98,10 @@ export function useTypewriter(
   getComplete: () => boolean,
   options: TypewriterOptions = {},
 ): { displayed: ComputedRef<string> } {
+  if (options.displayMode === 'immediate') {
+    return { displayed: computed(() => getTarget()) };
+  }
+
   const minCps = options.minCps ?? 72;
   const drainSeconds = options.drainSeconds ?? 0.42;
   const maxCps = options.maxCps ?? 240;
