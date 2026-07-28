@@ -185,6 +185,7 @@ func (h *AgentStreamHandler) handleToolCall(ctx context.Context, evt event.Event
 	}
 	if supersededAny {
 		h.finalAnswer = h.composeFinalAnswer()
+		h.assistantMessage.Content = h.finalAnswer
 	}
 	h.mu.Unlock()
 
@@ -471,6 +472,7 @@ func (h *AgentStreamHandler) handleFinalAnswer(ctx context.Context, evt event.Ev
 		}
 		seg.content += data.Content
 		h.finalAnswer = h.composeFinalAnswer()
+		h.assistantMessage.Content = h.finalAnswer
 	}
 	if data.IsFallback {
 		h.assistantMessage.IsFallback = true
