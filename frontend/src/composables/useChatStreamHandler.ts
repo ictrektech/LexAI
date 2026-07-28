@@ -212,15 +212,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (keepStreamIdentity) {
       if (streamId) existing.id = streamId
       if (streamRequestId) existing.request_id = streamRequestId
-      // While a message is still streaming, the backend may persist a partial
-      // snapshot. Do not let that shorter snapshot overwrite the longer content
-      // the frontend has already accumulated from SSE chunks.
-      if (!existing.is_completed) {
-        const existingLen = String(existingContent || '').length
-        const incomingLen = String(incomingContent || '').length
-        if (existingLen > incomingLen) {
-          existing.content = existingContent
-        }
+      const existingLen = String(existingContent || '').length
+      const incomingLen = String(incomingContent || '').length
+      if (existingLen > incomingLen) {
+        existing.content = existingContent
       }
     }
   }
