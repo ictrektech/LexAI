@@ -27,6 +27,7 @@ type AgentStreamHandler struct {
 	ttfbLogged         bool      // Guards one-shot TTFB log on first answer chunk
 	assistantMessage   *types.Message
 	streamManager      interfaces.StreamManager
+	messageService     interfaces.MessageService
 
 	eventBus *event.EventBus
 
@@ -79,6 +80,7 @@ func NewAgentStreamHandler(
 	receivedAt time.Time,
 	assistantMessage *types.Message,
 	streamManager interfaces.StreamManager,
+	messageService interfaces.MessageService,
 	eventBus *event.EventBus,
 ) *AgentStreamHandler {
 	return &AgentStreamHandler{
@@ -89,6 +91,7 @@ func NewAgentStreamHandler(
 		receivedAt:         receivedAt,
 		assistantMessage:   assistantMessage,
 		streamManager:      streamManager,
+		messageService:     messageService,
 		eventBus:           eventBus,
 		knowledgeRefs:      make([]*types.SearchResult, 0),
 		eventStartTimes:    make(map[string]time.Time),
@@ -186,6 +189,9 @@ func (h *AgentStreamHandler) handleToolCall(ctx context.Context, evt event.Event
 	if supersededAny {
 		h.finalAnswer = h.composeFinalAnswer()
 		h.assistantMessage.Content = h.finalAnswer
+		if h.messageService != nil {
+			_ = h.messageService.UpdateMessage(h.ctx, h.assistantMessage)
+		}
 	}
 	h.mu.Unlock()
 
@@ -473,6 +479,9 @@ func (h *AgentStreamHandler) handleFinalAnswer(ctx context.Context, evt event.Ev
 		seg.content += data.Content
 		h.finalAnswer = h.composeFinalAnswer()
 		h.assistantMessage.Content = h.finalAnswer
+		if h.messageService != nil {
+			_ = h.messageService.UpdateMessage(h.ctx, h.assistantMessage)
+		}
 	}
 	if data.IsFallback {
 		h.assistantMessage.IsFallback = true
