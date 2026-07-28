@@ -33,7 +33,7 @@
             <!-- 直接渲染完整内容，避免切分导致的问题，样式与 thinking 一致 -->
             <!-- 只有当有实际内容时才显示包围框 -->
             <div class="content-wrapper" v-if="hasActualContent">
-                <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+                <div v-if="!answerFullyRendered" class="streaming-answer-text" v-html="streamingRenderedHTML"></div>
                 <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML"></div>
             </div>
             <!-- Streaming indicator (non-Agent mode) -->
@@ -93,6 +93,10 @@ import { sanitizeMarkdownHTML, safeMarkdownToHTML, createSafeImage, isValidImage
 import { useI18n } from 'vue-i18n';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useUIStore } from '@/stores/ui';
+import {
+    preprocessCitationTags,
+    stripIncompleteCitationTag,
+} from '@/utils/citationMarkdown';
 import {
     buildManualMarkdown,
     copyTextToClipboard,
@@ -236,6 +240,17 @@ const renderedHTML = computed(() => {
         streaming: false,
         knowledgeReferences: props.session?.knowledge_references,
     });
+});
+
+// While the typewriter is still emitting characters, render any fully-closed
+// citation tags (<kb/>, <web/>) as inline chips so raw HTML attributes do not
+// flash on screen, while preserving the token-by-token streaming feel.
+const streamingRenderedHTML = computed(() => {
+    const text = typedAnswer.value;
+    if (!text || typeof text !== 'string') return '';
+    const safeText = stripIncompleteCitationTag(text);
+    const html = preprocessCitationTags(safeText, props.session?.knowledge_references);
+    return sanitizeMarkdownHTML(html);
 });
 
 // 计算属性：判断是否有实际内容（非空且不只是空白）

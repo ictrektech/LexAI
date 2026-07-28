@@ -1079,6 +1079,21 @@ const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
 const replayBackgroundChunks = (targetSessionId) => {
     const chunks = drainSessionChunks(targetSessionId);
     if (!chunks?.length || session_id.value !== targetSessionId) return;
+    // Background chunks are incremental deltas. Make sure fullContent resumes
+    // from the content already shown in the restored incomplete message,
+    // otherwise the chunks would overwrite the message with only the tail.
+    const lastMessage = messagesList[messagesList.length - 1];
+    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_completed && !lastMessage.isAgentMode) {
+        const thinkContent = String(lastMessage.thinkContent || '');
+        const answerContent = String(lastMessage.content || '');
+        if (lastMessage.thinking) {
+            fullContent.value = `<think>${thinkContent}`;
+        } else if (thinkContent) {
+            fullContent.value = `<think>${thinkContent}</think>${answerContent}`;
+        } else {
+            fullContent.value = answerContent;
+        }
+    }
     chunks.forEach((chunk) => processStreamChunk(chunk));
 };
 
