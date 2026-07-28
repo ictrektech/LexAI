@@ -33,7 +33,8 @@
             <!-- 直接渲染完整内容，避免切分导致的问题，样式与 thinking 一致 -->
             <!-- 只有当有实际内容时才显示包围框 -->
             <div class="content-wrapper" v-if="hasActualContent">
-                <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+                <div v-if="!answerFullyRendered" class="ai-markdown-template markdown-content"
+                    v-html="streamedHTML"></div>
                 <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML"></div>
             </div>
             <!-- Streaming indicator (non-Agent mode) -->
@@ -207,7 +208,7 @@ const answerText = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
     () => answerText.value,
     () => Boolean(props.session?.is_completed),
-    { revealMode: 'character' },
+    { revealMode: 'character', revealInitialTarget: true },
 );
 
 // The backend completion event can arrive while the local typewriter still has
@@ -225,7 +226,18 @@ watch(
     { immediate: true },
 );
 
-// 流式阶段用纯文本逐字显示；完成后再一次性渲染 Markdown，避免表格/公式在 streaming 中闪烁。
+const streamedHTML = computed(() => {
+    const text = typedAnswer.value;
+    if (!text || typeof text !== 'string') return '';
+    return renderChatMarkdown(text, {
+        renderer: markdownRenderer,
+        escapeMarkdown: safeMarkdownToHTML,
+        sanitizeHtml: sanitizeMarkdownHTML,
+        streaming: true,
+        knowledgeReferences: props.session?.knowledge_references,
+    });
+});
+
 const renderedHTML = computed(() => {
     const text = answerText.value;
     if (!text || typeof text !== 'string') return '';

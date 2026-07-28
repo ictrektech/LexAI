@@ -11,6 +11,11 @@ export interface TypewriterOptions {
   maxFrameSeconds?: number;
   /** Reveal semantic chunks by default, or exactly one code point at a time. */
   revealMode?: 'semantic' | 'character';
+  /**
+   * When a streaming message component remounts, the text already received by
+   * the page should be visible immediately; only future growth is animated.
+   */
+  revealInitialTarget?: boolean;
 }
 
 const NATURAL_BREAK_RE = /[\s，。！？；：、,.!?;:)\]】》」』]/u;
@@ -93,6 +98,7 @@ export function useTypewriter(
   const maxCps = options.maxCps ?? 240;
   const maxFrameSeconds = options.maxFrameSeconds ?? 0.05;
   const revealMode = options.revealMode ?? 'semantic';
+  const revealInitialTarget = options.revealInitialTarget ?? false;
 
   const typedLength = ref(0);
   let revealCredit = 0;
@@ -179,7 +185,7 @@ export function useTypewriter(
       const target = full.length;
       if (!initialized) {
         initialized = true;
-        if (getComplete() || reduceMotion) {
+        if (getComplete() || reduceMotion || revealInitialTarget) {
           typedLength.value = target;
           return;
         }

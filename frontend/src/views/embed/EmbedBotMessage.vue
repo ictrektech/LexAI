@@ -15,7 +15,7 @@
     <DeepThink v-if="session?.showThink && !session?.isAgentMode" :deep-session="session" />
     <div v-if="!session?.hideContent && !session?.isAgentMode" ref="parentMd">
       <div v-if="hasActualContent" class="content-wrapper">
-        <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+        <div v-if="!answerFullyRendered" class="ai-markdown-template markdown-content" v-html="streamedHTML" />
         <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML" />
       </div>
     </div>
@@ -153,12 +153,24 @@ const answerText = computed(() => String(props.content || props.session?.content
 const { displayed: typedAnswer } = useTypewriter(
   () => answerText.value,
   () => Boolean(props.session?.is_completed),
-  { revealMode: 'character' },
+  { revealMode: 'character', revealInitialTarget: true },
 )
 
 const answerFullyRendered = computed(
   () => Boolean(props.session?.is_completed) && typedAnswer.value.length >= answerText.value.length,
 )
+
+const streamedHTML = computed(() => {
+  const text = typedAnswer.value
+  if (!text.trim()) return ''
+  return renderChatMarkdown(text, {
+    renderer: markdownRenderer,
+    escapeMarkdown: safeMarkdownToHTML,
+    sanitizeHtml: sanitizeMarkdownHTML,
+    streaming: true,
+    knowledgeReferences: props.session?.knowledge_references,
+  })
+})
 
 const renderedHTML = computed(() => {
   const text = answerText.value

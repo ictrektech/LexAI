@@ -31,6 +31,32 @@ export function stripIncompleteCitationTag(content: string): string {
   return isCitationPrefix ? content.slice(0, start) : content
 }
 
+/**
+ * Keep an unfinished streaming citation visible as ordinary text.
+ *
+ * The completed `<kb .../>` / `<web .../>` tag is converted into a citation pill
+ * by the normal pipeline. Before the closing `>` arrives, however, browsers and
+ * Markdown parsers treat the dangling `<kb` tail as an HTML tag and can hide the
+ * new tokens entirely. Escaping only the leading `<` makes the partial tag
+ * visible while it is still streaming, then naturally falls back to citation
+ * rendering once the tag is complete.
+ */
+export function exposeIncompleteCitationTagAsText(content: string): string {
+  if (!content) return content
+
+  const start = content.lastIndexOf('<')
+  if (start < 0) return content
+
+  const tail = content.slice(start)
+  if (tail.includes('>')) return content
+
+  const isCitationPrefix = tail === '<'
+    || /^<k(?:b(?:\s[\s\S]*)?)?$/i.test(tail)
+    || /^<w(?:e(?:b(?:\s[\s\S]*)?)?)?$/i.test(tail)
+
+  return isCitationPrefix ? `${content.slice(0, start)}&lt;${tail.slice(1)}` : content
+}
+
 export type CitationKnowledgeRef = {
   id?: string
   knowledge_id?: string

@@ -18,6 +18,7 @@ import {
 } from './chatMarkdownRenderer.ts'
 import {
   collapseStandaloneCitationParagraphs,
+  exposeIncompleteCitationTagAsText,
   joinCitationTagsToPreviousLine,
   resolveCitationChunkId,
   stripIncompleteCitationTag,
@@ -181,6 +182,38 @@ test('stripIncompleteCitationTag hides only an unfinished streaming citation tai
 
   assert.equal(stripIncompleteCitationTag(prefix + complete), prefix + complete)
   assert.equal(stripIncompleteCitationTag('Value < 5'), 'Value < 5')
+})
+
+test('renderChatMarkdown shows unfinished citation tags while streaming', () => {
+  const renderer = createChatMarkdownRenderer()
+  const prefix = '依据 '
+  const partial = '<kb doc="中华人民共和国教育法.pdf" chunk_id="'
+  const complete = '<kb doc="中华人民共和国教育法.pdf" chunk_id="chunk-1" />'
+
+  assert.equal(
+    exposeIncompleteCitationTagAsText(prefix + partial),
+    `${prefix}&lt;kb doc="中华人民共和国教育法.pdf" chunk_id="`,
+  )
+
+  const streamingHtml = stripFadeTail(renderChatMarkdown(prefix + partial, {
+    renderer,
+    escapeMarkdown: (text) => text,
+    sanitizeHtml: (html) => html,
+    streaming: true,
+  }))
+
+  assert.match(streamingHtml, /&lt;kb doc="中华人民共和国教育法\.pdf" chunk_id="/)
+  assert.doesNotMatch(streamingHtml, /citation-kb/)
+
+  const completeHtml = renderChatMarkdown(prefix + complete, {
+    renderer,
+    escapeMarkdown: (text) => text,
+    sanitizeHtml: (html) => html,
+    streaming: true,
+  })
+
+  assert.match(completeHtml, /class="citation citation-kb"/)
+  assert.match(completeHtml, /data-chunk-id="chunk-1"/)
 })
 
 test('stripTrailingStreamingHorizontalRule hides an ambiguous trailing rule only mid-stream', () => {

@@ -212,19 +212,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (keepStreamIdentity) {
       if (streamId) existing.id = streamId
       if (streamRequestId) existing.request_id = streamRequestId
-      if (String(existingContent || '').length > String(incomingContent || '').length) {
-        existing.content = existingContent
-      }
+      existing.content = mergeStreamText(existingContent, incomingContent)
       if (!existing.is_completed && existing.__stream_active === undefined) {
         existing.__stream_active = true
       }
     }
   }
 
-  /** Incomplete assistant row for the current turn (must be the list tail). */
-  const getTrailingIncompleteAssistant = () => {
-    const last = messagesList[messagesList.length - 1]
-    if (last?.role === 'assistant' && !last.is_completed) return last
+  /** Latest incomplete assistant row; history refreshes can move it away from the list tail. */
+  const getLatestIncompleteAssistant = () => {
+    for (let i = messagesList.length - 1; i >= 0; i -= 1) {
+      const message = messagesList[i]
+      if (message?.role === 'assistant' && !message.is_completed) return message
+    }
     return undefined
   }
 
@@ -266,7 +266,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         (m) => m.id === messageId || m.request_id === messageId,
       )
     }
-    if (!target) target = getTrailingIncompleteAssistant()
+    if (!target) target = getLatestIncompleteAssistant()
     if (target) markAssistantStopped(target)
     fullContent.value = ''
   }
@@ -297,7 +297,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     })
     if (matched) return matched
 
-    return getTrailingIncompleteAssistant()
+    return getLatestIncompleteAssistant()
   }
 
   const applyKnowledgeReferences = (data: ChatMessage) => {
@@ -1011,8 +1011,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (eventId) eventMap.set(eventId, answerEvent)
         }
         if (data.content) {
-          answerEvent.content += data.content
-          message.content = recomposeAgentAnswer(message)
+          const previousAnswer = mergeStreamText(message.content, answerEvent.content)
+          answerEvent.content = mergeStreamText(answerEvent.content || previousAnswer, data.content)
+          message.content = mergeStreamText(previousAnswer, recomposeAgentAnswer(message))
           fullContent.value = String(message.content || '')
         } else if (!answerEvent.content && message.content && String(message.content).trim()) {
           answerEvent.content = message.content
@@ -1095,7 +1096,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     if (responseType === 'agent_query') {
       if (data.id) {
-        const earlyMsg = getTrailingIncompleteAssistant()
+        const earlyMsg = getLatestIncompleteAssistant()
         if (earlyMsg) earlyMsg.request_id = data.id
       }
       if (data.assistant_message_id) {
@@ -1231,7 +1232,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       return
     }
 
-    fullContent.value += (data.content as string) || ''
+    const existingContent = String(existingMessage?.content || '')
+    if (!fullContent.value && existingContent) {
+      fullContent.value = existingContent
+    }
+    fullContent.value = mergeStreamText(fullContent.value, data.content)
     const obj: ChatMessage = {
       ...data,
       content: '',
