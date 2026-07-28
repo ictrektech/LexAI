@@ -579,6 +579,7 @@ const hasPersistedAssistantAfterCachedUser = (cachedUserMessage) => {
         if (message?.role === 'user') break;
         if (
             message?.role === 'assistant' &&
+            message.is_completed &&
             normalizeAssistantAnswerText(getAssistantAnswerText(message))
         ) {
             return true;
@@ -1508,7 +1509,11 @@ const clearData = (abortStreams = true) => {
     if (abortStreams) stopStream();
     referencesDrawer.close();
     isReplying.value = false;
-    fullContent.value = '';
+    // Don't clear fullContent if streams are still active - it will be restored
+    // when switching back to the session via replayBackgroundChunks
+    if (!hasActiveStream(session_id.value)) {
+        fullContent.value = '';
+    }
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }
