@@ -352,7 +352,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (Array.isArray(session.knowledge_references) && session.knowledge_references.length > 0) {
       return true
     }
-    return false
+    return Boolean(String(session.content || '').trim())
   }
 
   const shouldShowGlobalTypingIndicator = (
