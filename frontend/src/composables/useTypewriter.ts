@@ -1,11 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef } from 'vue';
 
 export interface TypewriterOptions {
-  /**
-   * `immediate` renders the current stream buffer exactly as received. Keep the
-   * paced typewriter only for views that explicitly want synthetic pacing.
-   */
-  displayMode?: 'immediate' | 'paced';
   /** Comfortable reveal floor in characters per second. */
   minCps?: number;
   /** Time window (seconds) over which ordinary backlog is drained. */
@@ -16,11 +11,6 @@ export interface TypewriterOptions {
   maxFrameSeconds?: number;
   /** Reveal semantic chunks by default, or exactly one code point at a time. */
   revealMode?: 'semantic' | 'character';
-  /**
-   * When a streaming message component remounts, the text already received by
-   * the page should be visible immediately; only future growth is animated.
-   */
-  revealInitialTarget?: boolean;
 }
 
 const NATURAL_BREAK_RE = /[\s，。！？；：、,.!?;:)\]】》」』]/u;
@@ -98,16 +88,11 @@ export function useTypewriter(
   getComplete: () => boolean,
   options: TypewriterOptions = {},
 ): { displayed: ComputedRef<string> } {
-  if (options.displayMode === 'immediate') {
-    return { displayed: computed(() => getTarget()) };
-  }
-
   const minCps = options.minCps ?? 72;
   const drainSeconds = options.drainSeconds ?? 0.42;
   const maxCps = options.maxCps ?? 240;
   const maxFrameSeconds = options.maxFrameSeconds ?? 0.05;
   const revealMode = options.revealMode ?? 'semantic';
-  const revealInitialTarget = options.revealInitialTarget ?? false;
 
   const typedLength = ref(0);
   let revealCredit = 0;
@@ -194,7 +179,7 @@ export function useTypewriter(
       const target = full.length;
       if (!initialized) {
         initialized = true;
-        if (getComplete() || reduceMotion || revealInitialTarget) {
+        if (getComplete() || reduceMotion) {
           typedLength.value = target;
           return;
         }

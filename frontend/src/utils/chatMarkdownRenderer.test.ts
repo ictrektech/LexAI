@@ -18,7 +18,6 @@ import {
 } from './chatMarkdownRenderer.ts'
 import {
   collapseStandaloneCitationParagraphs,
-  exposeIncompleteCitationTagAsText,
   joinCitationTagsToPreviousLine,
   resolveCitationChunkId,
   stripIncompleteCitationTag,
@@ -184,38 +183,6 @@ test('stripIncompleteCitationTag hides only an unfinished streaming citation tai
   assert.equal(stripIncompleteCitationTag('Value < 5'), 'Value < 5')
 })
 
-test('renderChatMarkdown shows unfinished citation tags while streaming', () => {
-  const renderer = createChatMarkdownRenderer()
-  const prefix = '依据 '
-  const partial = '<kb doc="中华人民共和国教育法.pdf" chunk_id="'
-  const complete = '<kb doc="中华人民共和国教育法.pdf" chunk_id="chunk-1" />'
-
-  assert.equal(
-    exposeIncompleteCitationTagAsText(prefix + partial),
-    `${prefix}&lt;kb doc="中华人民共和国教育法.pdf" chunk_id="`,
-  )
-
-  const streamingHtml = stripFadeTail(renderChatMarkdown(prefix + partial, {
-    renderer,
-    escapeMarkdown: (text) => text,
-    sanitizeHtml: (html) => html,
-    streaming: true,
-  }))
-
-  assert.match(streamingHtml, /&lt;kb doc=(?:"|&quot;)中华人民共和国教育法\.pdf(?:"|&quot;) chunk_id=(?:"|&quot;)/)
-  assert.doesNotMatch(streamingHtml, /citation-kb/)
-
-  const completeHtml = renderChatMarkdown(prefix + complete, {
-    renderer,
-    escapeMarkdown: (text) => text,
-    sanitizeHtml: (html) => html,
-    streaming: true,
-  })
-
-  assert.match(completeHtml, /class="citation citation-kb"/)
-  assert.match(completeHtml, /data-chunk-id="chunk-1"/)
-})
-
 test('stripTrailingStreamingHorizontalRule hides an ambiguous trailing rule only mid-stream', () => {
   for (const rule of ['---', '* * *', '___']) {
     assert.equal(stripTrailingStreamingHorizontalRule(`- item\n\n${rule}`), '- item\n\n')
@@ -314,7 +281,7 @@ test('renderChatMarkdown repairs bare-colon table delimiter cells', () => {
     sanitizeHtml: (value: string) => value,
   })
   assert.match(html, /<table>/)
-  assert.match(html, /<td[^>]*>C<\/td>/)
+  assert.match(html, /<td>C<\/td>/)
 })
 
 test('repairMalformedTableDelimiters leaves fenced code untouched', () => {
@@ -640,14 +607,14 @@ test('joinCitationTagsToPreviousLine does not merge citations onto an unlabeled 
   assert.equal(joinCitationTagsToPreviousLine(input), '```\nAPR = principal\n```\n' + tag)
 })
 
-test('applyStreamingTailFade keeps the trailing text visible', () => {
+test('applyStreamingTailFade wraps the trailing text run', () => {
   const out = applyStreamingTailFade('<p>Great, that narrows it down a lot. Two more quick</p>')
-  assert.equal(out, '<p>Great, that narrows it down a lot. Two more quick</p>')
+  assert.match(out, /<span class="stream-fade-tail">[^<]*Two more quick<\/span><\/p>$/)
 })
 
-test('applyStreamingTailFade does not wrap list items', () => {
+test('applyStreamingTailFade skips whitespace-only runs and fades the last list item', () => {
   const out = applyStreamingTailFade('<ol>\n<li>第一项</li>\n<li>正在生成的第二项</li>\n</ol>')
-  assert.equal(out, '<ol>\n<li>第一项</li>\n<li>正在生成的第二项</li>\n</ol>')
+  assert.match(out, /<li><span class="stream-fade-tail">正在生成的第二项<\/span><\/li>/)
 })
 
 test('applyStreamingTailFade is a no-op for empty content', () => {
@@ -655,7 +622,7 @@ test('applyStreamingTailFade is a no-op for empty content', () => {
   assert.equal(applyStreamingTailFade('<p></p>'), '<p></p>')
 })
 
-test('renderChatMarkdown keeps streamed text fully visible', () => {
+test('renderChatMarkdown adds the tail fade only while streaming', () => {
   const renderer = createChatMarkdownRenderer()
   const opts = {
     renderer,
@@ -663,7 +630,7 @@ test('renderChatMarkdown keeps streamed text fully visible', () => {
     sanitizeHtml: (html: string) => html,
   }
   const streamed = renderChatMarkdown('正在生成中的回答内容', { ...opts, streaming: true })
-  assert.doesNotMatch(streamed, /stream-fade-tail/)
+  assert.match(streamed, /stream-fade-tail/)
   const settled = renderChatMarkdown('正在生成中的回答内容', { ...opts, streaming: false })
   assert.doesNotMatch(settled, /stream-fade-tail/)
 })

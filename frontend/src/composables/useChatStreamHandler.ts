@@ -204,27 +204,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         existing.request_id === currentAssistantMessageId.value)
     const streamId = existing.id
     const streamRequestId = existing.request_id
-    const existingContent = existing.content
-    const incomingContent = item.content
 
     Object.assign(existing, item)
 
     if (keepStreamIdentity) {
       if (streamId) existing.id = streamId
       if (streamRequestId) existing.request_id = streamRequestId
-      existing.content = mergeStreamText(existingContent, incomingContent)
-      if (!existing.is_completed && existing.__stream_active === undefined) {
-        existing.__stream_active = true
-      }
     }
   }
 
-  /** Latest incomplete assistant row; history refreshes can move it away from the list tail. */
-  const getLatestIncompleteAssistant = () => {
-    for (let i = messagesList.length - 1; i >= 0; i -= 1) {
-      const message = messagesList[i]
-      if (message?.role === 'assistant' && !message.is_completed) return message
-    }
+  /** Incomplete assistant row for the current turn (must be the list tail). */
+  const getTrailingIncompleteAssistant = () => {
+    const last = messagesList[messagesList.length - 1]
+    if (last?.role === 'assistant' && !last.is_completed) return last
     return undefined
   }
 
@@ -266,7 +258,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         (m) => m.id === messageId || m.request_id === messageId,
       )
     }
-    if (!target) target = getLatestIncompleteAssistant()
+    if (!target) target = getTrailingIncompleteAssistant()
     if (target) markAssistantStopped(target)
     fullContent.value = ''
   }
@@ -297,7 +289,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     })
     if (matched) return matched
 
-    return getLatestIncompleteAssistant()
+    return getTrailingIncompleteAssistant()
   }
 
   const applyKnowledgeReferences = (data: ChatMessage) => {
@@ -352,7 +344,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (Array.isArray(session.knowledge_references) && session.knowledge_references.length > 0) {
       return true
     }
-    return Boolean(String(session.content || '').trim())
+    return false
   }
 
   const shouldShowGlobalTypingIndicator = (
@@ -416,9 +408,6 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!current) return incoming
     if (current === incoming) return current
     if (incoming.startsWith(current)) return incoming
-    if (current.startsWith(incoming)) return current
-    if (current.includes(incoming)) return current
-    if (incoming.includes(current)) return incoming
     if (current.endsWith(incoming)) return current
 
     const maxOverlap = Math.min(current.length, incoming.length)
@@ -643,7 +632,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
     if (message) {
       if (payload.id && !message.request_id) message.request_id = payload.id
-      message.content = mergeStreamText(message.content, payload.content)
+      message.content = payload.content
       message.thinking = payload.thinking
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
@@ -774,7 +763,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             if (eventId) eventMap.set(eventId, thinkingEvent)
           }
           if (data.content) {
-            thinkingEvent.content += data.content
+            thinkingEvent.content = String(thinkingEvent.content || '') + String(data.content)
             log('[Thinking] Event', eventId, 'accumulated:', String(thinkingEvent.content).length, 'chars')
           }
         } else {
@@ -1011,9 +1000,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (eventId) eventMap.set(eventId, answerEvent)
         }
         if (data.content) {
-          const previousAnswer = mergeStreamText(message.content, answerEvent.content)
-          answerEvent.content = mergeStreamText(answerEvent.content || previousAnswer, data.content)
-          message.content = mergeStreamText(previousAnswer, recomposeAgentAnswer(message))
+          answerEvent.content = mergeStreamText(answerEvent.content, data.content)
+          message.content = recomposeAgentAnswer(message)
           fullContent.value = String(message.content || '')
         } else if (!answerEvent.content && message.content && String(message.content).trim()) {
           answerEvent.content = message.content
@@ -1096,7 +1084,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     if (responseType === 'agent_query') {
       if (data.id) {
-        const earlyMsg = getLatestIncompleteAssistant()
+        const earlyMsg = getTrailingIncompleteAssistant()
         if (earlyMsg) earlyMsg.request_id = data.id
       }
       if (data.assistant_message_id) {
@@ -1232,11 +1220,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       return
     }
 
-    const existingContent = String(existingMessage?.content || '')
-    if (!fullContent.value && existingContent) {
-      fullContent.value = existingContent
-    }
-    fullContent.value = mergeStreamText(fullContent.value, data.content)
+    fullContent.value += (data.content as string) || ''
     const obj: ChatMessage = {
       ...data,
       content: '',

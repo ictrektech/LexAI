@@ -268,7 +268,6 @@ const historyLoading = ref(true);
 const historyLoadingMore = ref(false);
 const hasMoreHistory = ref(true);
 let fullContent = ref('')
-const fullContentSessionId = ref('')
 const scrollContainer = ref(null)
 const userHasScrolledUp = ref(false)
 const SCROLL_BOTTOM_THRESHOLD = 80
@@ -462,6 +461,19 @@ const getLastUserMessageIndex = () => {
     return -1;
 };
 
+const cacheCurrentInFlightTurn = (targetSessionId = session_id.value) => {
+    if (!targetSessionId || messagesList.length === 0) return;
+    const lastUserIndex = getLastUserMessageIndex();
+    if (lastUserIndex < 0) return;
+    const tail = messagesList.slice(lastUserIndex);
+    const hasIncompleteAssistant = tail.some((message) => message.role === 'assistant' && !message.is_completed);
+    if (!hasIncompleteAssistant && !hasActiveStream(targetSessionId)) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
+    inFlightTurnCache.set(targetSessionId, tail.map(cloneMessageForInFlightCache));
+};
+
 const messageIdentityMatches = (left, right) => {
     if (!left || !right) return false;
     if (left.id && right.id && left.id === right.id) return true;
@@ -487,8 +499,6 @@ const mergeStreamText = (prefixValue, suffixValue) => {
     if (prefix === suffix) return prefix;
     if (suffix.startsWith(prefix)) return suffix;
     if (prefix.startsWith(suffix)) return prefix;
-    if (prefix.includes(suffix)) return prefix;
-    if (suffix.includes(prefix)) return suffix;
     if (prefix.endsWith(suffix)) return prefix;
 
     const maxOverlap = Math.min(prefix.length, suffix.length);
@@ -517,7 +527,7 @@ const mergeAgentEvent = (target, source) => {
     if (!target.event_id && source.event_id) target.event_id = source.event_id;
     if (source.type && !target.type) target.type = source.type;
     if (source.type === 'answer' || target.type === 'answer') {
-        target.content = mergeStreamText(target.content, source.content);
+        target.content = mergeStreamText(source.content, target.content);
     } else if (!target.content && source.content) {
         target.content = source.content;
     }
@@ -542,123 +552,23 @@ const composeAgentAnswerContent = (message) => {
     if (!Array.isArray(message.agentEventStream)) return '';
     return message.agentEventStream
         .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
-        .reduce((merged, event) => mergeStreamText(merged, event.content), '');
+        .map((event) => event.content)
+        .join('');
 };
 
 const getMessageStreamSessionId = (message) => String(message?.__stream_session_id || message?.session_id || '');
 
 const getAssistantAnswerText = (message) => {
     const content = String(message?.content || '');
-    const eventContent = Array.isArray(message?.agentEventStream)
-        ? message.agentEventStream
-            .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
-            .reduce((merged, event) => mergeStreamText(merged, event.content), '')
-        : '';
-    if (!content.trim()) return eventContent;
-    if (!eventContent.trim()) return content;
-    return mergeStreamText(content, eventContent);
-};
-
-const findActiveIncompleteAssistant = (targetSessionId = session_id.value) => {
-    const targetSessionKey = String(targetSessionId || '');
-    const activeMessageId = String(currentAssistantMessageId.value || '');
-    let best = null;
-    let bestScore = -1;
-
-    for (const message of messagesList) {
-        if (message?.role !== 'assistant' || message.is_completed) continue;
-        const streamSessionId = getMessageStreamSessionId(message);
-        const answerText = getAssistantAnswerText(message);
-        let score = 0;
-        if (targetSessionKey && streamSessionId === targetSessionKey) score += 1000;
-        if (activeMessageId && (message.id === activeMessageId || message.request_id === activeMessageId)) score += 800;
-        if (message.__stream_active) score += 200;
-        if (answerText) score += 100;
-        score += answerText.length / 10000;
-        if (score > bestScore) {
-            best = message;
-            bestScore = score;
-        }
-    }
-
-    return best;
-};
-
-const bindActiveAssistantStreamIdentity = (targetSessionId = session_id.value) => {
-    const message = findActiveIncompleteAssistant(targetSessionId);
-    if (!message) return null;
-    if (targetSessionId && !message.__stream_session_id) message.__stream_session_id = targetSessionId;
-    if (!message.__stream_active) message.__stream_active = true;
-    const targetMessageId = message.id || message.request_id || '';
-    if (targetMessageId) currentAssistantMessageId.value = targetMessageId;
-    return message;
-};
-
-const inFlightAnswerSnapshot = new Map();
-const inFlightFullContentBySession = new Map();
-
-const isAnswerStreamChunk = (chunk) => {
-    const chunkType = String(chunk?.response_type || chunk?.type || '');
-    return chunkType === 'answer' || (!chunkType && chunk?.content);
-};
-
-const rememberInFlightAnswerSnapshot = (targetSessionId, answerText) => {
-    const sessionKey = String(targetSessionId || '');
-    const incoming = String(answerText || '');
-    if (!sessionKey || !incoming) return;
-    const previous = String(inFlightAnswerSnapshot.get(sessionKey) || '');
-    const merged = mergeStreamText(previous, incoming);
-    if (merged.length >= previous.length) {
-        inFlightAnswerSnapshot.set(sessionKey, merged);
-    }
-};
-
-const rememberMessageAnswerSnapshot = (targetSessionId, message) => {
-    if (message?.role !== 'assistant' || message.is_completed) return;
-    rememberInFlightAnswerSnapshot(targetSessionId, getAssistantAnswerText(message));
-};
-
-const applyAnswerSnapshotToMessage = (targetSessionId, message) => {
-    if (message?.role !== 'assistant' || message.is_completed) return;
-    const snapshot = String(inFlightAnswerSnapshot.get(String(targetSessionId || '')) || '');
-    if (!snapshot) return;
-    const mergedAnswer = mergeStreamText(snapshot, getAssistantAnswerText(message));
-    rememberInFlightAnswerSnapshot(targetSessionId, mergedAnswer);
-    message.content = mergeStreamText(mergedAnswer, message.content);
-    const answerEvents = Array.isArray(message.agentEventStream)
-        ? message.agentEventStream.filter((event) => event?.type === 'answer' && !event.superseded)
-        : [];
-    if (answerEvents.length) {
-        const lastAnswerEvent = answerEvents[answerEvents.length - 1];
-        lastAnswerEvent.content = mergeStreamText(mergedAnswer, lastAnswerEvent.content);
-    }
-};
-
-const clearInFlightAnswerSnapshot = (targetSessionId) => {
-    const sessionKey = String(targetSessionId || '');
-    if (sessionKey) inFlightAnswerSnapshot.delete(sessionKey);
+    if (content.trim()) return content;
+    if (!Array.isArray(message?.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
 };
 
 const normalizeAssistantAnswerText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-
-const isSameInFlightAssistantMessage = (left, right, targetSessionId = session_id.value) => {
-    if (!left || !right) return false;
-    if (messageIdentityMatches(left, right)) return true;
-    if (left.role !== 'assistant' || right.role !== 'assistant') return false;
-    if (left.is_completed || right.is_completed) return false;
-
-    const targetSessionKey = String(targetSessionId || '');
-    const leftSessionId = getMessageStreamSessionId(left);
-    const rightSessionId = getMessageStreamSessionId(right);
-    if (targetSessionKey && (leftSessionId === targetSessionKey || rightSessionId === targetSessionKey)) {
-        return true;
-    }
-
-    const leftText = normalizeAssistantAnswerText(getAssistantAnswerText(left));
-    const rightText = normalizeAssistantAnswerText(getAssistantAnswerText(right));
-    if (!leftText || !rightText) return false;
-    return leftText.includes(rightText) || rightText.includes(leftText);
-};
 
 const hasPersistedAssistantAfterCachedUser = (cachedUserMessage) => {
     if (!cachedUserMessage) return false;
@@ -700,7 +610,7 @@ const mergeCachedAssistantMessage = (target, source) => {
     if (!target.request_id && source.request_id) target.request_id = source.request_id;
     const targetContent = String(target.content || '');
     const sourceContent = String(source.content || '');
-    target.content = mergeStreamText(targetContent, sourceContent);
+    target.content = mergeStreamText(sourceContent, targetContent);
     if (!target.knowledge_references?.length && source.knowledge_references?.length) {
         target.knowledge_references = source.knowledge_references.slice();
     }
@@ -714,113 +624,6 @@ const mergeCachedAssistantMessage = (target, source) => {
     if (source.is_fallback) target.is_fallback = true;
     if (source.isRagMode) target.isRagMode = true;
     if (source.isAgentMode) target.isAgentMode = true;
-};
-
-const setSessionFullContent = (targetSessionId, content) => {
-    const sessionKey = String(targetSessionId || '');
-    if (!sessionKey) return;
-    const value = String(content || '');
-    if (value) {
-        inFlightFullContentBySession.set(sessionKey, value);
-    } else {
-        inFlightFullContentBySession.delete(sessionKey);
-    }
-    if (session_id.value === sessionKey) {
-        fullContentSessionId.value = sessionKey;
-        fullContent.value = value;
-    }
-};
-
-const clearSessionFullContent = (targetSessionId = '') => {
-    const sessionKey = String(targetSessionId || '');
-    if (sessionKey) {
-        inFlightFullContentBySession.delete(sessionKey);
-    } else {
-        inFlightFullContentBySession.clear();
-    }
-    if (!sessionKey || fullContentSessionId.value === sessionKey) {
-        fullContentSessionId.value = '';
-        fullContent.value = '';
-    }
-};
-
-const getSessionFullContent = (targetSessionId) => {
-    const sessionKey = String(targetSessionId || '');
-    if (!sessionKey) return '';
-    const cached = String(inFlightFullContentBySession.get(sessionKey) || '');
-    if (cached) return cached;
-    if (fullContentSessionId.value === sessionKey) return fullContent.value;
-    return '';
-};
-
-const syncLatestInFlightAnswerIntoMessage = (targetSessionId, message) => {
-    if (message?.role !== 'assistant' || message.is_completed) return;
-    const latestAnswer = [
-        String(inFlightAnswerSnapshot.get(String(targetSessionId || '')) || ''),
-        getSessionFullContent(targetSessionId),
-        getAssistantAnswerText(message),
-    ].reduce((merged, value) => mergeStreamText(merged, value), '');
-    if (!latestAnswer) return;
-    rememberInFlightAnswerSnapshot(targetSessionId, latestAnswer);
-    setSessionFullContent(targetSessionId, latestAnswer);
-    message.content = mergeStreamText(getAssistantAnswerText(message), latestAnswer);
-    const answerEvents = Array.isArray(message.agentEventStream)
-        ? message.agentEventStream.filter((event) => event?.type === 'answer' && !event.superseded)
-        : [];
-    if (answerEvents.length) {
-        const lastAnswerEvent = answerEvents[answerEvents.length - 1];
-        lastAnswerEvent.content = mergeStreamText(lastAnswerEvent.content, latestAnswer);
-    }
-};
-
-const syncLatestInFlightAnswerIntoMessages = (targetSessionId, messages) => {
-    messages.forEach((message) => syncLatestInFlightAnswerIntoMessage(targetSessionId, message));
-};
-
-const mergeCachedUserMessage = (target, source) => {
-    if (!target || !source) return;
-    if (!target.id && source.id) target.id = source.id;
-    if (!target.request_id && source.request_id) target.request_id = source.request_id;
-    if (!target.content && source.content) target.content = source.content;
-    if (!target.created_at && source.created_at) target.created_at = source.created_at;
-};
-
-const mergeInFlightTurnCache = (targetSessionId, incomingMessages) => {
-    const merged = (inFlightTurnCache.get(targetSessionId) || []).map(cloneMessageForInFlightCache);
-    for (const incomingMessage of incomingMessages) {
-        const incoming = cloneMessageForInFlightCache(incomingMessage);
-        applyAnswerSnapshotToMessage(targetSessionId, incoming);
-        const existing = merged.find((message) =>
-            messageIdentityMatches(message, incoming) ||
-            isSameInFlightAssistantMessage(message, incoming, targetSessionId)
-        );
-        if (!existing) {
-            merged.push(incoming);
-            continue;
-        }
-        if (existing.role === 'assistant') {
-            mergeCachedAssistantMessage(existing, incoming);
-        } else if (existing.role === 'user') {
-            mergeCachedUserMessage(existing, incoming);
-        }
-    }
-    inFlightTurnCache.set(targetSessionId, merged);
-};
-
-const cacheCurrentInFlightTurn = (targetSessionId = session_id.value) => {
-    if (!targetSessionId || messagesList.length === 0) return;
-    const lastUserIndex = getLastUserMessageIndex();
-    const tail = lastUserIndex >= 0 ? messagesList.slice(lastUserIndex) : messagesList.slice();
-    const hasIncompleteAssistant = tail.some((message) => message.role === 'assistant' && !message.is_completed);
-    if (!hasIncompleteAssistant && !hasActiveStream(targetSessionId)) {
-        inFlightTurnCache.delete(targetSessionId);
-        clearInFlightAnswerSnapshot(targetSessionId);
-        clearSessionFullContent(targetSessionId);
-        return;
-    }
-    syncLatestInFlightAnswerIntoMessages(targetSessionId, tail);
-    tail.forEach((message) => rememberMessageAnswerSnapshot(targetSessionId, message));
-    mergeInFlightTurnCache(targetSessionId, tail);
 };
 
 const restoreCachedInFlightTurn = (targetSessionId) => {
@@ -843,49 +646,26 @@ const restoreCachedInFlightTurn = (targetSessionId) => {
 
     if (!hasCachedUserMessage) {
         const restored = cached.map(cloneMessageForInFlightCache);
-        const restoredAssistants = restored.filter((message) => message.role === 'assistant');
         for (const restoredMessage of restored) {
-            applyAnswerSnapshotToMessage(targetSessionId, restoredMessage);
             if (restoredMessage.role !== 'assistant') continue;
-            const existingIndex = messagesList.findIndex((message) =>
-                messageIdentityMatches(message, restoredMessage) ||
-                isSameInFlightAssistantMessage(message, restoredMessage, targetSessionId)
-            );
+            const existingIndex = messagesList.findIndex((message) => messageIdentityMatches(message, restoredMessage));
             if (existingIndex < 0) continue;
             mergeCachedAssistantMessage(restoredMessage, messagesList[existingIndex]);
-            applyAnswerSnapshotToMessage(targetSessionId, restoredMessage);
             messagesList.splice(existingIndex, 1);
-        }
-        for (let index = messagesList.length - 1; index >= 0; index -= 1) {
-            const message = messagesList[index];
-            if (message?.role !== 'assistant' || message.is_completed) continue;
-            const restoredAssistant = restoredAssistants.find((assistant) =>
-                isSameInFlightAssistantMessage(message, assistant, targetSessionId)
-            );
-            if (!restoredAssistant) continue;
-            mergeCachedAssistantMessage(restoredAssistant, message);
-            applyAnswerSnapshotToMessage(targetSessionId, restoredAssistant);
-            messagesList.splice(index, 1);
         }
         messagesList.push(...restored);
         return;
     }
 
     for (const cachedMessage of cached) {
-        const existing = messagesList.find((message) =>
-            messageIdentityMatches(message, cachedMessage) ||
-            isSameInFlightAssistantMessage(message, cachedMessage, targetSessionId)
-        );
+        const existing = messagesList.find((message) => messageIdentityMatches(message, cachedMessage));
         if (existing) {
             if (existing.role === 'assistant') {
                 mergeCachedAssistantMessage(existing, cachedMessage);
-                applyAnswerSnapshotToMessage(targetSessionId, existing);
             }
             continue;
         }
-        const restoredMessage = cloneMessageForInFlightCache(cachedMessage);
-        applyAnswerSnapshotToMessage(targetSessionId, restoredMessage);
-        messagesList.push(restoredMessage);
+        messagesList.push(cloneMessageForInFlightCache(cachedMessage));
     }
 };
 
@@ -898,10 +678,6 @@ watch([() => route.params], async (newvalue) => {
         const targetSessionId = newvalue[0].chatid;
         cacheCurrentInFlightTurn(session_id.value);
         messagesList.splice(0);
-        if (scrollContainer.value) {
-            scrollContainer.value.scrollTop = 0;
-            lastScrollTop = 0;
-        }
         session_id.value = targetSessionId;
         currentSession.value = null;
         clearCitationChunkCache();
@@ -916,11 +692,7 @@ watch([() => route.params], async (newvalue) => {
         currentAssistantMessageId.value = '';
         userHasScrolledUp.value = false;
         clearInFlightTurnAnchor();
-        const hasTargetInFlightTurn = hasActiveStream(targetSessionId) ||
-            inFlightTurnCache.has(targetSessionId) ||
-            inFlightAnswerSnapshot.has(String(targetSessionId));
-        pendingInFlightTurnAnchorSessionId.value = hasTargetInFlightTurn ? targetSessionId : '';
-        if (!hasTargetInFlightTurn) clearInFlightTurnScrollPreservation(targetSessionId);
+        pendingInFlightTurnAnchorSessionId.value = targetSessionId;
 
         // 跨会话切换：先把旧会话覆盖前的全局默认还原，再让新会话重新拍快照
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
@@ -937,7 +709,6 @@ watch([() => route.params], async (newvalue) => {
     }
 });
 const scrollToBottom = (force = false) => {
-    if (preserveInFlightTurnScrollSessionId.value === session_id.value) return;
     if (!force && userHasScrolledUp.value) return;
     nextTick(() => {
         if (scrollContainer.value) {
@@ -947,7 +718,6 @@ const scrollToBottom = (force = false) => {
 }
 const onClickScrollToBottom = () => {
     clearInFlightTurnAnchor();
-    clearInFlightTurnScrollPreservation(session_id.value);
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 }
@@ -968,7 +738,6 @@ const onChatScrollTop = () => {
     if (scrollLock.value || historyLoadingMore.value || !hasMoreHistory.value) return;
     if (!scrollContainer.value) return;
     const { scrollTop, scrollHeight } = scrollContainer.value;
-    if (scrollTop <= 0 && isRestoringInFlightTurnScroll()) return;
     isFirstEnter.value = false
     if (scrollTop <= 0) {
         let data = {
@@ -982,10 +751,6 @@ const onChatScrollTop = () => {
 const debouncedScrollTop = debounce(onChatScrollTop, 500);
 let lastScrollTop = 0;
 const handleScroll = () => {
-    if (isRestoringInFlightTurnScroll()) {
-        userHasScrolledUp.value = true;
-        return;
-    }
     const el = scrollContainer.value;
     if (el) {
         const currentTop = el.scrollTop;
@@ -1084,22 +849,13 @@ const {
                 void loadFollowUpSuggestions(message, false);
             }
         }
-        const activeAssistant = bindActiveAssistantStreamIdentity(session_id.value);
-        let lastMessage = activeAssistant;
-        if (!lastMessage) {
-            for (let i = messagesList.length - 1; i >= 0; i -= 1) {
-                if (!messagesList[i]?.is_completed) {
-                    lastMessage = messagesList[i];
-                    break;
-                }
-            }
-        }
+        const lastMessage = messagesList[messagesList.length - 1];
         if (lastMessage && !lastMessage.is_completed) {
             const targetSessionId = session_id.value;
-            const targetMessageId = lastMessage.id || lastMessage.request_id;
+            const targetMessageId = lastMessage.id;
             isReplying.value = true;
             if (lastMessage.role === 'assistant') {
-                if (targetMessageId) currentAssistantMessageId.value = targetMessageId;
+                currentAssistantMessageId.value = targetMessageId;
                 console.log('[Continue Stream] Set assistant message ID:', targetMessageId);
             }
             isAttachingImStream.value = lastMessage.channel === 'im';
@@ -1108,8 +864,6 @@ const {
                 return;
             }
             isAttachingContinueStream.value = true;
-            const restoredAnswer = restoreInFlightFullContent(targetSessionId) || getAssistantAnswerText(lastMessage);
-            setSessionFullContent(targetSessionId, mergeStreamText(restoredAnswer, getSessionFullContent(targetSessionId)));
             await startStream({
                 session_id: targetSessionId,
                 query: targetMessageId,
@@ -1138,12 +892,6 @@ const {
     onMessageCreated: (message) => attachStreamDebugToMessage(message),
     onMessageUpdated: (message, payload) => {
         attachStreamDebugToMessage(message);
-        rememberMessageAnswerSnapshot(session_id.value, message);
-        applyAnswerSnapshotToMessage(session_id.value, message);
-        if (!payload?.is_completed) {
-            const updatedAnswer = getAssistantAnswerText(message);
-            if (updatedAnswer) setSessionFullContent(session_id.value, updatedAnswer);
-        }
         refreshMessageRow(message);
         if (payload?.is_completed) {
             finishInFlightTurnAnchor(session_id.value);
@@ -1155,22 +903,16 @@ const {
     },
     onAgentAnswerDone: (message) => {
         attachStreamDebugToMessage(message);
-        rememberMessageAnswerSnapshot(session_id.value, message);
-        applyAnswerSnapshotToMessage(session_id.value, message);
         syncCompletedMessageReferences(message);
         pendingStreamDebug.value = null;
     },
     onAgentChunkBound: (message) => {
         attachStreamDebugToMessage(message);
-        rememberMessageAnswerSnapshot(session_id.value, message);
-        applyAnswerSnapshotToMessage(session_id.value, message);
         pendingStreamDebug.value = null;
     },
     onTurnComplete: (message) => {
         const completedSessionId = getMessageStreamSessionId(message) || session_id.value;
         inFlightTurnCache.delete(completedSessionId);
-        clearInFlightAnswerSnapshot(completedSessionId);
-        clearSessionFullContent(completedSessionId);
         if (completedSessionId === session_id.value) finishInFlightTurnAnchor(completedSessionId);
         if (completedSessionId === session_id.value) {
             void loadFollowUpSuggestions(message, true);
@@ -1219,19 +961,11 @@ const renderedMessagesList = computed(() => {
         ) {
             if (currentTurnAssistantIndex >= 0) {
                 const existing = result[currentTurnAssistantIndex];
-                applyAnswerSnapshotToMessage(session_id.value, existing);
-                applyAnswerSnapshotToMessage(session_id.value, message);
                 if (getRenderedAssistantScore(message) > getRenderedAssistantScore(existing)) {
-                    mergeCachedAssistantMessage(message, existing);
-                    applyAnswerSnapshotToMessage(session_id.value, message);
                     result[currentTurnAssistantIndex] = message;
-                } else {
-                    mergeCachedAssistantMessage(existing, message);
-                    applyAnswerSnapshotToMessage(session_id.value, existing);
                 }
                 continue;
             }
-            applyAnswerSnapshotToMessage(session_id.value, message);
             currentTurnAssistantIndex = result.length;
         }
 
@@ -1243,11 +977,9 @@ const renderedMessagesList = computed(() => {
 
 const pendingInFlightTurnAnchorSessionId = ref('');
 const activeInFlightTurnAnchorSessionId = ref('');
-const preserveInFlightTurnScrollSessionId = ref('');
 let inFlightTurnAnchorRaf = 0;
 let inFlightTurnAnchorTimer = 0;
 let inFlightTurnAnchorUntil = 0;
-let inFlightTurnHistoryLoadGuardUntil = 0;
 
 const clearInFlightTurnAnchor = () => {
     pendingInFlightTurnAnchorSessionId.value = '';
@@ -1263,29 +995,6 @@ const clearInFlightTurnAnchor = () => {
     }
 };
 
-const clearInFlightTurnScrollPreservation = (targetSessionId = '') => {
-    if (!targetSessionId || preserveInFlightTurnScrollSessionId.value === targetSessionId) {
-        preserveInFlightTurnScrollSessionId.value = '';
-    }
-};
-
-const finishRestoredInFlightTurnAnchor = (targetSessionId = session_id.value) => {
-    if (activeInFlightTurnAnchorSessionId.value === targetSessionId) {
-        activeInFlightTurnAnchorSessionId.value = '';
-    }
-    if (pendingInFlightTurnAnchorSessionId.value === targetSessionId) {
-        pendingInFlightTurnAnchorSessionId.value = '';
-    }
-    inFlightTurnAnchorUntil = 0;
-    inFlightTurnHistoryLoadGuardUntil = Date.now() + 800;
-    if (hasActiveStream(targetSessionId) || findActiveIncompleteAssistant(targetSessionId)) {
-        preserveInFlightTurnScrollSessionId.value = targetSessionId;
-        userHasScrolledUp.value = true;
-        return;
-    }
-    clearInFlightTurnScrollPreservation(targetSessionId);
-};
-
 const findActiveTurnUserRenderedIndex = () => {
     for (let i = renderedMessagesList.value.length - 1; i >= 0; i -= 1) {
         const message = renderedMessagesList.value[i];
@@ -1298,40 +1007,6 @@ const findActiveTurnUserRenderedIndex = () => {
     return -1;
 };
 
-const renderedMessageHasId = (message, targetId) => {
-    const id = String(targetId || '');
-    return !!id && (String(message?.id || '') === id || String(message?.request_id || '') === id);
-};
-
-const findActiveAssistantRenderedIndex = () => {
-    const activeAssistant = findActiveIncompleteAssistant(session_id.value);
-    const activeIds = [
-        currentAssistantMessageId.value,
-        activeAssistant?.id,
-        activeAssistant?.request_id,
-    ].filter(Boolean);
-
-    for (let i = renderedMessagesList.value.length - 1; i >= 0; i -= 1) {
-        const message = renderedMessagesList.value[i];
-        if (message?.role !== 'assistant') continue;
-        if (activeAssistant && (message === activeAssistant || messageIdentityMatches(message, activeAssistant))) {
-            return i;
-        }
-        if (activeIds.some((id) => renderedMessageHasId(message, id))) {
-            return i;
-        }
-        if (!message.is_completed && getMessageStreamSessionId(message) === session_id.value) {
-            return i;
-        }
-    }
-    return -1;
-};
-
-const findActiveTurnAnchorRenderedIndex = () => {
-    const activeTurnUserIndex = findActiveTurnUserRenderedIndex();
-    return activeTurnUserIndex >= 0 ? activeTurnUserIndex : findActiveAssistantRenderedIndex();
-};
-
 const applyRenderedMessageAnchor = (index) => {
     const container = scrollContainer.value;
     const target = container?.querySelector(`[data-message-index="${index}"]`);
@@ -1341,140 +1016,70 @@ const applyRenderedMessageAnchor = (index) => {
     const nextTop = container.scrollTop + targetRect.top - containerRect.top - 8;
     container.scrollTop = Math.max(0, nextTop);
     lastScrollTop = container.scrollTop;
-    userHasScrolledUp.value = true;
     return true;
 };
 
 const scheduleInFlightTurnAnchor = (targetSessionId = session_id.value) => {
     if (!targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-    if (Date.now() > inFlightTurnAnchorUntil) {
+    if (!hasActiveStream(targetSessionId) && Date.now() > inFlightTurnAnchorUntil) {
         clearInFlightTurnAnchor();
-        if (hasActiveStream(targetSessionId) || findActiveIncompleteAssistant(targetSessionId)) {
-            preserveInFlightTurnScrollSessionId.value = targetSessionId;
-            userHasScrolledUp.value = true;
-        } else {
-            clearInFlightTurnScrollPreservation(targetSessionId);
-        }
         return;
     }
+    if (Date.now() > inFlightTurnAnchorUntil) return;
     if (inFlightTurnAnchorRaf) return;
     inFlightTurnAnchorRaf = window.requestAnimationFrame(() => {
         inFlightTurnAnchorRaf = 0;
         if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-        const anchorIndex = findActiveTurnAnchorRenderedIndex();
-        if (anchorIndex >= 0 && applyRenderedMessageAnchor(anchorIndex)) {
-            finishRestoredInFlightTurnAnchor(targetSessionId);
-            return;
-        }
+        const userIndex = findActiveTurnUserRenderedIndex();
+        if (userIndex >= 0) applyRenderedMessageAnchor(userIndex);
         if (Date.now() <= inFlightTurnAnchorUntil) {
             inFlightTurnAnchorTimer = window.setTimeout(() => {
                 inFlightTurnAnchorTimer = 0;
                 scheduleInFlightTurnAnchor(targetSessionId);
-            }, 80);
+            }, 120);
         }
     });
 };
 
 const anchorRestoredInFlightTurn = (targetSessionId = session_id.value) => {
     if (pendingInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-    if (findActiveTurnAnchorRenderedIndex() < 0) return;
+    const userIndex = findActiveTurnUserRenderedIndex();
+    if (userIndex < 0) return;
     isFirstEnter.value = false;
     userHasScrolledUp.value = true;
-    preserveInFlightTurnScrollSessionId.value = targetSessionId;
     activeInFlightTurnAnchorSessionId.value = targetSessionId;
-    inFlightTurnAnchorUntil = Date.now() + 2000;
-    inFlightTurnHistoryLoadGuardUntil = Date.now() + 2800;
+    inFlightTurnAnchorUntil = Date.now() + 4000;
     nextTick(() => {
         window.requestAnimationFrame(() => {
             if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
-            const anchorIndex = findActiveTurnAnchorRenderedIndex();
-            if (anchorIndex >= 0 && applyRenderedMessageAnchor(anchorIndex)) {
-                finishRestoredInFlightTurnAnchor(targetSessionId);
-                return;
-            }
+            applyRenderedMessageAnchor(userIndex);
             scheduleInFlightTurnAnchor(targetSessionId);
         });
     });
 };
 
 const keepInFlightTurnAnchor = (targetSessionId = session_id.value) => {
-    if (preserveInFlightTurnScrollSessionId.value !== targetSessionId) return;
-    if (hasActiveStream(targetSessionId) || findActiveIncompleteAssistant(targetSessionId)) {
-        userHasScrolledUp.value = true;
+    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    if (!hasActiveStream(targetSessionId)) {
+        clearInFlightTurnAnchor();
+        return;
     }
+    inFlightTurnAnchorUntil = Date.now() + 1200;
+    userHasScrolledUp.value = true;
+    scheduleInFlightTurnAnchor(targetSessionId);
 };
 
 const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
+    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
     pendingInFlightTurnAnchorSessionId.value = '';
-    if (activeInFlightTurnAnchorSessionId.value === targetSessionId) {
-        activeInFlightTurnAnchorSessionId.value = '';
-        inFlightTurnAnchorUntil = 0;
-    }
-    clearInFlightTurnScrollPreservation(targetSessionId);
-};
-
-const isRestoringInFlightTurnScroll = (targetSessionId = session_id.value) => {
-    if (!targetSessionId) return false;
-    return pendingInFlightTurnAnchorSessionId.value === targetSessionId ||
-        activeInFlightTurnAnchorSessionId.value === targetSessionId ||
-        preserveInFlightTurnScrollSessionId.value === targetSessionId ||
-        Date.now() < inFlightTurnHistoryLoadGuardUntil;
-};
-
-const getLastIncompleteAssistantAnswerText = () => {
-    const message = findActiveIncompleteAssistant(session_id.value);
-    return message ? getAssistantAnswerText(message) : '';
-};
-
-const restoreInFlightFullContent = (targetSessionId = session_id.value) => {
-    if (!targetSessionId || session_id.value !== targetSessionId) return '';
-    const targetMessage = bindActiveAssistantStreamIdentity(targetSessionId);
-    const restoredAnswer = targetMessage ? getAssistantAnswerText(targetMessage) : getLastIncompleteAssistantAnswerText();
-    if (restoredAnswer) {
-        rememberInFlightAnswerSnapshot(targetSessionId, restoredAnswer);
-    }
-    const snapshot = String(inFlightAnswerSnapshot.get(String(targetSessionId)) || '');
-    const mergedAnswer = [snapshot, getSessionFullContent(targetSessionId), restoredAnswer]
-        .reduce((merged, value) => mergeStreamText(merged, value), '');
-    if (!mergedAnswer) return '';
-    rememberInFlightAnswerSnapshot(targetSessionId, mergedAnswer);
-    setSessionFullContent(targetSessionId, mergedAnswer);
-    if (targetMessage) {
-        targetMessage.content = mergeStreamText(mergedAnswer, targetMessage.content);
-        applyAnswerSnapshotToMessage(targetSessionId, targetMessage);
-        refreshMessageRow(targetMessage);
-    }
-    return mergedAnswer;
-};
-
-const syncInFlightAnswerState = (targetSessionId = session_id.value) => {
-    const mergedAnswer = restoreInFlightFullContent(targetSessionId);
-    if (!mergedAnswer) return;
-    cacheCurrentInFlightTurn(targetSessionId);
+    inFlightTurnAnchorUntil = Date.now() + 1000;
+    scheduleInFlightTurnAnchor(targetSessionId);
 };
 
 const replayBackgroundChunks = (targetSessionId) => {
-    if (session_id.value !== targetSessionId) return;
-    const restoredAnswer = restoreInFlightFullContent(targetSessionId);
     const chunks = drainSessionChunks(targetSessionId);
-    if (!chunks?.length) {
-        if (restoredAnswer) {
-            cacheCurrentInFlightTurn(targetSessionId);
-            anchorRestoredInFlightTurn(targetSessionId);
-        }
-        return;
-    }
-    chunks.forEach((chunk) => {
-        if (isAnswerStreamChunk(chunk)) {
-            rememberInFlightAnswerSnapshot(targetSessionId, chunk.content);
-            setSessionFullContent(targetSessionId, mergeStreamText(getSessionFullContent(targetSessionId), chunk.content));
-        }
-        processStreamChunk(chunk);
-        if (isAnswerStreamChunk(chunk)) {
-            syncInFlightAnswerState(targetSessionId);
-        }
-    });
-    cacheCurrentInFlightTurn(targetSessionId);
+    if (!chunks?.length || session_id.value !== targetSessionId) return;
+    chunks.forEach((chunk) => processStreamChunk(chunk));
 };
 
 const getmsgList = (data, isScrollType = false, scrollHeight) => {
@@ -1537,7 +1142,6 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
 const handleStopGeneration = () => {
     console.log('[Stop Generation] Immediately clearing loading state');
     clearInFlightTurnAnchor();
-    clearInFlightTurnScrollPreservation(session_id.value);
     stopStream(session_id.value);
     loading.value = false;
     isReplying.value = false;
@@ -1548,8 +1152,6 @@ const handleStopGeneration = () => {
 
 const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = [], attachmentFiles = []) => {
     stopStream(session_id.value);
-    clearInFlightTurnAnchor();
-    clearInFlightTurnScrollPreservation(session_id.value);
     prepareForNewOutgoingMessage();
     isReplying.value = true;
     loading.value = true;
@@ -1794,10 +1396,6 @@ watch(error, (newError) => {
 onChunk((data) => {
     const chunkSessionId = data.__stream_session_id || session_id.value;
     if (chunkSessionId !== session_id.value) {
-        if (isAnswerStreamChunk(data)) {
-            rememberInFlightAnswerSnapshot(chunkSessionId, data.content);
-            setSessionFullContent(chunkSessionId, mergeStreamText(getSessionFullContent(chunkSessionId), data.content));
-        }
         return false;
     }
     if (data.response_type === 'session_title') {
@@ -1816,20 +1414,7 @@ onChunk((data) => {
         }
         return true;
     }
-    if (isAnswerStreamChunk(data)) {
-        const cachedAnswer = getSessionFullContent(chunkSessionId) || String(inFlightAnswerSnapshot.get(String(chunkSessionId)) || '');
-        if (fullContentSessionId.value !== chunkSessionId && cachedAnswer) {
-            setSessionFullContent(chunkSessionId, cachedAnswer);
-        }
-        rememberInFlightAnswerSnapshot(chunkSessionId, data.content);
-        bindActiveAssistantStreamIdentity(chunkSessionId);
-        restoreInFlightFullContent(chunkSessionId);
-        setSessionFullContent(chunkSessionId, mergeStreamText(getSessionFullContent(chunkSessionId), data.content));
-    }
     processStreamChunk(data);
-    if (isAnswerStreamChunk(data)) {
-        syncInFlightAnswerState(chunkSessionId);
-    }
     return true;
 });
 
@@ -1908,6 +1493,7 @@ const clearData = (abortStreams = true) => {
     if (abortStreams) stopStream();
     referencesDrawer.close();
     isReplying.value = false;
+    fullContent.value = '';
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }

@@ -299,13 +299,13 @@
             </div>
 
             <!-- Answer Event -->
-            <div v-else-if="event.type === 'answer' && (event.done || getAnswerDisplayContent(event).trim())"
+            <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
-              <div v-if="getAnswerDisplayContent(event).trim()" class="answer-content markdown-content">
-                <div v-if="isAnswerEventStreaming(event)" v-html="renderAnswerContent(typedAnswer)" />
-                <div v-else v-html="renderAnswerContent(getAnswerDisplayContent(event))" />
+              <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
+                <pre v-if="isAnswerEventStreaming(event)" class="streaming-answer-text">{{ event === activeAnswerEventRef ? typedAnswer : event.content }}</pre>
+                <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
-              <div v-if="answerFullyRendered && getAnswerDisplayContent(event).trim() && !embeddedMode"
+              <div v-if="answerFullyRendered && event.content && event.content.trim() && !embeddedMode"
                 class="answer-toolbar">
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleCopyAnswer(event)"
                   :title="$t('agent.copy')">
@@ -1349,9 +1349,6 @@ const mergeAnswerText = (previousValue: unknown, nextValue: unknown): string => 
   if (previous === next) return previous;
   if (next.startsWith(previous)) return next;
   if (previous.startsWith(next)) return previous;
-  if (previous.includes(next)) return previous;
-  if (next.includes(previous)) return next;
-  if (previous.endsWith(next)) return previous;
 
   const maxOverlap = Math.min(previous.length, next.length);
   for (let size = maxOverlap; size > 0; size -= 1) {
@@ -1430,34 +1427,18 @@ const activeAnswerEventRef = computed(() => {
   return answers[answers.length - 1] ?? null;
 });
 
-const visibleAnswerMarkdown = computed(() => {
-  return visibleAnswerEvents.value.reduce((merged: string, event: any) => {
-    if (!event || event.superseded || typeof event.content !== 'string') return merged;
-    return mergeAnswerText(merged, event.content);
-  }, '');
-});
-
 const activeAnswerMarkdown = computed(() => {
   const active = activeAnswerEventRef.value;
-  const activeContent = typeof active?.content === 'string' ? active.content : '';
-  const sessionContent = typeof props.session?.content === 'string' ? props.session.content : '';
-  let merged = mergeAnswerText(sessionContent, visibleAnswerMarkdown.value);
-  merged = mergeAnswerText(merged, activeContent);
-  return merged;
+  return typeof active?.content === 'string' ? active.content : '';
 });
 
-const getAnswerDisplayContent = (event: any): string => {
-  if (isAnswerEventStreaming(event)) return activeAnswerMarkdown.value;
-  if (event === activeAnswerEventRef.value) return activeAnswerMarkdown.value;
-  return typeof event?.content === 'string' ? event.content : '';
-};
-
-// Render the currently received stream buffer immediately; remounting this
-// view should show the full accumulated answer, not replay a local buffer.
+// Smooth the streamed answer into a steady typewriter cadence (shared with the
+// non-Agent markdown path). History reloads arrive already complete and snap to
+// full instead of replaying.
 const { displayed: typedAnswer } = useTypewriter(
   () => activeAnswerMarkdown.value,
   () => isConversationDone.value,
-  { displayMode: 'immediate' },
+  { revealMode: 'character' },
 );
 
 const cacheStreamingMermaidSvg = async () => {
@@ -3028,6 +3009,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
 // Answer Event - 无边框，直接显示内容
 .answer-event {
+  animation: fadeInUp 0.25s ease-out;
   min-height: 20px;
 
   .fallback-icon-btn {

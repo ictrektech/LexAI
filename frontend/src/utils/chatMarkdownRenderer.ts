@@ -4,7 +4,6 @@ import type { Tokens } from 'marked'
 
 import {
   collapseStandaloneCitationParagraphs,
-  exposeIncompleteCitationTagAsText,
   extractCitationHtmlPlaceholders,
   joinCitationTagsToPreviousLine,
   preserveCitationTags,
@@ -404,11 +403,44 @@ export function stripTrailingStreamingListMarker(text: string): string {
   return text.replace(/(^|\n)[ \t]*(?:[-*+]|[-=]{2,}|\d{1,9}[.)]?)[ \t]*$/, '$1')
 }
 
+const TAIL_TEXT_RE = />([^<>]+)</g
+
 /**
- * Keep streamed Markdown fully visible as soon as the token arrives.
+ * Soften the most-recently streamed characters with a trailing fade.
+ *
+ * While the answer streams, the newest tail text is wrapped in a
+ * `stream-fade-tail` span so CSS can fade its trailing edge (the newest words
+ * are faint and settle to full color as more text arrives — the "tail reveal"
+ * look). Runs on the final HTML so the span is never touched by the markdown
+ * parser or sanitizer, and only the innermost last text run is wrapped.
  */
-export function applyStreamingTailFade(html: string): string {
-  return html
+export function applyStreamingTailFade(html: string, tailLength = 24): string {
+  if (!html) return html
+
+  // Track the last text run that actually has visible characters. Whitespace-only
+  // runs (e.g. the `\n` marked emits between `</li>` and `</ol>`) are skipped so
+  // they do not win the "last run" and suppress the fade.
+  let lastMatch: RegExpExecArray | null = null
+  let match: RegExpExecArray | null
+  TAIL_TEXT_RE.lastIndex = 0
+  while ((match = TAIL_TEXT_RE.exec(html)) !== null) {
+    if (match[1].trim()) lastMatch = match
+  }
+  if (!lastMatch) return html
+
+  const text = lastMatch[1]
+
+  const textStart = lastMatch.index + 1
+  const textEnd = textStart + text.length
+  const chars = Array.from(text)
+  const tailChars = chars.slice(Math.max(0, chars.length - tailLength))
+  const tail = tailChars.join('')
+  // Fade only the trailing run, keeping any leading whitespace outside the span.
+  const tailTrimmed = tail.replace(/^\s+/, '')
+  if (!tailTrimmed) return html
+  const head = text.slice(0, text.length - tailTrimmed.length)
+  const wrapped = `${head}<span class="stream-fade-tail">${tailTrimmed}</span>`
+  return html.slice(0, textStart) + wrapped + html.slice(textEnd)
 }
 
 export function createChatMarkdownRenderer(options: ChatMarkdownRendererOptions = {}): Renderer {
@@ -487,9 +519,7 @@ export function renderChatMarkdown(rawMarkdown: unknown, options: RenderChatMark
     streamingSafeText,
     Boolean(options.streaming),
   )
-  const citationSafeText = options.streaming
-    ? exposeIncompleteCitationTagAsText(imageContextSafeText)
-    : stripIncompleteCitationTag(imageContextSafeText)
+  const citationSafeText = stripIncompleteCitationTag(imageContextSafeText)
   const { text: tagSafe, tags } = preserveCitationTags(citationSafeText)
   const normalizedImageMarkdown = normalizeFullwidthMarkdownImageParentheses(tagSafe)
   const imageSafe = replaceIncompleteImageWithPlaceholder(normalizedImageMarkdown)
@@ -528,5 +558,5 @@ export function renderChatMarkdown(rawMarkdown: unknown, options: RenderChatMark
   const withMermaid = options.injectCachedMermaidSvg
     ? options.injectCachedMermaidSvg(sanitized, options.cachedMermaidSvgHtml)
     : sanitized
-  return withMermaid
+  return options.streaming ? applyStreamingTailFade(withMermaid) : withMermaid
 }
