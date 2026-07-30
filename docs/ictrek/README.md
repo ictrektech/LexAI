@@ -502,6 +502,14 @@ docker compose --env-file .env.thor -f docker-compose.thor.yml up -d --force-rec
 
 这只会更新系统模型表，不会自动修改旧知识库的 `summary_model_id` 或 `wiki_config.synthesis_model_id`。
 
+### 只改 Prompt 模板或内置 Skill
+
+`config/prompt_templates/`、`config/builtin_agents.yaml`、`config/agent_type_presets.yaml` 和 `skills/preloaded/` 都随 app 镜像或本地源码进入后端运行环境。修改这些文件后，需要重新部署或至少重建/重启 `app` 容器，让后端进程重新读取模板和 Skill 文件。
+
+内置智能体如果没有在数据库中保存过自定义配置，重启后会使用最新内置模板；如果已经在页面中编辑并保存过内置智能体配置，或者使用的是用户自己创建的自定义智能体，数据库里的 `system_prompt` 会优先于 YAML 默认模板。此时需要在智能体编辑页重新套用对应类型预设/恢复默认模板并保存，或重新创建测试智能体，才能让新的 Prompt 模板进入该智能体配置。
+
+合同审查这类依赖 `contract-review` Skill 的智能推理智能体，还要确认 Skill 选择模式包含 `contract-review`。如果只更新了 Skill 文件，后端重启后新一轮智能体执行会读取新文件；如果测试仍使用旧的自定义智能体 Prompt，则 Skill 更新可能生效，但系统提示词层面的改动不会自动覆盖旧配置。
+
 ### 改了前端默认图谱模板
 
 改的是：
