@@ -1271,7 +1271,8 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         .brand-logo {
             color: var(--td-text-color-primary);
-            font-size: 20px;
+            // 侧栏标题与搜索、折叠按钮共用一行；保持在 260px 侧栏中完整显示品牌名称。
+            font-size: 16px;
             font-weight: 700;
             line-height: 1.2;
             white-space: nowrap;
