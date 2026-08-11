@@ -1,4 +1,36 @@
 export default {
+  legalWorkspace: {
+    navigationLabel: 'LexAI workspace navigation',
+    tools: 'Legal tools',
+    resources: 'Resources',
+    newChat: 'New Chat',
+    aiAssistant: 'AI Assistant',
+    contractReview: 'Contract Review',
+    legalResearch: 'Legal Research',
+    drafting: 'Drafting',
+    dueDiligence: 'Due Diligence',
+    knowledgeBases: 'Knowledge Bases',
+    agents: 'Agents',
+    settings: 'Settings',
+    comingSoon: 'Coming soon',
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar'
+  },
+  contractReview: {
+    workspaceEyebrow: 'Legal workspace', title: 'Contract Review', subtitle: 'Review contracts against your standards and resolve risk clause by clause.', newReview: 'New Review',
+    active: 'Active', archived: 'Archived', document: 'Document', statusLabel: 'Status', party: 'Representing', updated: 'Updated', allReviews: 'All reviews', reviewTitle: 'Review title', saved: 'Saved automatically',
+    loadingReviews: 'Loading reviews…', noReviews: 'No contract reviews yet', noReviewsDescription: 'Create a review to upload and analyze your first contract.', noArchivedReviews: 'No archived reviews', noArchivedDescription: 'Archived reviews will appear here.', draftNoDocument: 'Draft · No document',
+    rename: 'Rename', renamePrompt: 'Enter a review title', archive: 'Archive', unarchive: 'Unarchive', delete: 'Delete', deleteConfirm: 'Permanently delete “{name}” and its document?',
+    dropContract: 'Drop a contract here', uploadFormats: 'Upload PDF or DOCX', chooseFile: 'Choose file', singleDocument: 'One contract per review · securely stored', uploadingFile: 'Uploading {progress}%', invalidFile: 'Choose a PDF or DOCX file.', uploadFailed: 'The contract could not be uploaded.',
+    aiReview: 'AI Review', reviewPanelTitle: 'Contract analysis', readyToReview: 'Ready to review', readyDescription: 'Confirm the review standard and the party you represent.', uploadFirst: 'Upload a contract', uploadFirstDescription: 'The review configuration becomes active after a document is prepared.', playbook: 'Review Standard / Playbook', representedParty: 'Represented party', preparingDocument: 'Preparing document…', startReview: 'Start Review',
+    progressiveResults: 'Findings appear as each clause is reviewed.', reviewFailed: 'Review failed', retry: 'Retry review', reviewAgain: 'Adjust and review again', reviewAgainConfirm: 'Reviewing again will clear the current results and analyze the contract with the same configuration. Continue?', reconfigureReview: 'Adjust review configuration', reconfigureDescription: 'Choose a review standard and represented party, then start the review.', cancel: 'Cancel', configureModel: 'Configure model', overallRisk: 'Overall risk', overviewPending: 'The overview will be generated as review findings become available.', contractType: 'Contract type', keyRecommendations: 'Key recommendations',
+    originalLanguage: 'Original language', suggestedRevision: 'Suggested revision', viewClause: 'View Clause', findingsAppearHere: 'Review findings will appear here.', noIssues: 'No material issues were identified.', generalClause: 'General provision', reviewed: 'Reviewed', pending: 'Pending', issueCount: '{count} issues', noSuggestions: 'Suggestions will appear with review findings.',
+    previousPage: 'Previous page', nextPage: 'Next page', zoomOut: 'Zoom out', zoomIn: 'Zoom in', loadingDocument: 'Loading document…', documentLoadFailed: 'The document preview could not be loaded.', locateFailed: 'The quoted language could not be located exactly in this rendering.', loadingReview: 'Loading review…',
+    loadFailed: 'The contract review could not be loaded.', createFailed: 'The review could not be created.', saveFailed: 'Changes could not be saved.', startFailed: 'The review could not be started.', retryFailed: 'The review could not be retried.', archiveFailed: 'The archive state could not be changed.', deleteFailed: 'The review could not be deleted.',
+    tabs: { overview: 'Overview', issues: 'Issues', clauses: 'Clauses', suggestions: 'Suggestions' },
+    risk: { high: 'High', medium: 'Medium', low: 'Low' }, parties: { customer: 'Customer', vendor: 'Vendor', neutral: 'Neutral' },
+    status: { draft: 'Draft', uploading: 'Uploading', ready: 'Ready', analyzing: 'Analyzing', reviewing_clauses: 'Reviewing clauses', completed: 'Completed', failed: 'Failed' }
+  },
   menu: {
     knowledgeBase: 'Knowledge Base',
     agents: 'Agents',

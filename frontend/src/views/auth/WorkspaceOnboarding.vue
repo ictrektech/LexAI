@@ -83,6 +83,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { DEFAULT_AUTHENTICATED_PATH } from '@/router/paths'
 import CreateTenantDialog from '@/components/CreateTenantDialog.vue'
 import MyInvitationsDialog from '@/components/MyInvitationsDialog.vue'
 import { logout as logoutApi } from '@/api/auth'
@@ -118,14 +119,14 @@ onMounted(async () => {
 watch(
   () => authStore.hasValidTenant,
   (ready) => {
-    if (ready) router.replace('/platform/knowledge-bases')
+    if (ready) router.replace(DEFAULT_AUTHENTICATED_PATH)
   },
 )
 
 async function onTenantCreated(tenant: TenantInfo) {
   await authStore.refreshFromAuthMe()
   authStore.setSelectedTenant(tenant.id, tenant.name)
-  await router.replace('/platform/knowledge-bases')
+  await router.replace(DEFAULT_AUTHENTICATED_PATH)
 }
 
 async function handleLogout() {

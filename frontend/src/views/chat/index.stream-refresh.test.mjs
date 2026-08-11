@@ -88,6 +88,21 @@ test('answer stream chunks merge snapshots without duplicating the same answer',
   assert.match(handlerSource, /if \(data\.content\) \{[\s\S]*\} else if \(!answerEvent\.content && message\.content/)
 })
 
+test('terminal agent stream errors preserve partial answers as incomplete', () => {
+  assert.match(handlerSource, /const isCompleted = dataPayload\?\.is_completed !== false/)
+  assert.match(handlerSource, /message\.generation_error = errorMsg/)
+  assert.match(handlerSource, /message\.is_completed = false/)
+  assert.match(handlerSource, /message\.__stream_terminal = dataPayload\?\.terminal !== false/)
+  assert.match(handlerSource, /message\.is_completed = isCompleted[\s\S]*message\.__stream_terminal = !isCompleted/)
+  assert.match(handlerSource, /is_completed: isCompleted/)
+})
+
+test('terminal incomplete streams are not reattached repeatedly', () => {
+  assert.match(source, /lastMessage && !lastMessage\.is_completed && !lastMessage\.__stream_terminal/)
+  assert.match(source, /target && !target\.is_completed && !target\.__stream_terminal && target\.channel !== 'im'/)
+  assert.match(source, /if \(target\.is_completed \|\| target\.__stream_terminal\) return/)
+})
+
 test('chat view renders a deduped message list', () => {
   assert.match(source, /v-for=\"\(session, index\) in renderedMessagesList\"/)
   assert.match(source, /:user-query="getRenderedUserQuery\(index\)"/)

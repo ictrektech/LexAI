@@ -260,6 +260,23 @@ func TestApplyIMCompleteDataToMessage(t *testing.T) {
 	}
 }
 
+func TestApplyIMIncompleteCompleteDataToMessage(t *testing.T) {
+	msg := &types.Message{ID: "assistant-1", Role: "assistant", Content: "partial answer"}
+	completed := false
+
+	applyIMCompleteDataToMessage(msg, event.AgentCompleteData{
+		MessageID:   "assistant-1",
+		IsCompleted: &completed,
+	})
+
+	if msg.IsCompleted {
+		t.Fatal("message should remain incomplete")
+	}
+	if msg.Content != "partial answer" {
+		t.Fatalf("Content = %q, want partial answer", msg.Content)
+	}
+}
+
 func TestPickIMStoredAnswerPrefersFirstNonEmpty(t *testing.T) {
 	got := pickIMStoredAnswer("", "outer", "live", "complete")
 	if got != "outer" {

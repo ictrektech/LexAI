@@ -740,7 +740,7 @@ func applyIMCompleteDataToMessage(msg *types.Message, data event.AgentCompleteDa
 	if data.MessageID != "" && data.MessageID != msg.ID {
 		return
 	}
-	msg.IsCompleted = true
+	msg.IsCompleted = data.IsCompleted == nil || *data.IsCompleted
 	msg.AgentDurationMs = data.TotalDurationMs
 	if len(data.KnowledgeRefs) > 0 {
 		refs := make([]*types.SearchResult, 0, len(data.KnowledgeRefs))
@@ -2759,7 +2759,7 @@ loop:
 	}
 
 	assistantMsg.Content = answer
-	assistantMsg.IsCompleted = true
+	assistantMsg.IsCompleted = finalErr == nil
 	if err := s.messageService.UpdateMessage(ctx, assistantMsg); err != nil {
 		logger.Warnf(ctx, "[IM] Failed to update assistant message: %v", err)
 	}
@@ -2960,7 +2960,7 @@ func (s *Service) runQA(ctx context.Context, session *types.Session, query strin
 
 	// Update assistant message with the full answer (including citation tags for web rendering).
 	assistantMsg.Content = answer
-	assistantMsg.IsCompleted = true
+	assistantMsg.IsCompleted = qaError == nil
 	if err := s.messageService.UpdateMessage(ctx, assistantMsg); err != nil {
 		logger.Warnf(ctx, "[IM] Failed to update assistant message: %v", err)
 	}

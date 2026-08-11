@@ -1,4 +1,36 @@
 export default {
+  legalWorkspace: {
+    navigationLabel: 'LexAI 工作台导航',
+    tools: '法律工具',
+    resources: '资源与设置',
+    newChat: '新对话',
+    aiAssistant: 'AI 助手',
+    contractReview: '合同审查',
+    legalResearch: '法律检索',
+    drafting: '法律文书起草',
+    dueDiligence: '尽职调查',
+    knowledgeBases: '知识库',
+    agents: '智能体',
+    settings: '设置',
+    comingSoon: '即将推出',
+    collapseSidebar: '收起侧边栏',
+    expandSidebar: '展开侧边栏'
+  },
+  contractReview: {
+    workspaceEyebrow: '法律工作台', title: '合同审查', subtitle: '依据审查标准逐条识别并处理合同风险。', newReview: '新建审查',
+    active: '进行中', archived: '已归档', document: '文档', statusLabel: '状态', party: '代表方', updated: '更新时间', allReviews: '全部审查', reviewTitle: '审查标题', saved: '已自动保存',
+    loadingReviews: '正在加载审查任务…', noReviews: '暂无合同审查', noReviewsDescription: '新建审查并上传第一份合同。', noArchivedReviews: '暂无已归档审查', noArchivedDescription: '归档后的审查任务会显示在这里。', draftNoDocument: '草稿 · 尚未上传文档',
+    rename: '重命名', renamePrompt: '请输入审查标题', archive: '归档', unarchive: '取消归档', delete: '删除', deleteConfirm: '确定永久删除“{name}”及其合同文件吗？',
+    dropContract: '将合同拖放到这里', uploadFormats: '上传 PDF 或 DOCX', chooseFile: '选择文件', singleDocument: '每个任务一份合同 · 安全存储', uploadingFile: '正在上传 {progress}%', invalidFile: '请选择 PDF 或 DOCX 文件。', uploadFailed: '合同上传失败。',
+    aiReview: 'AI 审查', reviewPanelTitle: '合同分析', readyToReview: '可以开始审查', readyDescription: '请确认审查标准和当前代表方。', uploadFirst: '请先上传合同', uploadFirstDescription: '文档准备完成后即可启动审查。', playbook: '审查标准 / Playbook', representedParty: '当前代表方', preparingDocument: '正在准备文档…', startReview: '开始审查',
+    progressiveResults: '每个条款完成审查后会逐项显示结果。', reviewFailed: '审查失败', retry: '重新审查', reviewAgain: '调整后重新审查', reviewAgainConfirm: '重新审查将清除当前结果，并按照本次配置重新分析合同。是否继续？', reconfigureReview: '调整审查配置', reconfigureDescription: '重新选择审查标准和当前代表方，然后点击开始审查。', cancel: '取消', configureModel: '配置模型', overallRisk: '整体风险', overviewPending: '审查结果出现后会生成整体概览。', contractType: '合同类型', keyRecommendations: '关键建议',
+    originalLanguage: '原文引用', suggestedRevision: '修改建议', viewClause: '查看条款', findingsAppearHere: '审查问题将逐项显示在这里。', noIssues: '未识别到重大风险问题。', generalClause: '一般条款', reviewed: '已审查', pending: '待审查', issueCount: '{count} 个问题', noSuggestions: '修改建议将随审查结果显示。',
+    previousPage: '上一页', nextPage: '下一页', zoomOut: '缩小', zoomIn: '放大', loadingDocument: '正在加载文档…', documentLoadFailed: '无法加载文档预览。', locateFailed: '无法在当前文档渲染中精确定位该原文。', loadingReview: '正在加载审查任务…',
+    loadFailed: '无法加载合同审查。', createFailed: '无法新建审查。', saveFailed: '保存失败。', startFailed: '无法启动审查。', retryFailed: '无法重新审查。', archiveFailed: '无法修改归档状态。', deleteFailed: '无法删除审查。',
+    tabs: { overview: '概览', issues: '问题', clauses: '条款', suggestions: '建议' },
+    risk: { high: '高风险', medium: '中风险', low: '低风险' }, parties: { customer: '客户方', vendor: '供应商方', neutral: '中立' },
+    status: { draft: '草稿', uploading: '上传中', ready: '可开始', analyzing: '分析中', reviewing_clauses: '正在审查条款', completed: '已完成', failed: '失败' }
+  },
   platformApiKeys: {
     title: '平台 API Key',
     description: '为跨空间自动化创建平台级凭据；调用空间接口时通过 X-Tenant-ID 指定目标空间。',
@@ -4022,7 +4054,7 @@ export default {
     }
   },
   createChat: {
-    title: 'Hi，我是 WeKnora，让你的知识触手可及',
+    title: '你好，我是 LexAI。今天有什么法律事务需要协助？',
     newSessionTitle: '新会话',
     messages: {
       createFailed: '创建会话失败',

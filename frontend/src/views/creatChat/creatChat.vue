@@ -72,6 +72,9 @@ import { useKnowledgeBaseCreationNavigation } from '@/hooks/useKnowledgeBaseCrea
 
 const router = useRouter();
 const route = useRoute();
+const props = defineProps<{
+    chatRouteName?: string;
+}>();
 const usemenuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUIStore();
@@ -79,7 +82,7 @@ const { t } = useI18n();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
 
 const showChatContextualGuide = computed(() => {
-    return route.name === 'globalCreatChat' || route.name === 'kbCreatChat';
+    return route.name === 'globalCreatChat' || route.name === 'kbCreatChat' || route.meta.legalWorkspace === true;
 });
 
 // ===== 推荐问题 =====
@@ -234,6 +237,10 @@ const navigateToSession = async (sessionId: string, value: string, modelId: stri
     usemenuStore.updataMenuChildren(obj);
     usemenuStore.changeIsFirstSession(true);
     usemenuStore.changeFirstQuery(value, mentionedItems, modelId, imageFiles, attachmentFiles);
+    if (props.chatRouteName) {
+        router.push({ name: props.chatRouteName, params: { chatid: sessionId } });
+        return;
+    }
     router.push(`/platform/chat/${sessionId}`);
 }
 

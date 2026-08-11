@@ -326,6 +326,7 @@
 <script setup lang="ts">
 import { ref, reactive, nextTick, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { DEFAULT_AUTHENTICATED_PATH } from '@/router/paths'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useRoleLabel } from '@/composables/useRoleLabel'
 import { notifyLoginSuccess } from '@/utils/loginNotify'
@@ -584,7 +585,7 @@ const persistLoginResponse = async (response: any) => {
   // briefly when the deployment is invitation-only.
   await authStore.refreshFromAuthMe()
   await nextTick()
-  router.replace(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
+  router.replace(authStore.hasValidTenant ? DEFAULT_AUTHENTICATED_PATH : '/onboarding/workspace')
 }
 
 const getBackendOIDCRedirectURI = () => `${window.location.origin}/api/v1/auth/oidc/callback`
@@ -755,7 +756,7 @@ onMounted(async () => {
   }
 
   if (authStore.isLoggedIn) {
-    router.replace('/platform/knowledge-bases')
+    router.replace(DEFAULT_AUTHENTICATED_PATH)
     return
   }
 

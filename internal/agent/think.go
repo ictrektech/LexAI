@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,24 @@ type streamLLMResult struct {
 	Usage            *types.TokenUsage
 	FinishReason     string // actual finish_reason from LLM (captured from last stream chunk)
 	StreamError      string // error message from stream (e.g., timeout), kept separate from Content
+}
+
+// llmStreamError indicates that the provider stream started but terminated
+// with an error. Once a stream has started, any content emitted before the
+// error is only a partial answer and must never be treated as a natural stop.
+// It is deliberately distinct from an error returned while opening the stream:
+// the latter can still use the existing transient retry path.
+type llmStreamError struct {
+	message string
+}
+
+func (e *llmStreamError) Error() string {
+	return fmt.Sprintf("LLM stream error: %s", e.message)
+}
+
+func isLLMStreamError(err error) bool {
+	var streamErr *llmStreamError
+	return errors.As(err, &streamErr)
 }
 
 // streamLLMToEventBus streams LLM response through EventBus (generic method)
@@ -148,10 +167,15 @@ func (e *AgentEngine) streamLLMToEventBus(
 		chunkCount, len(result.Content), len(result.ToolCalls),
 		streamDuration.Milliseconds(), responseTypeCounts)
 
-	// If the stream produced an error and no usable content/tool calls,
-	// surface it as a Go error so the caller can retry or degrade gracefully.
-	if result.StreamError != "" && result.Content == "" && len(result.ToolCalls) == 0 {
-		return result, fmt.Errorf("LLM stream error: %s", result.StreamError)
+	// A provider stream error is terminal for this request, even when the
+	// stream emitted partial content. Returning nil here would make callers
+	// fall back to finish_reason="stop" and persist an incomplete answer as
+	// completed. Partial stream errors are intentionally not retried because
+	// their already-emitted chunks cannot be safely replayed to the client.
+	if result.StreamError != "" {
+		return result, &llmStreamError{
+			message: result.StreamError,
+		}
 	}
 
 	return result, nil
@@ -337,6 +361,21 @@ func (e *AgentEngine) streamThinkingToEventBus(
 		},
 	)
 	if err != nil {
+		// The provider may have emitted a visible partial answer before the
+		// stream error arrived. Close any open UI streams without turning this
+		// marker into a successful natural-stop response.
+		closeThinking()
+		if answerStreamed {
+			e.eventBus.Emit(ctx, event.Event{
+				ID:        answerID,
+				Type:      event.EventAgentFinalAnswer,
+				SessionID: sessionID,
+				Data: event.AgentFinalAnswerData{
+					Content: "",
+					Done:    true,
+				},
+			})
+		}
 		logger.Errorf(ctx, "[Agent][Thinking] Iteration-%d failed: %v", iteration+1, err)
 		return nil, err
 	}
@@ -348,8 +387,9 @@ func (e *AgentEngine) streamThinkingToEventBus(
 	fullContent := agenttools.StripThinkBlocks(llmResult.Content)
 
 	// Use actual finish_reason from LLM stream instead of hardcoding "stop".
-	// Fallback to "stop" when the stream did not report a finish_reason
-	// (e.g., certain Ollama models or providers that omit the field).
+	// Fallback to "stop" only when the stream itself completed without
+	// reporting a finish_reason (e.g., certain Ollama models or providers that
+	// omit the field). Stream errors have already returned above.
 	finishReason := llmResult.FinishReason
 	if finishReason == "" {
 		finishReason = "stop"
@@ -422,7 +462,7 @@ func (e *AgentEngine) callLLMWithRetry(
 	messages = agenttools.SanitizeMessages(messages)
 
 	response, err := e.streamThinkingToEventBus(ctx, messages, tools, iteration, sessionID)
-	if err != nil && isTransientError(err) {
+	if err != nil && !isLLMStreamError(err) && isTransientError(err) {
 		// Retry transient errors (timeout, rate limit, server errors) up to maxLLMRetries times
 		for retry := 1; retry <= maxLLMRetries; retry++ {
 			retryDelay := time.Duration(retry) * time.Second
@@ -443,22 +483,26 @@ func (e *AgentEngine) callLLMWithRetry(
 			"error":     err.Error(),
 		})
 
-		// Graceful degradation: if we have tool results from previous rounds,
-		// try to synthesize a final answer from them instead of losing everything.
-		if totalTC := countTotalToolCalls(state.RoundSteps); totalTC > 0 {
-			logger.Warnf(ctx, "[Agent] LLM failed but have %d steps with %d tool calls — "+
-				"attempting final answer synthesis from existing results",
-				len(state.RoundSteps), totalTC)
-			common.PipelineWarn(ctx, "Agent", "llm_failed_synthesizing", map[string]interface{}{
-				"steps":      len(state.RoundSteps),
-				"tool_calls": totalTC,
-			})
-			if synthErr := e.streamFinalAnswerToEventBus(ctx, query, state, sessionID); synthErr != nil {
-				logger.Errorf(ctx, "[Agent] Final answer synthesis also failed: %v", synthErr)
-				return nil, fmt.Errorf("LLM call failed: %w (synthesis also failed: %v)", err, synthErr)
+		// Graceful degradation is retained for errors that happen before a
+		// provider stream starts. A stream error may already have exposed a
+		// partial answer, so synthesizing another answer would append unrelated
+		// content and hide the failed state.
+		if !isLLMStreamError(err) {
+			if totalTC := countTotalToolCalls(state.RoundSteps); totalTC > 0 {
+				logger.Warnf(ctx, "[Agent] LLM failed but have %d steps with %d tool calls — "+
+					"attempting final answer synthesis from existing results",
+					len(state.RoundSteps), totalTC)
+				common.PipelineWarn(ctx, "Agent", "llm_failed_synthesizing", map[string]interface{}{
+					"steps":      len(state.RoundSteps),
+					"tool_calls": totalTC,
+				})
+				if synthErr := e.streamFinalAnswerToEventBus(ctx, query, state, sessionID); synthErr != nil {
+					logger.Errorf(ctx, "[Agent] Final answer synthesis also failed: %v", synthErr)
+					return nil, fmt.Errorf("LLM call failed: %w (synthesis also failed: %v)", err, synthErr)
+				}
+				state.IsComplete = true
+				return nil, nil // graceful degradation succeeded
 			}
-			state.IsComplete = true
-			return nil, nil // graceful degradation succeeded
 		}
 
 		return nil, fmt.Errorf("LLM call failed: %w", err)

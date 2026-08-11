@@ -1,4 +1,24 @@
 export default {
+  legalWorkspace: {
+    navigationLabel: 'Навигация рабочего пространства LexAI',
+    tools: 'Юридические инструменты',
+    resources: 'Ресурсы',
+    newChat: 'Новый чат',
+    aiAssistant: 'AI Assistant',
+    contractReview: 'Проверка договора',
+    legalResearch: 'Правовой поиск',
+    drafting: 'Подготовка документов',
+    dueDiligence: 'Due Diligence',
+    knowledgeBases: 'Базы знаний',
+    agents: 'Агенты',
+    settings: 'Настройки',
+    comingSoon: 'Скоро',
+    collapseSidebar: 'Свернуть панель',
+    expandSidebar: 'Развернуть панель'
+  },
+  contractReview: {
+    workspaceEyebrow:'Legal workspace',title:'Contract Review',subtitle:'Review contracts clause by clause.',newReview:'New Review',active:'Active',archived:'Archived',document:'Document',statusLabel:'Status',party:'Representing',updated:'Updated',allReviews:'All reviews',reviewTitle:'Review title',saved:'Saved automatically',loadingReviews:'Loading reviews…',noReviews:'No contract reviews yet',noReviewsDescription:'Create a review to analyze a contract.',noArchivedReviews:'No archived reviews',noArchivedDescription:'Archived reviews appear here.',draftNoDocument:'Draft · No document',rename:'Rename',renamePrompt:'Enter a review title',archive:'Archive',unarchive:'Unarchive',delete:'Delete',deleteConfirm:'Permanently delete “{name}”?',dropContract:'Drop a contract here',uploadFormats:'Upload PDF or DOCX',chooseFile:'Choose file',singleDocument:'One contract per review',uploadingFile:'Uploading {progress}%',invalidFile:'Choose a PDF or DOCX file.',uploadFailed:'Upload failed.',aiReview:'AI Review',reviewPanelTitle:'Contract analysis',readyToReview:'Ready to review',readyDescription:'Confirm the standard and represented party.',uploadFirst:'Upload a contract',uploadFirstDescription:'Upload a document before review.',playbook:'Review Standard / Playbook',representedParty:'Represented party',preparingDocument:'Preparing document…',startReview:'Start Review',progressiveResults:'Findings appear clause by clause.',reviewFailed:'Review failed',retry:'Retry review',reviewAgain:'Adjust and review again',reviewAgainConfirm:'Reviewing again will clear the current results. Continue?',reconfigureReview:'Adjust review configuration',reconfigureDescription:'Choose a review standard and represented party, then start the review.',cancel:'Cancel',configureModel:'Configure model',overallRisk:'Overall risk',overviewPending:'Overview will appear after review.',contractType:'Contract type',keyRecommendations:'Key recommendations',originalLanguage:'Original language',suggestedRevision:'Suggested revision',viewClause:'View Clause',findingsAppearHere:'Findings will appear here.',noIssues:'No material issues identified.',generalClause:'General provision',reviewed:'Reviewed',pending:'Pending',issueCount:'{count} issues',noSuggestions:'No suggestions yet.',previousPage:'Previous page',nextPage:'Next page',zoomOut:'Zoom out',zoomIn:'Zoom in',loadingDocument:'Loading document…',documentLoadFailed:'Preview failed.',locateFailed:'Quoted text could not be located.',loadingReview:'Loading review…',loadFailed:'Review load failed.',createFailed:'Create failed.',saveFailed:'Save failed.',startFailed:'Start failed.',retryFailed:'Retry failed.',archiveFailed:'Archive failed.',deleteFailed:'Delete failed.',tabs:{overview:'Overview',issues:'Issues',clauses:'Clauses',suggestions:'Suggestions'},risk:{high:'High',medium:'Medium',low:'Low'},parties:{customer:'Customer',vendor:'Vendor',neutral:'Neutral'},status:{draft:'Draft',uploading:'Uploading',ready:'Ready',analyzing:'Analyzing',reviewing_clauses:'Reviewing clauses',completed:'Completed',failed:'Failed'}
+  },
   platformApiKeys: {
     title: 'Платформенные API-ключи',
     description: 'Учетные данные для автоматизации между рабочими пространствами. Для API пространства используйте X-Tenant-ID.',

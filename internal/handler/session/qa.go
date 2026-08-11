@@ -905,7 +905,7 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 
 				logger.Infof(streamCtx.asyncCtx, "Knowledge QA service completed for session: %s", sessionID)
 				updateCtx := context.WithValue(streamCtx.asyncCtx, types.TenantIDContextKey, reqCtx.session.TenantID)
-				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query)
+				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query, true)
 				streamCtx.eventBus.Emit(streamCtx.asyncCtx, event.Event{
 					Type:      event.EventAgentComplete,
 					SessionID: sessionID,
@@ -941,7 +941,12 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 					context.WithoutCancel(streamCtx.asyncCtx),
 					types.TenantIDContextKey, reqCtx.session.TenantID,
 				)
-				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query)
+				h.completeAssistantMessage(
+					updateCtx,
+					streamCtx.assistantMessage,
+					reqCtx.query,
+					streamCtx.assistantMessage.IsCompleted,
+				)
 				logger.Infof(streamCtx.asyncCtx, "Agent QA service completed for session: %s", sessionID)
 			}
 		}()
@@ -1351,12 +1356,21 @@ func appendQuickAnswerReasoning(msg *types.Message, content string) {
 	msg.AgentSteps[0].ReasoningContent += content
 }
 
-// completeAssistantMessage marks an assistant message as complete, updates it,
-// and asynchronously indexes the Q&A pair into the chat history knowledge base.
-func (h *Handler) completeAssistantMessage(ctx context.Context, assistantMessage *types.Message, userQuery string) {
+// completeAssistantMessage persists the assistant message and, for successful
+// answers only, asynchronously indexes the Q&A pair into chat history and
+// generates follow-up suggestions.
+func (h *Handler) completeAssistantMessage(
+	ctx context.Context,
+	assistantMessage *types.Message,
+	userQuery string,
+	completed bool,
+) {
 	assistantMessage.UpdatedAt = time.Now()
-	assistantMessage.IsCompleted = true
+	assistantMessage.IsCompleted = completed
 	_ = h.messageService.UpdateMessage(ctx, assistantMessage)
+	if !completed {
+		return
+	}
 
 	// Asynchronously index the Q&A pair into the chat history knowledge base for vector search.
 	// Use WithoutCancel so the goroutine survives after the HTTP request context is done.

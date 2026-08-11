@@ -115,6 +115,7 @@ Fully modular pipeline from document parsing, vectorization, and retrieval to LL
 | Suggested Questions | Auto-generated question suggestions and after-answer follow-ups based on knowledge base content |
 | Temporary Attachments | Session-scoped image / document uploads with async parsing for one-off Q&A, with a combined image + attachment limit |
 | Citations & RAG Progress | Inline citation popovers and a references drawer (web / KB source distinction), shared markdown rendering, and stage-by-stage RAG pipeline progress in chat |
+| Failed Stream Handling | If an established LLM stream fails after producing partial output, the UI keeps the partial answer, marks the message incomplete, shows the error, and stops automatic continuation; submit the question again to retry |
 | Session Management | Filter and group sidebar sessions by source (Web / IM / Embed), with inline session-title rename |
 
 **Knowledge Management**

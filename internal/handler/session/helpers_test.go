@@ -1,11 +1,30 @@
 package session
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/stretchr/testify/assert"
 )
+
+type completionMessageStub struct {
+	interfaces.MessageService
+	updated    *types.Message
+	updateCall int
+	indexCall  int
+}
+
+func (s *completionMessageStub) UpdateMessage(_ context.Context, message *types.Message) error {
+	s.updateCall++
+	s.updated = message
+	return nil
+}
+
+func (s *completionMessageStub) IndexMessageToKB(context.Context, string, string, string, string) {
+	s.indexCall++
+}
 
 func TestTagScopesFromMentionedItems(t *testing.T) {
 	scopes := tagScopesFromMentionedItems([]MentionedItemRequest{
@@ -51,4 +70,23 @@ func TestValidateUnscopedTagIDs(t *testing.T) {
 	assert.NoError(t, validateUnscopedTagIDs([]string{"tag-9"}, []string{"kb-1"}))
 	assert.Error(t, validateUnscopedTagIDs([]string{"tag-9"}, []string{"kb-1", "kb-2"}))
 	assert.Error(t, validateUnscopedTagIDs([]string{"tag-9"}, nil))
+}
+
+func TestCompleteAssistantMessage_PartialFailureKeepsContentAndSkipsDerivedWork(t *testing.T) {
+	messageService := &completionMessageStub{}
+	h := &Handler{messageService: messageService}
+	message := &types.Message{
+		ID:        "assistant-1",
+		SessionID: "session-1",
+		Content:   "partial answer",
+		Role:      "assistant",
+	}
+
+	h.completeAssistantMessage(context.Background(), message, "审查合同", false)
+
+	assert.Equal(t, 1, messageService.updateCall)
+	assert.Same(t, message, messageService.updated)
+	assert.Equal(t, "partial answer", message.Content)
+	assert.False(t, message.IsCompleted)
+	assert.Equal(t, 0, messageService.indexCall)
 }
