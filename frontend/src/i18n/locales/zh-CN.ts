@@ -4,11 +4,12 @@ export default {
     tools: '法律工具',
     resources: '资源与设置',
     newChat: '新对话',
-    aiAssistant: 'AI 助手',
+    aiAssistant: '法务助手',
     contractReview: '合同审查',
     legalResearch: '法律检索',
-    drafting: '法律文书起草',
+    drafting: '合同起草',
     dueDiligence: '尽职调查',
+    smartArchive: '智能档案',
     knowledgeBases: '知识库',
     agents: '智能体',
     settings: '设置',
@@ -21,6 +22,7 @@ export default {
     active: '进行中', archived: '已归档', document: '文档', statusLabel: '状态', party: '代表方', updated: '更新时间', allReviews: '全部审查', reviewTitle: '审查标题', saved: '已自动保存',
     loadingReviews: '正在加载审查任务…', noReviews: '暂无合同审查', noReviewsDescription: '新建审查并上传第一份合同。', noArchivedReviews: '暂无已归档审查', noArchivedDescription: '归档后的审查任务会显示在这里。', draftNoDocument: '草稿 · 尚未上传文档',
     rename: '重命名', renamePrompt: '请输入审查标题', archive: '归档', unarchive: '取消归档', delete: '删除', deleteConfirm: '确定永久删除“{name}”及其合同文件吗？',
+    selectAll: '全选当前列表', selectedCount: '已选 {count} 项', bulkArchive: '批量归档', bulkRestore: '批量恢复', bulkDelete: '批量删除', bulkArchiveConfirm: '确定归档选中的 {count} 个审查任务吗？', bulkArchiveRunningConfirm: '将归档 {count} 个任务；{running} 个运行中的任务会被跳过。是否继续？', bulkRestoreConfirm: '确定恢复选中的 {count} 个审查任务吗？', bulkDeleteConfirm: '确定永久删除选中的 {count} 个审查任务及合同文件吗？', bulkDeleteRunningConfirm: '选中的 {count} 个任务中有 {running} 个仍在运行。删除会立即终止后续审查和结果写入，确定继续吗？', bulkActionSuccess: '已处理 {count} 个审查任务。', bulkActionPartial: '已处理 {succeeded} 个，{failed} 个失败。', bulkActionFailed: '批量操作失败。',
     dropContract: '将合同拖放到这里', uploadFormats: '上传 PDF 或 DOCX', chooseFile: '选择文件', singleDocument: '每个任务一份合同 · 安全存储', uploadingFile: '正在上传 {progress}%', invalidFile: '请选择 PDF 或 DOCX 文件。', uploadFailed: '合同上传失败。',
     aiReview: 'AI 审查', reviewPanelTitle: '合同分析', readyToReview: '可以开始审查', readyDescription: '请确认审查标准和当前代表方。', uploadFirst: '请先上传合同', uploadFirstDescription: '文档准备完成后即可启动审查。', playbook: '审查标准 / Playbook', representedParty: '当前代表方', preparingDocument: '正在准备文档…', startReview: '开始审查',
     progressiveResults: '每个条款完成审查后会逐项显示结果。', reviewFailed: '审查失败', retry: '重新审查', reviewAgain: '调整后重新审查', reviewAgainConfirm: '重新审查将清除当前结果，并按照本次配置重新分析合同。是否继续？', reconfigureReview: '调整审查配置', reconfigureDescription: '重新选择审查标准和当前代表方，然后点击开始审查。', cancel: '取消', configureModel: '配置模型', overallRisk: '整体风险', overviewPending: '审查结果出现后会生成整体概览。', contractType: '合同类型', keyRecommendations: '关键建议',
@@ -30,6 +32,9 @@ export default {
     tabs: { overview: '概览', issues: '问题', clauses: '条款', suggestions: '建议' },
     risk: { high: '高风险', medium: '中风险', low: '低风险' }, parties: { customer: '客户方', vendor: '供应商方', neutral: '中立' },
     status: { draft: '草稿', uploading: '上传中', ready: '可开始', analyzing: '分析中', reviewing_clauses: '正在审查条款', completed: '已完成', failed: '失败' }
+  },
+  smartArchive: {
+    eyebrow: '档案工作台', title: '智能档案', subtitle: '让海量合同可搜索、可定位、可追溯，并及时提醒关键事项', importFiles: '批量导入', importing: '正在导入', importStarted: '导入任务已创建。', importFailed: '导入失败。', invalidFiles: '已跳过不支持的文件类型（支持 PDF、Word、Excel、JPG、PNG、WEBP）。', loading: '正在加载…', loadFailed: '档案加载失败。', searchFailed: '检索失败。', documents: '文档', documentsDescription: '合同、借用协议、出库单及其原文证据。支持图片 OCR。', customers: '客户', customersDescription: '从历史文档归一化的客户档案。', reminders: '提醒', remindersDescription: '先确认事项，再创建和启用提醒。', candidatesTitle: '待确认事项', candidatesDescription: '系统识别出的关键时间节点，不会自动创建提醒。', noCandidates: '暂无待确认事项', candidateNeedsReview: '需先复核字段', candidateReview: '确认提醒事项', createReminder: '创建提醒', reminderCreated: '提醒已创建，请确认后启用。', offsetDays: '提前天数', reminderTime: '提醒时间', assignee: '负责人', assigneeDefault: '默认负责人', eventDate: '事件日期', suggestedReminderDate: '建议提醒日期', returnDue: '应归还日', cancel: '取消', reviewQueue: '复核队列', reviewQueueDescription: '需要人工确认的字段和文档关联。', searchPlaceholder: '试试“去年与 XX 客户签订的合同”或输入协议编号', allTypes: '全部类型', showArchived: '显示已归档', selectAll: '全选当前列表', selectedCount: '已选 {count} 项', bulkArchive: '批量归档', bulkRestore: '批量恢复', bulkDelete: '移入回收站', bulkArchiveConfirm: '确定归档选中的 {count} 份文档吗？', bulkRestoreConfirm: '确定恢复选中的 {count} 份文档吗？', bulkDeleteConfirm: '确定将选中的 {count} 份文档移入回收站吗？关联提醒也会取消。', bulkActionSuccess: '已处理 {count} 份文档。', bulkActionPartial: '已处理 {succeeded} 份，{failed} 份失败，请刷新列表查看。', bulkActionFailed: '批量操作失败。', bulkDeleteReminders: '批量删除提醒', bulkDeleteRemindersConfirm: '确定删除选中的 {count} 条提醒吗？', bulkDeleteRemindersActiveConfirm: '选中的 {count} 条提醒中有 {active} 条正在调度，删除后会立即停止提醒。确定继续吗？', bulkDeleteRemindersSuccess: '已删除 {count} 条提醒。', bulkIgnoreCandidates: '批量忽略', bulkIgnoreCandidatesConfirm: '确定忽略选中的 {count} 项待确认事项吗？忽略后不会创建提醒，但记录会保留。', bulkIgnoreCandidatesSuccess: '已忽略 {count} 项待确认事项。', emptyDocuments: '暂无档案文档', emptyDocumentsDescription: '批量导入 PDF、Word、Excel 或 JPG/PNG/WEBP 图片，系统会自动解析并抽取字段。', noEntities: '暂无记录', noReminders: '暂无已创建提醒', notifications: '站内通知', markRead: '标为已读', refresh: '刷新', reidentify: '重新识别', document: '文档', type: '类型', customer: '客户', relatedParty: '关联主体', status: '状态', updated: '更新时间', archive: '归档', archiveConfirm: '确定归档“{name}”吗？', restore: '恢复', restoreConfirm: '确定恢复“{name}”吗？', restoreFailed: '恢复档案失败。', delete: '删除', deleteConfirm: '确定删除“{name}”吗？删除后将进入回收站。', deleteFailed: '删除档案失败。', documentDetail: '文档详情', openOriginal: '打开原文', agreementNumber: '协议编号', expiry: '到期日', amount: '金额', evidence: '字段证据', noEvidence: '暂无字段证据', aliases: '别名', manual: '人工修正', confidence: '置信度', noDueDate: '待确认日期', activate: '启用', handle: '已处理', reminderFailed: '提醒更新失败。', queueEmpty: '复核队列为空', queueEmptyDescription: '低置信度字段会显示在这里。', noVerifiedFields: '未识别到可验证字段，请检查图片清晰度或重新识别。', documentTypes: { contract: '合同', loan_agreement: '借用协议', outbound_order: '出库单', return_order: '归还单', renewal: '续约文件', payment: '付款记录', delivery: '交付记录', other: '其他' }, extractionStatuses: { uploading: '上传中', parsing: '解析中', extracting: '抽取中', linking: '关联中', needs_review: '待复核', completed: '已完成', failed: '失败' }, reminderStatuses: { draft: '待启用', active: '已启用', snoozed: '已延期', handled: '已处理', canceled: '已取消' }
   },
   platformApiKeys: {
     title: '平台 API Key',
@@ -5146,6 +5151,7 @@ export default {
     name: '名称',
     description: '描述',
     settings: '设置',
+    managedSmartArchiveReadOnly: '这是智能档案托管知识库，仅用于查看解析完成的文档；导入、解析和字段管理请在智能档案中进行。',
     tagUpdateSuccess: '标签更新成功',
     tagEditDialogHeading: '编辑标签',
     tagEditSearch: '搜索标签...',

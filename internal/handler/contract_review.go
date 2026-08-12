@@ -118,6 +118,34 @@ func (h *ContractReviewHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+type contractReviewBulkRequest struct {
+	IDs []string `json:"ids"`
+}
+
+func (h *ContractReviewHandler) BulkAction(action types.ContractReviewBulkAction) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, tenantID, ok := contractReviewContext(c)
+		if !ok {
+			return
+		}
+		var req contractReviewBulkRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.Error(apperrors.NewBadRequestError("invalid request body"))
+			return
+		}
+		result, err := h.service.BulkAction(c.Request.Context(), tenantID, userID, req.IDs, action)
+		if err != nil {
+			if strings.Contains(err.Error(), "bulk action") {
+				c.Error(apperrors.NewBadRequestError(err.Error()))
+			} else {
+				contractReviewError(c, err)
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
+	}
+}
+
 func (h *ContractReviewHandler) Upload(c *gin.Context) {
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {

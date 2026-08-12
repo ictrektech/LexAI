@@ -330,7 +330,7 @@ watch(visible, (open) => {
 .chat-references-panel__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--legal-overlay, rgba(0, 0, 0, 0.28));
   z-index: 1200;
 }
 
@@ -345,10 +345,10 @@ watch(visible, (open) => {
   flex-direction: column;
   background: var(--td-bg-color-container);
   border-left: 1px solid var(--td-component-stroke);
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--legal-shadow-soft, -8px 0 24px rgba(0, 0, 0, 0.06));
 
   &.is-overlay {
-    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--td-shadow-2, -12px 0 32px rgba(0, 0, 0, 0.12));
   }
 }
 

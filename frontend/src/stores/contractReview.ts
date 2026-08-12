@@ -2,9 +2,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 import {
-  createContractReview, deleteContractReview, getContractReview, listContractReviewPlaybooks, listContractReviews,
+  bulkContractReviews, createContractReview, deleteContractReview, getContractReview, listContractReviewPlaybooks, listContractReviews,
   retryContractReview, startContractReview, streamContractReview, updateContractReview,
-  uploadContractReviewDocument, type ContractReview, type ReviewPlaybook,
+  uploadContractReviewDocument, type ContractReview, type ContractReviewBulkAction, type ReviewPlaybook,
 } from '@/api/contract-review'
 
 export const useContractReviewStore = defineStore('contractReview', () => {
@@ -14,10 +14,11 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   const loading = ref(false)
   const uploadProgress = ref(0)
   let streamController: AbortController | null = null
+  let detailPollTimer: ReturnType<typeof setInterval> | null = null
 
-  async function loadList(archived = false) {
-    loading.value = true
-    try { tasks.value = (await listContractReviews(archived)).data || [] } finally { loading.value = false }
+  async function loadList(archived = false, silent = false) {
+    if (!silent) loading.value = true
+    try { tasks.value = (await listContractReviews(archived)).data || [] } finally { if (!silent) loading.value = false }
   }
   async function create() { const review = (await createContractReview()).data; current.value = review; return review }
   async function loadPlaybooks() { if (!playbooks.value.length) playbooks.value = (await listContractReviewPlaybooks()).data || [] }
@@ -27,11 +28,31 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   async function start(id: string) { const review = (await startContractReview(id)).data; current.value = review; connect(id); return review }
   async function retry(id: string) { const review = (await retryContractReview(id)).data; current.value = review; connect(id); return review }
   async function remove(id: string) { await deleteContractReview(id); tasks.value = tasks.value.filter((item) => item.id !== id); if (current.value?.id === id) current.value = null }
+  async function bulk(action: ContractReviewBulkAction, ids: string[]) {
+    const result = (await bulkContractReviews(action, ids)).data
+    const succeeded = new Set(result.items.filter((item) => item.success).map((item) => item.id))
+    tasks.value = tasks.value.filter((item) => !succeeded.has(item.id))
+    if (action === 'delete' && current.value && succeeded.has(current.value.id)) current.value = null
+    return result
+  }
+  const isSettled = (status: ContractReview['status']) => status === 'completed' || status === 'failed' || status === 'ready'
+  function stopDetailPolling() { if (detailPollTimer !== null) { clearInterval(detailPollTimer); detailPollTimer = null } }
+  async function refreshCurrent(id: string) {
+    try {
+      const review = (await getContractReview(id)).data
+      current.value = review
+      if (isSettled(review.status)) disconnect()
+    } catch { /* SSE reconnect or a later poll will retry transient failures. */ }
+  }
   function connect(id: string) {
     disconnect(); streamController = new AbortController()
-    void streamContractReview(id, streamController.signal, (review) => { current.value = review; if (review.status === 'completed' || review.status === 'failed' || review.status === 'ready') disconnect() }).catch(() => undefined)
+    void streamContractReview(id, streamController.signal, (review) => { current.value = review; if (isSettled(review.status)) disconnect() }).catch(() => undefined)
+    // The SSE stream provides immediate clause updates. Polling the durable
+    // snapshot covers proxies that buffer SSE and transient disconnects.
+    void refreshCurrent(id)
+    detailPollTimer = setInterval(() => { void refreshCurrent(id) }, 1500)
   }
-  function disconnect() { streamController?.abort(); streamController = null }
+  function disconnect() { streamController?.abort(); streamController = null; stopDetailPolling() }
 
-  return { tasks, current, playbooks, loading, uploadProgress, loadList, loadPlaybooks, create, load, update, upload, start, retry, remove, connect, disconnect }
+  return { tasks, current, playbooks, loading, uploadProgress, loadList, loadPlaybooks, create, load, update, upload, start, retry, remove, bulk, connect, disconnect }
 })

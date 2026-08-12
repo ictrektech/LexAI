@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/Tencent/WeKnora/internal/handler"
+	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,6 +12,9 @@ func RegisterContractReviewRoutes(r *gin.RouterGroup, h *handler.ContractReviewH
 	{
 		reviews.GET("", g.Viewer(), h.List)
 		reviews.POST("", g.Viewer(), h.Create)
+		reviews.POST("/bulk/archive", g.Viewer(), h.BulkAction(types.ContractReviewBulkArchive))
+		reviews.POST("/bulk/restore", g.Viewer(), h.BulkAction(types.ContractReviewBulkRestore))
+		reviews.POST("/bulk/delete", g.Viewer(), h.BulkAction(types.ContractReviewBulkDelete))
 		reviews.GET("/:id", g.Viewer(), h.Get)
 		reviews.PATCH("/:id", g.Viewer(), h.Update)
 		reviews.DELETE("/:id", g.Viewer(), h.Delete)

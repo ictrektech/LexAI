@@ -11,6 +11,7 @@ Parsing or model failures move the task to `failed`; the retry endpoint resumes 
 ## API
 
 - `GET|POST /api/v1/contract-reviews`
+- `POST /api/v1/contract-reviews/bulk/archive|restore|delete` (`{ "ids": [...] }`, maximum 500 IDs, per-item results)
 - `GET|PATCH|DELETE /api/v1/contract-reviews/:id`
 - `POST /api/v1/contract-reviews/:id/document` (`file` multipart field; PDF/DOCX only)
 - `GET /api/v1/contract-reviews/:id/document/preview` (supports HTTP Range through `ServeContent`)
@@ -18,6 +19,8 @@ Parsing or model failures move the task to `failed`; the retry endpoint resumes 
 - `POST /api/v1/contract-reviews/:id/retry`
 - `GET /api/v1/contract-reviews/:id/events` (SSE snapshots plus heartbeat)
 - `GET /api/v1/contract-review-playbooks`
+
+The list UI can select the current visible tasks and archive, restore, or delete them together. Running tasks cannot be archived and are skipped by that action. Deleting a running task is allowed after an explicit warning; the scoped update path prevents an in-flight background worker from recreating a soft-deleted review.
 
 Every endpoint derives tenant and user ownership from the authenticated request. API-key access is intentionally not declared.
 

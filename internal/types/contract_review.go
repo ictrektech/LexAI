@@ -10,6 +10,7 @@ import (
 type ContractReviewStatus string
 type ContractReviewRiskLevel string
 type ContractReviewParty string
+type ContractReviewBulkAction string
 
 const (
 	ContractReviewStatusDraft            ContractReviewStatus = "draft"
@@ -27,7 +28,25 @@ const (
 	ContractReviewPartyCustomer ContractReviewParty = "customer"
 	ContractReviewPartyVendor   ContractReviewParty = "vendor"
 	ContractReviewPartyNeutral  ContractReviewParty = "neutral"
+
+	ContractReviewBulkArchive ContractReviewBulkAction = "archive"
+	ContractReviewBulkRestore ContractReviewBulkAction = "restore"
+	ContractReviewBulkDelete  ContractReviewBulkAction = "delete"
 )
+
+type ContractReviewBulkItem struct {
+	ID      string `json:"id"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+type ContractReviewBulkResult struct {
+	Action    ContractReviewBulkAction `json:"action"`
+	Requested int                      `json:"requested"`
+	Succeeded int                      `json:"succeeded"`
+	Failed    int                      `json:"failed"`
+	Items     []ContractReviewBulkItem `json:"items"`
+}
 
 type ContractReview struct {
 	ID               string                  `json:"id" gorm:"type:varchar(36);primaryKey"`

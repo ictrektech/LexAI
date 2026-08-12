@@ -993,6 +993,9 @@ interface KB {
   creator_id?: string;
   // creator_name 由后端 list 接口回填，仅用于卡片右下角来源徽章的 tooltip。
   creator_name?: string;
+  // System-owned Smart Archive KBs are readable from this legacy surface, but
+  // their imports and settings are managed by /legal/smart-archive.
+  is_managed_smart_archive?: boolean;
 }
 
 const kbs = ref<KB[]>([])
@@ -1478,13 +1481,22 @@ const handleSettings = (kb: KB) => {
 // those as tenant-owned (Admin+ may manage) so existing KBs aren't
 // suddenly unmanageable for everyone.
 function canManageKBCard(kb: KB): boolean {
+  if (isManagedSmartArchiveKB(kb)) return false
   const userId = authStore.user?.id || ''
   if (kb.creator_id && userId && kb.creator_id === userId) return true
   return authStore.hasRole('admin')
 }
 
 function canDuplicateKBCard(kb: any): boolean {
-  return authStore.hasRole('contributor') && kb.isMine !== false
+  return !isManagedSmartArchiveKB(kb) && authStore.hasRole('contributor') && kb.isMine !== false
+}
+
+function isManagedSmartArchiveKB(kb: { is_managed_smart_archive?: boolean; description?: string } | null | undefined): boolean {
+  if (!kb) return false
+  return Boolean(
+    kb.is_managed_smart_archive
+    || String(kb.description || '').trim().startsWith('[lexai-managed-smart-archive]'),
+  )
 }
 
 // isMyKb 仅用于卡片右下角徽章在「我创建」与「同空间其他成员创建」之间切换。
@@ -1676,6 +1688,11 @@ const confirmDelete = () => {
 }
 
 const isInitialized = (kb: KB) => {
+  // The managed Smart Archive KB deliberately has no chat summary model: it
+  // is indexed as a document store and is populated by the archive importer.
+  // It must therefore bypass the generic "configure models first" gate so
+  // users can open the normal document list and inspect parsed files.
+  if (isManagedSmartArchiveKB(kb)) return true
   // LLM (summary) model is always required
   if (!kb.summary_model_id || kb.summary_model_id === '') return false
   // Embedding model only required when RAG indexing is enabled (vector or keyword)

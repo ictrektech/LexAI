@@ -3152,6 +3152,33 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 
 	processOverrides, _ := knowledge.ProcessOverrides()
 	eff := ResolveProcessConfig(kb, processOverrides)
+	// Smart Archive imports persist a durable parser/OCR artifact before they
+	// enqueue the managed Knowledge Base mirror. Load it once here so indexing
+	// consumes the normalized result rather than invoking DOCREADER/OCR again.
+	var parseArtifact *types.DocumentParseArtifact
+	if s.parseArtifacts != nil && processOverrides != nil && strings.TrimSpace(processOverrides.ParseArtifactID) != "" {
+		parseArtifact, err = s.parseArtifacts.GetByID(ctx, payload.TenantID, processOverrides.ParseArtifactID)
+		if err != nil {
+			logger.Warnf(ctx, "shared parse artifact unavailable for knowledge %s (%s): %v; falling back to source parser", knowledge.ID, processOverrides.ParseArtifactID, err)
+			parseArtifact = nil
+		}
+	}
+	// Image imports historically stored only the VLM override while the
+	// document task payload kept EnableMultimodel=false. Treat an enabled VLM
+	// override as enabling multimodal processing for image files so those
+	// records can be repaired on the next retry/reparse. New imports persist
+	// both flags; this fallback keeps older metadata compatible.
+	if IsImageType(payload.FileType) && !payload.EnableMultimodel {
+		imageVLMEnabled := eff.VLMConfig.IsEnabled()
+		if !imageVLMEnabled && processOverrides != nil && processOverrides.VLMConfig != nil {
+			// Keep this direct check for metadata written by older builds where
+			// the override was persisted but not merged into the effective config.
+			imageVLMEnabled = processOverrides.VLMConfig.IsEnabled()
+		}
+		if imageVLMEnabled {
+			payload.EnableMultimodel = true
+		}
+	}
 
 	// Re-check abort status right before flipping to "processing" — closes
 	// the race where the user cancels between the entry guard above and
@@ -3182,7 +3209,7 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 	ctx = withAttempt(ctx, attempt)
 
 	// 检查多模态配置（仅对文件导入）
-	if payload.FilePath != "" && !payload.EnableMultimodel && IsImageType(payload.FileType) {
+	if payload.FilePath != "" && !payload.EnableMultimodel && IsImageType(payload.FileType) && parseArtifact == nil {
 		logger.GetLogger(ctx).WithField("knowledge_id", knowledge.ID).
 			WithField("error", ErrImageNotParse).Errorf("processDocument image without enable multimodel")
 		knowledge.ParseStatus = "failed"
@@ -3218,7 +3245,41 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 	var convertResult *types.ReadResult
 	var chunks []types.ParsedChunk
 
-	if payload.FileURL != "" {
+	if parseArtifact != nil {
+		// The artifact contains the same ReadResult shape returned by the
+		// document reader, including image references needed by downstream
+		// indexing. If a legacy artifact only stored MarkdownContent, that is
+		// still sufficient for text chunking and retrieval.
+		s.beginStage(ctx, knowledge.ID, types.StageDocReader, types.JSONMap{
+			"file_name":   payload.FileName,
+			"file_type":   payload.FileType,
+			"reused":      true,
+			"artifact_id": parseArtifact.ID,
+		})
+		var reused types.ReadResult
+		if len(parseArtifact.Result) > 0 {
+			if unmarshalErr := json.Unmarshal(parseArtifact.Result, &reused); unmarshalErr != nil {
+				logger.Warnf(ctx, "shared parse artifact result decode failed for %s: %v", parseArtifact.ID, unmarshalErr)
+			}
+		}
+		if strings.TrimSpace(reused.MarkdownContent) == "" {
+			reused.MarkdownContent = parseArtifact.MarkdownContent
+		}
+		if strings.TrimSpace(reused.MarkdownContent) == "" {
+			knowledge.ParseStatus = "failed"
+			knowledge.ErrorMessage = "shared parse artifact contains no extracted text"
+			knowledge.UpdatedAt = time.Now()
+			_ = s.repo.UpdateKnowledge(ctx, knowledge)
+			s.failStage(ctx, knowledge.ID, types.StageDocReader, werrors.ErrCodeDocReaderParseFailed, knowledge.ErrorMessage, nil)
+			return nil
+		}
+		convertResult = &reused
+		s.endStage(ctx, knowledge.ID, types.StageDocReader, types.JSONMap{
+			"reused":      true,
+			"artifact_id": parseArtifact.ID,
+			"text_length": len(reused.MarkdownContent),
+		})
+	} else if payload.FileURL != "" {
 		// file_url import: SSRF re-check (防 DNS 重绑定), download, persist, then delegate to convert()
 		if err := secutils.ValidateURLForSSRF(payload.FileURL); err != nil {
 			logger.Errorf(ctx, "File URL rejected for SSRF protection in ProcessDocument: %s, err: %v", payload.FileURL, err)

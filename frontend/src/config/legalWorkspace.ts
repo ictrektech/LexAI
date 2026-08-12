@@ -5,6 +5,7 @@ import {
   LEGAL_ASSISTANT_HOME_ROUTE,
   LEGAL_CONTRACT_REVIEW_ROUTE,
   LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+  LEGAL_SMART_ARCHIVE_ROUTE,
 } from '../router/paths'
 
 export type LegalWorkspaceNavSection = 'primary' | 'tools' | 'resources'
@@ -43,6 +44,14 @@ export const LEGAL_WORKSPACE_NAV_ITEMS: readonly LegalWorkspaceNavItem[] = [
     section: 'tools',
     destination: { name: LEGAL_CONTRACT_REVIEW_ROUTE },
     activeRouteNames: [LEGAL_CONTRACT_REVIEW_ROUTE, LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE],
+  },
+  {
+    id: 'smart-archive',
+    labelKey: 'legalWorkspace.smartArchive',
+    icon: 'folder-open',
+    section: 'tools',
+    destination: { name: LEGAL_SMART_ARCHIVE_ROUTE },
+    activeRouteNames: [LEGAL_SMART_ARCHIVE_ROUTE],
   },
   {
     id: 'legal-research',

@@ -165,6 +165,50 @@ func (s *contractReviewService) Delete(ctx context.Context, tenantID uint64, use
 	return s.repo.Delete(ctx, tenantID, userID, id)
 }
 
+func (s *contractReviewService) BulkAction(ctx context.Context, tenantID uint64, userID string, ids []string, action types.ContractReviewBulkAction) (*types.ContractReviewBulkResult, error) {
+	if len(ids) == 0 || len(ids) > 500 {
+		return nil, fmt.Errorf("contract review bulk action requires between 1 and 500 ids")
+	}
+	if action != types.ContractReviewBulkArchive && action != types.ContractReviewBulkRestore && action != types.ContractReviewBulkDelete {
+		return nil, fmt.Errorf("invalid contract review bulk action")
+	}
+	unique := make([]string, 0, len(ids))
+	seen := make(map[string]struct{}, len(ids))
+	for _, rawID := range ids {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return nil, fmt.Errorf("contract review bulk action requires at least one valid id")
+	}
+	result := &types.ContractReviewBulkResult{Action: action, Requested: len(unique), Items: make([]types.ContractReviewBulkItem, 0, len(unique))}
+	for _, id := range unique {
+		var err error
+		if action == types.ContractReviewBulkDelete {
+			err = s.Delete(ctx, tenantID, userID, id)
+		} else {
+			archived := action == types.ContractReviewBulkArchive
+			_, err = s.Update(ctx, tenantID, userID, id, "", "", "", &archived)
+		}
+		item := types.ContractReviewBulkItem{ID: id, Success: err == nil}
+		if err != nil {
+			item.Error = err.Error()
+			result.Failed++
+		} else {
+			result.Succeeded++
+		}
+		result.Items = append(result.Items, item)
+	}
+	return result, nil
+}
+
 func (s *contractReviewService) Upload(ctx context.Context, tenantID uint64, userID, id, fileName, mimeType string, fileSize int64, body io.Reader) (*types.ContractReview, error) {
 	r, err := s.Get(ctx, tenantID, userID, id)
 	if err != nil {

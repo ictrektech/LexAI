@@ -43,6 +43,15 @@ export interface ReviewOverview {
 }
 
 export interface ReviewPlaybook { id: string; name: string; description: string; version: string }
+export type ContractReviewBulkAction = 'archive' | 'restore' | 'delete'
+export interface ContractReviewBulkItem { id: string; success: boolean; error?: string }
+export interface ContractReviewBulkResult {
+  action: ContractReviewBulkAction
+  requested: number
+  succeeded: number
+  failed: number
+  items: ContractReviewBulkItem[]
+}
 
 export interface ContractReview {
   id: string
@@ -77,6 +86,8 @@ export const createContractReview = () => post<ApiResponse<ContractReview>>('/ap
 export const getContractReview = (id: string) => get<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`)
 export const updateContractReview = (id: string, data: Partial<Pick<ContractReview, 'title' | 'playbook_id' | 'represented_party'>> & { archived?: boolean }) => patch<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`, data)
 export const deleteContractReview = (id: string) => del(`/api/v1/contract-reviews/${id}`)
+export const bulkContractReviews = (action: ContractReviewBulkAction, ids: string[]) =>
+  post<ApiResponse<ContractReviewBulkResult>>(`/api/v1/contract-reviews/bulk/${action}`, { ids })
 export const startContractReview = (id: string) => post<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/start`)
 export const retryContractReview = (id: string) => post<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/retry`)
 export const getContractReviewDocument = (id: string) => get<ArrayBuffer>(`/api/v1/contract-reviews/${id}/document/preview`, { responseType: 'arraybuffer' })
@@ -102,7 +113,7 @@ export function streamContractReview(id: string, signal: AbortSignal, onSnapshot
     async onopen(response) { if (!response.ok) throw new Error(`HTTP ${response.status}`) },
     onmessage(event) {
       if (event.event !== 'snapshot' || !event.data) return
-      onSnapshot(JSON.parse(event.data) as ContractReview)
+      try { onSnapshot(JSON.parse(event.data) as ContractReview) } catch { /* Ignore malformed frames; snapshot polling remains authoritative. */ }
     },
     onerror() { if (!signal.aborted) return 1500 },
   })

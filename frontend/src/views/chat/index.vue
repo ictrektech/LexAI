@@ -1579,6 +1579,8 @@ onBeforeRouteUpdate((to, from, next) => {
     &.is-legal-workspace {
         width: 100%;
         max-width: 100%;
+        color: var(--legal-text-primary);
+        background: var(--legal-bg-page);
     }
 
     &.is-embedded {
@@ -1694,6 +1696,19 @@ onBeforeRouteUpdate((to, from, next) => {
 
     &:active {
         transform: translateX(-50%) scale(0.92);
+    }
+}
+
+.chat.is-legal-workspace .scroll-to-bottom-btn {
+    border-color: var(--legal-border);
+    color: var(--legal-text-secondary);
+    background: var(--legal-bg-surface);
+    box-shadow: var(--legal-shadow-soft);
+
+    &:hover {
+        color: var(--legal-ai-strong);
+        background: var(--legal-bg-hover);
+        box-shadow: var(--legal-shadow-soft);
     }
 }
 

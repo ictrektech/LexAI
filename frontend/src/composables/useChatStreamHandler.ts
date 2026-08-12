@@ -988,14 +988,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           }
         } else if (responseType === 'error') {
           const errorMsg = String(data.content || t('chat.processError'))
-          const isCompleted = dataPayload?.is_completed !== false
+          // `dataPayload` is narrowed to its falsy branch above. Read the
+          // optional error metadata through a fresh widened view so the
+          // stream handler remains type-safe while preserving the same
+          // partial-generation semantics.
+          const errorPayload = data.data as ChatMessage | undefined
+          const isCompleted = errorPayload?.is_completed !== false
           if (isCompleted) {
             message.content = errorMsg
             message.is_completed = true
           } else {
             message.generation_error = errorMsg
             message.is_completed = false
-            message.__stream_terminal = dataPayload?.terminal !== false
+            message.__stream_terminal = errorPayload?.terminal !== false
           }
           message.__stream_active = false
           isReplying.value = false

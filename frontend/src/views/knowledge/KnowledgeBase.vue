@@ -69,6 +69,14 @@ const uploading = ref(false);
 const kbLoading = ref(false);
 const docListLoading = ref(true);
 const isFAQ = computed(() => (kbInfo.value?.type || '') === 'faq');
+const isManagedSmartArchive = computed(() => {
+  const kb = kbInfo.value;
+  if (!kb) return false;
+  return Boolean(
+    kb.is_managed_smart_archive
+    || String(kb.description || '').trim().startsWith('[lexai-managed-smart-archive]'),
+  );
+});
 const isWiki = computed(() => !!kbInfo.value?.indexing_strategy?.wiki_enabled);
 const validTabs = ['documents', 'wiki', 'graph'] as const
 type KbTab = typeof validTabs[number]
@@ -275,6 +283,10 @@ const isViaShare = computed(() => !!currentSharedKb.value);
 // hasRole('contributor') is intentionally NOT here — being a Contributor
 // in a tenant does not by itself grant edit on someone else's KB.
 const canEdit = computed(() => {
+  // The managed archive index is intentionally read-only here.  Import,
+  // extraction settings, tags and destructive operations belong to the Smart
+  // Archive workspace, while this page remains a document inspection surface.
+  if (isManagedSmartArchive.value) return false;
   if (isViaShare.value) return orgStore.canEditKB(kbId.value, false);
   if (isOwner.value) return true;
   if (authStore.hasRole('admin')) return true;
@@ -285,6 +297,7 @@ const canEdit = computed(() => {
 // shared KBs only an 'admin' share grant qualifies — editor/viewer (and
 // even being the creator viewed via share) never grant delete/settings.
 const canManage = computed(() => {
+  if (isManagedSmartArchive.value) return false;
   if (isViaShare.value) return orgStore.canManageKB(kbId.value, false);
   if (isOwner.value) return true;
   if (authStore.hasRole('admin')) return true;
@@ -2290,6 +2303,10 @@ async function createNewSession(value: string): Promise<void> {
             </div>
           </div>
           <p class="document-subtitle">{{ $t('knowledgeEditor.document.subtitle') }}</p>
+          <p v-if="isManagedSmartArchive" class="managed-kb-notice">
+            <t-icon name="info-circle" size="14px" />
+            <span>{{ $t('knowledgeBase.managedSmartArchiveReadOnly') }}</span>
+          </p>
           <p v-if="unsupportedFileTypes.length" class="parser-hint" @click="goToParserSettings">
             <t-icon name="info-circle" class="parser-hint-icon" />
             <span>{{$t('knowledgeBase.unsupportedTypesHint', {
@@ -3404,6 +3421,16 @@ async function createNewSession(value: string): Promise<void> {
     font-size: 14px;
     font-weight: 400;
     line-height: 20px;
+  }
+
+  .managed-kb-notice {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 4px 0 0;
+    color: var(--td-text-color-secondary);
+    font-size: 12px;
+    line-height: 18px;
   }
 
   .parser-hint {

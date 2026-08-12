@@ -8,6 +8,7 @@ import {
   LEGAL_ASSISTANT_HOME_ROUTE,
   LEGAL_CONTRACT_REVIEW_ROUTE,
   LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+  LEGAL_SMART_ARCHIVE_ROUTE,
   PLATFORM_KNOWLEDGE_BASES_PATH,
 } from '@/router/paths'
 
@@ -134,6 +135,12 @@ const router = createRouter({
           path: 'contract-review/:reviewId',
           name: LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
           component: () => import('../views/legal/contract-review/ContractReviewDetail.vue'),
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'smart-archive',
+          name: LEGAL_SMART_ARCHIVE_ROUTE,
+          component: () => import('../views/legal/SmartArchive.vue'),
           meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
         },
       ],

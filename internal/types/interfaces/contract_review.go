@@ -26,6 +26,7 @@ type ContractReviewService interface {
 	Get(context.Context, uint64, string, string) (*types.ContractReview, error)
 	Update(context.Context, uint64, string, string, string, string, string, *bool) (*types.ContractReview, error)
 	Delete(context.Context, uint64, string, string) error
+	BulkAction(context.Context, uint64, string, []string, types.ContractReviewBulkAction) (*types.ContractReviewBulkResult, error)
 	Upload(context.Context, uint64, string, string, string, string, int64, io.Reader) (*types.ContractReview, error)
 	OpenDocument(context.Context, uint64, string, string) (*types.ContractReview, io.ReadCloser, error)
 	Start(context.Context, uint64, string, string) (*types.ContractReview, error)

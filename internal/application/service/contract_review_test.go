@@ -1,11 +1,26 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/types"
 )
+
+func TestContractReviewBulkActionValidatesInputBeforeRepositoryAccess(t *testing.T) {
+	service := &contractReviewService{}
+	if _, err := service.BulkAction(context.Background(), 1, "u1", nil, types.ContractReviewBulkArchive); err == nil {
+		t.Fatal("empty bulk selection must be rejected")
+	}
+	ids := make([]string, 501)
+	for index := range ids {
+		ids[index] = "review"
+	}
+	if _, err := service.BulkAction(context.Background(), 1, "u1", ids, types.ContractReviewBulkDelete); err == nil {
+		t.Fatal("bulk selections over 500 items must be rejected")
+	}
+}
 
 func TestBuildReviewClausesKeepsDocumentOrderAndOffsets(t *testing.T) {
 	content := "# 付款条款\n合同价款应在交付后 30 日内支付。\n\n# Liability\nLiability is unlimited."

@@ -1,5 +1,5 @@
 <template>
-    <div class="dialogue-wrap">
+    <div class="dialogue-wrap" :class="{ 'dialogue-wrap--legal': route.meta.legalWorkspace === true }">
         <div class="dialogue-answers">
             <div class="dialogue-title" style="--wails-draggable: drag">
                 <span style="--wails-draggable: drag">{{ $t('createChat.title') }}</span>
@@ -82,7 +82,10 @@ const { t } = useI18n();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
 
 const showChatContextualGuide = computed(() => {
-    return route.name === 'globalCreatChat' || route.name === 'kbCreatChat' || route.meta.legalWorkspace === true;
+    // The legal workspace has its own focused shell and should not inherit
+    // the legacy chat onboarding overlay. Keep this tour for the original
+    // platform chat entry points only.
+    return route.name === 'globalCreatChat' || route.name === 'kbCreatChat';
 });
 
 // ===== 推荐问题 =====
@@ -256,6 +259,14 @@ const handleKBEditorSuccess = (kbId: string) => {
     justify-content: center;
     align-items: center;
     // position: relative;
+}
+
+.dialogue-wrap--legal {
+    background: var(--legal-bg-page);
+
+    .dialogue-title {
+        color: var(--legal-brand);
+    }
 }
 
 .dialogue-answers {

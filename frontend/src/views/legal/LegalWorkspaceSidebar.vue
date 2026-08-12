@@ -130,9 +130,9 @@ const NavButton = defineComponent({
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  color: #171715;
-  background: #fff;
-  border-right: 1px solid #e8e8e5;
+  color: var(--legal-text-primary);
+  background: var(--legal-bg-surface);
+  border-right: 1px solid var(--legal-border);
   transition: width 180ms ease, min-width 180ms ease, padding 180ms ease;
 
   &--collapsed {
@@ -157,6 +157,11 @@ const NavButton = defineComponent({
 :deep(.legal-nav-item) {
   border: 0;
   font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--legal-ai);
+    outline-offset: 2px;
+  }
 }
 
 :deep(.legal-nav-tooltip-anchor) {
@@ -170,7 +175,7 @@ const NavButton = defineComponent({
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #111;
+  color: var(--legal-brand);
   background: transparent;
   cursor: pointer;
 }
@@ -184,7 +189,7 @@ const NavButton = defineComponent({
   justify-content: center;
   flex: 0 0 28px;
   color: #fff;
-  background: #111;
+  background: var(--legal-brand);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -205,13 +210,13 @@ const NavButton = defineComponent({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #686863;
+  color: var(--legal-text-secondary);
   background: transparent;
   cursor: pointer;
 
   &:hover {
-    color: #111;
-    background: #f2f2ef;
+    color: var(--legal-brand);
+    background: var(--legal-bg-hover);
   }
 }
 
@@ -234,13 +239,13 @@ const NavButton = defineComponent({
   &--resources {
     margin-top: auto;
     padding-top: 20px;
-    border-top: 1px solid #efefec;
+    border-top: 1px solid var(--legal-border);
   }
 }
 
 .legal-sidebar__section-label {
   margin: 0 10px 8px;
-  color: #92928b;
+  color: var(--legal-text-secondary);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.08em;
@@ -255,36 +260,36 @@ const NavButton = defineComponent({
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #494945;
+  color: var(--legal-text-secondary);
   background: transparent;
   cursor: pointer;
   text-align: left;
   transition: color 140ms ease, background 140ms ease;
 
   &:hover:not(:disabled) {
-    color: #111;
-    background: #f3f3f0;
+    color: var(--legal-text-primary);
+    background: var(--legal-bg-hover);
   }
 }
 
 :deep(.legal-nav-item--primary) {
   color: #fff;
-  background: #171715;
+  background: var(--legal-brand);
 
   &:hover:not(:disabled) {
     color: #fff;
-    background: #30302d;
+    background: var(--legal-brand-hover);
   }
 }
 
 :deep(.legal-nav-item--active:not(.legal-nav-item--primary)) {
-  color: #111;
-  background: #ecece8;
+  color: var(--legal-ai-strong);
+  background: var(--legal-ai-soft);
   font-weight: 650;
 }
 
 :deep(.legal-nav-item--disabled) {
-  color: #aaa9a3;
+  color: var(--legal-text-disabled);
   cursor: not-allowed;
 }
 
@@ -312,7 +317,7 @@ const NavButton = defineComponent({
 
 :deep(.legal-nav-item__badge) {
   flex-shrink: 0;
-  color: #a2a19b;
+  color: var(--legal-text-disabled);
   font-size: 9px;
   font-weight: 650;
   letter-spacing: 0.03em;

@@ -76,3 +76,18 @@ func TestContractReviewRepositoryDeleteRemovesChildren(t *testing.T) {
 	require.NoError(t, fixture.db.Model(&types.ContractReviewClause{}).Where("review_id = ?", review.ID).Count(&clauseCount).Error)
 	require.Zero(t, clauseCount)
 }
+
+func TestContractReviewRepositoryUpdateDoesNotResurrectDeletedReview(t *testing.T) {
+	fixture := newContractReviewTestRepository(t)
+	ctx := context.Background()
+	review := &types.ContractReview{TenantID: 1, UserID: "u1", Title: "Running"}
+	require.NoError(t, fixture.repo.Create(ctx, review))
+	require.NoError(t, fixture.repo.Delete(ctx, 1, "u1", review.ID))
+	review.Progress = 80
+	review.Status = types.ContractReviewStatusReviewingClauses
+	require.ErrorIs(t, fixture.repo.Update(ctx, review), gorm.ErrRecordNotFound)
+	require.ErrorIs(t, fixture.repo.UpsertIssue(ctx, &types.ContractReviewIssue{ReviewID: review.ID, ClauseID: "deleted-clause", Fingerprint: "late-result"}), gorm.ErrRecordNotFound)
+	var count int64
+	require.NoError(t, fixture.db.Unscoped().Model(&types.ContractReview{}).Where("id = ?", review.ID).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}

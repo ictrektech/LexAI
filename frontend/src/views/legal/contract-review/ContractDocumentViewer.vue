@@ -126,7 +126,11 @@ async function loadDocx() {
 }
 
 function clearMarks() {
-  document.querySelectorAll('.review-text-mark').forEach((el) => { el.classList.remove('review-text-mark', 'review-text-mark--selected'); (el as HTMLElement).removeAttribute('data-issue-id') })
+  document.querySelectorAll('.review-text-mark').forEach((el) => {
+    const mark = el as HTMLElement
+    mark.classList.remove('review-text-mark', 'review-text-mark--selected', 'review-text-mark--high', 'review-text-mark--medium', 'review-text-mark--low')
+    mark.removeAttribute('data-issue-id')
+  })
 }
 
 function applyIssueMarks() {
@@ -157,14 +161,14 @@ function markIssue(issue: ReviewIssue): HTMLElement | null {
       }
       const matchEnd = matchStart + matchLength
       const targets = ranges.filter((range) => range.end > matchStart && range.start < matchEnd).map((range) => range.span)
-      targets.forEach((span) => { span.classList.add('review-text-mark'); span.dataset.issueId = issue.id })
+      targets.forEach((span) => { span.classList.add('review-text-mark', `review-text-mark--${issue.risk_level}`); span.dataset.issueId = issue.id })
       return targets[0] || page
     }
   }
   if (props.fileType === '.docx' && docxEl.value) {
     const candidates = Array.from(docxEl.value.querySelectorAll<HTMLElement>('p, li, td'))
     const target = candidates.find((node) => hasReviewQuoteMatch(node.textContent || '', issue.original_quote))
-    if (target) { target.classList.add('review-text-mark'); target.dataset.issueId = issue.id; return target }
+    if (target) { target.classList.add('review-text-mark', `review-text-mark--${issue.risk_level}`); target.dataset.issueId = issue.id; return target }
   }
   return null
 }
@@ -231,16 +235,19 @@ defineExpose({ locateIssue, goToPage, setZoom })
 </script>
 
 <style scoped lang="less">
-.document-viewer { height:100%; min-width:0; display:flex; flex-direction:column; background:#efefec; }
-.document-viewer__toolbar { height:52px; padding:0 18px; display:flex; align-items:center; justify-content:space-between; background:#fff; border-bottom:1px solid #deded9; }
+.document-viewer { height:100%; min-width:0; display:flex; flex-direction:column; color:var(--legal-text-primary); background:var(--legal-bg-hover); }
+.document-viewer__toolbar { height:52px; padding:0 18px; display:flex; align-items:center; justify-content:space-between; background:var(--legal-bg-surface); border-bottom:1px solid var(--legal-border); }
 .document-viewer__file { min-width:0; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } }
-.document-viewer__controls { display:flex; align-items:center; gap:7px; color:#5d5d58; font-size:12px; button { width:28px; height:28px; border:0; border-radius:5px; background:transparent; cursor:pointer; &:hover{background:#efefec;color:#111;} } i { width:1px;height:18px;background:#ddd; margin:0 4px; } }
+.document-viewer__controls { display:flex; align-items:center; gap:7px; color:var(--legal-text-secondary); font-size:12px; button { width:28px; height:28px; border:0; border-radius:5px; color:inherit; background:transparent; cursor:pointer; &:hover{background:var(--legal-bg-hover);color:var(--legal-brand);} &:focus-visible{outline:2px solid var(--legal-ai);outline-offset:1px;} } i { width:1px;height:18px;background:var(--legal-border); margin:0 4px; } }
 .document-viewer__scroll { min-height:0; flex:1; overflow:auto; padding:28px; }
-.document-viewer__state { height:100%; display:flex; align-items:center; justify-content:center; gap:10px; color:#73736d; &--error{color:#a53b31;} }
+.document-viewer__state { height:100%; display:flex; align-items:center; justify-content:center; gap:10px; color:var(--legal-text-secondary); &--error{color:var(--legal-risk);} }
 .document-viewer__pdf { min-width:max-content; display:flex; flex-direction:column; align-items:center; gap:22px; zoom:var(--document-font-compensation, 1); }
-:deep(.pdf-page) { position:relative; flex:none; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.12); canvas{position:absolute;inset:0;} }
-:deep(.pdf-text-layer) { position:absolute;inset:0;overflow:hidden;line-height:1; span{position:absolute;white-space:pre;transform-origin:0 0;color:transparent;cursor:text;} ::selection{background:rgba(88,111,94,.25);} }
+:deep(.pdf-page) { position:relative; flex:none; background:var(--legal-bg-paper); box-shadow:0 3px 14px rgba(31,31,31,.1); canvas{position:absolute;inset:0;} }
+:deep(.pdf-text-layer) { position:absolute;inset:0;overflow:hidden;line-height:1; span{position:absolute;white-space:pre;transform-origin:0 0;color:transparent;cursor:text;} ::selection{background:rgba(115,115,115,.22);} }
 .document-viewer__docx { width:max-content; min-width:100%; zoom:var(--document-font-compensation, 1); transform-origin:top center; :deep(.docx-wrapper){padding:0;background:transparent;} :deep(section){margin:0 auto 22px!important; transform:scale(var(--document-zoom)); transform-origin:top center; margin-bottom:calc((var(--document-zoom) - 1) * 1120px + 22px)!important;} }
-:deep(.review-text-mark) { background:rgba(177,143,71,.24)!important; box-shadow:inset 3px 0 #b58b36; cursor:pointer!important; }
-:deep(.review-text-mark--selected) { background:rgba(163,91,71,.28)!important; box-shadow:inset 3px 0 #8d4438; }
+:deep(.review-text-mark) { background:rgba(115,115,115,.18)!important; box-shadow:inset 3px 0 var(--legal-ai); cursor:pointer!important; }
+:deep(.review-text-mark--medium) { background:rgba(169,121,61,.18)!important; box-shadow:inset 3px 0 var(--legal-warning); }
+:deep(.review-text-mark--high) { background:rgba(166,83,77,.18)!important; box-shadow:inset 3px 0 var(--legal-risk); }
+:deep(.review-text-mark--selected) { outline:2px solid var(--legal-brand); outline-offset:1px; }
+:deep(.review-text-mark--high.review-text-mark--selected) { outline-color:var(--legal-risk); }
 </style>

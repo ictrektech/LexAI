@@ -104,8 +104,77 @@ onMounted(initialize); onBeforeUnmount(store.disconnect)
 </script>
 
 <style scoped lang="less">
-.review-workspace{width:100%;height:100%;min-height:0;display:flex;flex-direction:column;background:#fff;color:#171715}.review-workspace__topbar{height:48px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:14px;border-bottom:1px solid #deded9;box-sizing:border-box;.back-button{display:flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;color:#62625d;font-size:12px;cursor:pointer}.back-button:after{content:'';width:1px;height:18px;margin-left:8px;background:#e2e2dd}input{min-width:180px;max-width:520px;flex:1;border:1px solid transparent;border-radius:4px;padding:5px 7px;background:transparent;color:#171715;font:600 13px/1.2 inherit;&:hover,&:focus{border-color:#d6d6d0;outline:0;background:#fff}}span{margin-left:auto;color:#999991;font-size:10px}}
-.review-workspace__body{min-height:0;flex:1;display:flex}.review-workspace__document{position:relative;min-width:0;flex:1}.upload-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f5f5f2;border:2px solid transparent;box-sizing:border-box;transition:.15s;&--dragging{border-color:#7d786c;background:#f0f0eb}.upload-empty__icon{width:58px;height:58px;display:flex;align-items:center;justify-content:center;border:1px solid #d7d7d1;border-radius:8px;background:#fff;color:#50504b}h1{margin:20px 0 5px;font-size:20px;font-weight:600}p{margin:0;color:#74746e;font-size:13px}button:not(.back-button){margin-top:22px;padding:9px 16px;border:1px solid #242421;border-radius:5px;background:#171715;color:#fff;font-weight:600;cursor:pointer}small{margin-top:13px;color:#999991;font-size:10px}.upload-overlay{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(255,255,255,.88);font-size:12px;i{width:220px;height:3px;background:#deded9;b{display:block;height:100%;background:#4a6656}}}}
-.review-loading{width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:10px;color:#777;font-size:13px}
+.review-workspace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--legal-text-primary);
+  background: var(--legal-bg-surface);
+}
+.review-workspace__topbar {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--legal-border);
+  background: var(--legal-bg-surface);
+  .back-button { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; color: var(--legal-text-secondary); background: transparent; font-size: 12px; cursor: pointer; }
+  .back-button:hover { color: var(--legal-brand); }
+  .back-button:after { content: ''; width: 1px; height: 18px; margin-left: 8px; background: var(--legal-border); }
+  input {
+    min-width: 180px;
+    max-width: 520px;
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--legal-text-primary);
+    background: transparent;
+    font: 600 13px/1.2 inherit;
+    &:hover { border-color: var(--legal-border-strong); background: var(--legal-bg-paper); }
+    &:focus { outline: 2px solid var(--legal-focus-ring); border-color: var(--legal-ai); background: var(--legal-bg-paper); }
+  }
+  span { margin-left: auto; color: var(--legal-text-secondary); font-size: 10px; }
+}
+.review-workspace__body { min-height: 0; flex: 1; display: flex; }
+.review-workspace__document { position: relative; min-width: 0; flex: 1; }
+.upload-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  background: var(--legal-bg-page);
+  transition: .15s;
+  &--dragging { border-color: var(--legal-ai); background: var(--legal-ai-soft); }
+  .upload-empty__icon { width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--legal-border); border-radius: 8px; color: var(--legal-ai-strong); background: var(--legal-bg-surface); }
+  h1 { margin: 20px 0 5px; font-size: 20px; font-weight: 600; }
+  p { margin: 0; color: var(--legal-text-secondary); font-size: 13px; }
+  button:not(.back-button) { margin-top: 22px; padding: 9px 16px; border: 1px solid var(--legal-brand); border-radius: 5px; color: #fff; background: var(--legal-brand); font-weight: 600; cursor: pointer; &:hover { background: var(--legal-brand-hover); } }
+  small { margin-top: 13px; color: var(--legal-text-secondary); font-size: 10px; }
+}
+.upload-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--legal-text-secondary);
+  background: rgba(247, 244, 237, .9);
+  font-size: 12px;
+  i { width: 220px; height: 3px; background: var(--legal-border); b { display: block; height: 100%; background: var(--legal-ai); } }
+}
+.review-loading { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--legal-text-secondary); background: var(--legal-bg-page); font-size: 13px; }
 @media(max-width:1050px){.review-workspace__body{position:relative}:deep(.review-panel){width:360px;min-width:360px}}
 </style>
