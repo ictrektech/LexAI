@@ -3,7 +3,7 @@
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <div class="brand-logo">LexAI</div>
+                <img class="brand-logo" :src="lexaiLogo" alt="LexAI" />
             </div>
             <div class="logo_actions">
                 <t-tooltip placement="bottom">
@@ -254,6 +254,7 @@ import UserMenu from '@/components/UserMenu.vue';
 import TenantSelector from '@/components/TenantSelector.vue';
 import { useI18n } from 'vue-i18n';
 import { getSystemInfo } from '@/api/system';
+import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg';
 
 const chatResources = useChatResourcesStore();
 // Platform logos reused from IMChannelsOverviewPanel — keeps the session list
@@ -1270,12 +1271,12 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         overflow: hidden;
 
         .brand-logo {
-            color: var(--td-text-color-primary);
-            // 侧栏标题与搜索、折叠按钮共用一行；保持在 260px 侧栏中完整显示品牌名称。
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1.2;
-            white-space: nowrap;
+            // Keep the supplied wordmark crisp while fitting beside the sidebar actions.
+            display: block;
+            width: 102px;
+            height: 38px;
+            object-fit: contain;
+            object-position: left center;
         }
 
     }

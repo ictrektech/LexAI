@@ -97,7 +97,7 @@
 
     <!-- Logo - Top Left -->
     <a href="https://github.com/Tencent/WeKnora" target="_blank" class="header-logo" :title="$t('common.github')">
-      <span class="logo-image">LexAI法律小助手</span>
+      <img class="logo-image" :src="lexaiLogo" alt="LexAI法律小助手" />
     </a>
 
     <!-- Header Links - Top Right -->
@@ -355,6 +355,7 @@ import screenshot1 from '@/assets/img/screenshot-1.svg'
 import screenshot2 from '@/assets/img/screenshot-2.svg'
 import screenshot3 from '@/assets/img/screenshot-3.svg'
 import screenshot4 from '@/assets/img/screenshot-4.svg'
+import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg'
 
 const router = useRouter()
 const route = useRoute()
@@ -1145,18 +1146,27 @@ onMounted(async () => {
 
 .header-logo {
   position: fixed;
-  top: 32px;
-  left: 50px;
+  top: 24px;
+  left: 44px;
+  width: 150px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   z-index: 100;
   cursor: pointer;
+  line-height: 0;
 
   .logo-image {
-    display: inline-block;
-    color: #1f2937;
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.2;
-    white-space: nowrap;
+    display: block;
+    width: 126px;
+    height: 52px;
+    object-fit: contain;
+    object-position: center;
+    flex: 0 0 auto;
+    transform: scale(1.25);
+    transform-origin: center;
   }
 }
 
@@ -1605,9 +1615,12 @@ onMounted(async () => {
   .header-logo {
     top: 26px;
     left: 40px;
+    width: 138px;
+    height: 54px;
 
     .logo-image {
-      font-size: 18px;
+      width: 116px;
+      height: 48px;
     }
   }
 
@@ -1653,9 +1666,12 @@ onMounted(async () => {
   .header-logo {
     top: 22px;
     left: 30px;
+    width: 128px;
+    height: 50px;
 
     .logo-image {
-      font-size: 16px;
+      width: 108px;
+      height: 44px;
     }
   }
 
@@ -1713,9 +1729,12 @@ onMounted(async () => {
   .header-logo {
     top: 18px;
     left: 20px;
+    width: 118px;
+    height: 46px;
 
     .logo-image {
-      font-size: 14px;
+      width: 98px;
+      height: 40px;
     }
   }
 
@@ -1784,7 +1803,7 @@ html[theme-mode="dark"] {
   }
 
   .header-logo .logo-image {
-    color: #ffffff;
+    filter: brightness(0) invert(1);
   }
 
   .header-link {

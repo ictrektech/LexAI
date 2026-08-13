@@ -2,8 +2,13 @@
   <aside class="legal-sidebar" :class="{ 'legal-sidebar--collapsed': sidebarProps.collapsed }">
     <div class="legal-sidebar__header">
       <button class="legal-sidebar__brand" type="button" aria-label="LexAI" @click="goHome">
-        <span class="legal-sidebar__brand-mark">L</span>
-        <span v-if="!sidebarProps.collapsed" class="legal-sidebar__brand-name">LexAI</span>
+        <img
+          v-if="!sidebarProps.collapsed"
+          class="legal-sidebar__brand-logo"
+          :src="lexaiLogo"
+          alt="LexAI"
+        />
+        <span v-else class="legal-sidebar__brand-mark" aria-hidden="true">L</span>
       </button>
       <button
         v-if="!sidebarProps.collapsed"
@@ -51,6 +56,7 @@ import { computed, defineComponent, h, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as TIcon, Tooltip as TTooltip } from 'tdesign-vue-next'
+import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg'
 
 import {
   isLegalWorkspaceItemActive,
@@ -174,10 +180,12 @@ const NavButton = defineComponent({
   padding: 0 7px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   color: var(--legal-brand);
   background: transparent;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .legal-sidebar__brand-mark {
@@ -195,11 +203,19 @@ const NavButton = defineComponent({
   letter-spacing: -0.04em;
 }
 
-.legal-sidebar__brand-name {
-  font-size: 20px;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+.legal-sidebar__brand-logo {
+  display: block;
+  width: 106px;
+  height: 38px;
+  object-fit: contain;
+  // The supplied SVG includes transparent canvas on both sides and slightly
+  // more space below the artwork. Reposition and enlarge the image inside the
+  // existing 38px header without changing the source asset.
+  object-position: 25% center;
+  position: relative;
+  top: -1px;
+  transform: scale(1.2);
+  transform-origin: center;
 }
 
 .legal-sidebar__collapse,
