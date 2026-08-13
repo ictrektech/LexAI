@@ -30,6 +30,8 @@ export const archiveDocument = (id: string) => post<ApiResponse<ArchiveDocument>
 export const restoreDocument = (id: string) => post<ApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/restore`)
 export const bulkArchiveDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/archive', { ids })
 export const bulkRestoreDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/restore', { ids })
+export const deleteArchiveDocument = (id: string) => del(`/api/v1/archive/documents/${id}`)
+export const bulkDeleteArchiveDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/delete', { ids })
 export const getArchiveDocumentEvidence = (id: string) => get<ApiResponse<ArchiveEvidence[]>>(`/api/v1/archive/documents/${id}/evidence`)
 export const getArchiveDocumentPreview = (id: string) => getDown(`/api/v1/archive/documents/${id}/preview`)
 export const listArchiveCustomers = (q = '') => get<ApiResponse<ArchiveCustomer[]>>(`/api/v1/archive/customers?q=${encodeURIComponent(q)}`)
