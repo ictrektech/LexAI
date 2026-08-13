@@ -333,7 +333,7 @@ func (h *Handler) setupStopEventHandler(
 			context.WithoutCancel(ctx),
 			types.TenantIDContextKey, sessionTenantID,
 		)
-		h.completeAssistantMessage(updateCtx, assistantMessage, "") // empty query: stopped conversations are not indexed
+		h.completeAssistantMessage(updateCtx, assistantMessage, "", true) // empty query: stopped conversations are not indexed
 		return nil
 	})
 }
@@ -456,7 +456,7 @@ func (h *Handler) startIncompleteMessageWatchdog(
 					msg.Content = "（本次生成未正常完成，请重新提问。）"
 					msg.IsFallback = true
 				}
-				h.completeAssistantMessage(updateCtx, msg, userQuery)
+				h.completeAssistantMessage(updateCtx, msg, userQuery, true)
 				if err := h.streamManager.AppendEvent(updateCtx, sessionID, assistantMessageID, interfaces.StreamEvent{
 					ID:        fmt.Sprintf("complete-watchdog-%d", time.Now().UnixNano()),
 					Type:      types.ResponseTypeComplete,

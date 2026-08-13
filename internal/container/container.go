@@ -169,6 +169,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewEmbedChannelRepository))
 	must(container.Provide(repository.NewTenantDisabledSharedAgentRepository))
 	must(container.Provide(repository.NewUserResourceFavoriteRepository))
+	must(container.Provide(repository.NewContractReviewRepository))
+	must(container.Provide(repository.NewSmartArchiveRepository))
+	must(container.Provide(repository.NewDocumentParseArtifactRepository))
 	must(container.Provide(service.NewWebSearchStateService))
 	must(container.Provide(repository.NewDataSourceRepository))
 	must(container.Provide(repository.NewSyncLogRepository))
@@ -302,6 +305,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		must(container.Invoke(registerLiteModelConcurrencyLimiter))
 	}
 	must(container.Provide(service.NewTemporaryDocumentService))
+	must(container.Provide(service.NewContractReviewService))
+	must(container.Provide(service.NewSmartArchiveService))
 	must(container.Invoke(startTemporaryDocumentCleanup))
 
 	// Chat pipeline components for processing chat requests
@@ -314,6 +319,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewDataSourceService))
 	must(container.Invoke(startDataSourceScheduler))
 	logger.Debugf(ctx, "[Container] Data source sync framework registered")
+	must(container.Invoke(startSmartArchiveReminderRunner))
 	must(container.Invoke(startAuditLogRetention))
 	logger.Debugf(ctx, "[Container] Audit log retention runner registered")
 	must(container.Provide(service.NewHousekeepingService))
@@ -374,6 +380,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewStorageBackendHandler))
 	must(container.Provide(handler.NewCustomAgentHandler))
 	must(container.Provide(handler.NewUserResourceFavoriteHandler))
+	must(container.Provide(handler.NewContractReviewHandler))
+	must(container.Provide(handler.NewSmartArchiveHandler))
 	must(container.Provide(service.NewSkillService))
 	must(container.Provide(handler.NewSkillHandler))
 	must(container.Provide(handler.NewOrganizationHandler))
@@ -1981,6 +1989,71 @@ func startTemporaryDocumentCleanup(svc interfaces.TemporaryDocumentService, clea
 		close(stop)
 		return nil
 	})
+}
+
+// startSmartArchiveReminderRunner uses durable reminder rows as the source of
+// truth. A timer targets the next persisted due time, while a bounded
+// compensation scan and startup scan cover process restarts, lost wakeups,
+// clock/timer suspension and multiple application instances. Delivery itself
+// is transactional and idempotent in the repository, so a failed attempt is
+// retried rather than being marked as handled.
+func startSmartArchiveReminderRunner(svc interfaces.SmartArchiveService, cleaner interfaces.ResourceCleaner) {
+	stop := make(chan struct{})
+	go func() {
+		if err := svc.BackfillReminderCandidates(context.Background()); err != nil {
+			logger.Warnf(context.Background(), "[SmartArchive] reminder candidate backfill failed: %v", err)
+		}
+		const compensationInterval = 5 * time.Minute
+		run := func() {
+			if err := svc.RunDueReminders(context.Background()); err != nil {
+				logger.Warnf(context.Background(), "[SmartArchive] reminder scan failed: %v", err)
+			}
+		}
+		// Do not wait for the first timer after a restart. Anything that became
+		// due while the process was down is handled immediately.
+		run()
+		wakeups := svc.ReminderWakeups()
+		for {
+			wait := compensationInterval
+			if next, err := svc.NextReminderWakeAt(context.Background()); err != nil {
+				logger.Warnf(context.Background(), "[SmartArchive] next reminder lookup failed: %v", err)
+			} else if next != nil {
+				delta := time.Until(*next)
+				switch {
+				case delta <= 0:
+					// Retry a past-due row promptly, but avoid a hot loop while a
+					// database or notification provider is temporarily unavailable.
+					wait = 5 * time.Second
+				case delta < wait:
+					wait = delta
+				}
+			}
+			timer := time.NewTimer(wait)
+			select {
+			case <-timer.C:
+				run()
+			case <-wakeups:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				// A newly-created or edited reminder may be earlier than the
+				// previous timer target. Re-evaluate it immediately.
+				run()
+			case <-stop:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
+			}
+		}
+	}()
+	cleaner.RegisterWithName("SmartArchiveReminderRunner", func() error { close(stop); return nil })
 }
 
 // startAuditLogRetention spins up the daily audit_logs purge sweep

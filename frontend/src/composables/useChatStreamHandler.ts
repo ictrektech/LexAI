@@ -966,8 +966,18 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           }
           if (responseType === 'error' && !toolName) {
             const errorMsg = String(data.content || t('chat.processError'))
-            message.content = errorMsg
-            message.is_completed = true
+            const isCompleted = dataPayload?.is_completed !== false
+            if (isCompleted) {
+              message.content = errorMsg
+              message.is_completed = true
+            } else {
+              // A provider stream may have already emitted a partial answer.
+              // Keep it visible and distinguish a terminal failed stream from
+              // an assistant message that is still waiting for more chunks.
+              message.generation_error = errorMsg
+              message.is_completed = false
+              message.__stream_terminal = dataPayload?.terminal !== false
+            }
             message.__stream_active = false
             isReplying.value = false
             loading.value = false
@@ -978,8 +988,20 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           }
         } else if (responseType === 'error') {
           const errorMsg = String(data.content || t('chat.processError'))
-          message.content = errorMsg
-          message.is_completed = true
+          // `dataPayload` is narrowed to its falsy branch above. Read the
+          // optional error metadata through a fresh widened view so the
+          // stream handler remains type-safe while preserving the same
+          // partial-generation semantics.
+          const errorPayload = data.data as ChatMessage | undefined
+          const isCompleted = errorPayload?.is_completed !== false
+          if (isCompleted) {
+            message.content = errorMsg
+            message.is_completed = true
+          } else {
+            message.generation_error = errorMsg
+            message.is_completed = false
+            message.__stream_terminal = errorPayload?.terminal !== false
+          }
           message.__stream_active = false
           isReplying.value = false
           loading.value = false
@@ -1030,9 +1052,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
       case 'complete': {
         log('[Agent] Complete event received')
+        const isCompleted = dataPayload?.is_completed !== false
         loading.value = false
         isReplying.value = false
-        message.is_completed = true
+        message.is_completed = isCompleted
+        message.__stream_terminal = !isCompleted
         message.__stream_active = false
         if (message.agentEventStream) {
           const stream = message.agentEventStream as ChatMessage[]
@@ -1040,8 +1064,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             if (event.type === 'answer' && !event.superseded) event.done = true
           })
         }
-        onReplyComplete?.(String(message.content || ''))
-        onTurnComplete?.(message)
+        if (isCompleted) {
+          onReplyComplete?.(String(message.content || ''))
+          onTurnComplete?.(message)
+        }
         fullContent.value = ''
         currentAssistantMessageId.value = ''
         if (message.agentEventStream) {
@@ -1049,6 +1075,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             type: 'agent_complete',
             total_duration_ms: dataPayload?.total_duration_ms || 0,
             total_steps: dataPayload?.total_steps || 0,
+            is_completed: isCompleted,
           })
         }
         break

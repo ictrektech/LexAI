@@ -473,7 +473,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(.t-loading__gradient-conic) {
-    background: conic-gradient(from 90deg at 50% 50%, #fff 0deg, #676767 360deg) !important;
+    background: conic-gradient(from 90deg at 50% 50%, var(--td-bg-color-container, #fff) 0deg, var(--td-text-color-secondary, #676767) 360deg) !important;
 
 }
 </style>

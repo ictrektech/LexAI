@@ -2,6 +2,7 @@
     <div class="chat" :class="{
         'is-embedded': embeddedMode,
         'is-sidebar-collapsed': uiStore.sidebarCollapsed,
+        'is-legal-workspace': workspaceMode === 'legal',
         'has-references-panel': referencesDrawerVisible,
     }">
         <ChatHeader v-if="!embeddedMode" :session="currentSession" :has-references-panel="referencesDrawerVisible" />
@@ -127,7 +128,7 @@
 <script setup>
 import { storeToRefs } from 'pinia';
 import { ref, onMounted, onBeforeMount, onUnmounted, nextTick, watch, reactive, computed } from 'vue';
-import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import InputField from '../../components/Input-field.vue';
 import botmsg from './components/botmsg.vue';
 import usermsg from './components/usermsg.vue';
@@ -171,6 +172,8 @@ const props = defineProps({
     agentId: { type: String, default: '' },
     kbIds: { type: Array, default: () => [] },
     embeddedMode: { type: Boolean, default: false },
+    workspaceMode: { type: String, default: 'platform' },
+    removedRedirect: { type: String, default: '' },
 });
 
 const usemenuStore = useMenuStore();
@@ -215,6 +218,7 @@ const attachStreamDebugToMessage = (message) => {
     message.debugRequest = payload;
 };
 const route = useRoute();
+const router = useRouter();
 const session_id = ref(props.session_id || route.params.chatid);
 const currentSession = ref(null);
 
@@ -851,7 +855,7 @@ const {
             }
         }
         const lastMessage = messagesList[messagesList.length - 1];
-        if (lastMessage && !lastMessage.is_completed) {
+        if (lastMessage && !lastMessage.is_completed && !lastMessage.__stream_terminal) {
             const targetSessionId = session_id.value;
             const targetMessageId = lastMessage.id;
             isReplying.value = true;
@@ -875,12 +879,12 @@ const {
             isAttachingContinueStream.value = false;
             if (!error.value) isAttachingImStream.value = false;
             const target = messagesList.find((item) => item.id === targetMessageId);
-            if (target && !target.is_completed && target.channel !== 'im') {
+            if (target && !target.is_completed && !target.__stream_terminal && target.channel !== 'im') {
                 if (continueStreamRetryTimer) clearTimeout(continueStreamRetryTimer);
                 continueStreamRetryTimer = setTimeout(() => {
                     continueStreamRetryTimer = null;
                     if (session_id.value !== targetSessionId) return;
-                    if (target.is_completed) return;
+                    if (target.is_completed || target.__stream_terminal) return;
                     getmsgList({ session_id: targetSessionId, created_at: '', limit: limit.value });
                 }, 1000);
             }
@@ -1457,6 +1461,9 @@ const handleSessionMutation = (event) => {
         historyLoadingMore.value = false;
         fetchSuggestedQuestionsIfNeeded();
     }
+    if (detail.removed && props.removedRedirect) {
+        router.replace(props.removedRedirect);
+    }
 };
 
 onBeforeMount(async () => {
@@ -1567,6 +1574,13 @@ onBeforeRouteUpdate((to, from, next) => {
 
     &.is-sidebar-collapsed {
         max-width: calc(100vw - 60px);
+    }
+
+    &.is-legal-workspace {
+        width: 100%;
+        max-width: 100%;
+        color: var(--legal-text-primary);
+        background: var(--legal-bg-page);
     }
 
     &.is-embedded {
@@ -1682,6 +1696,19 @@ onBeforeRouteUpdate((to, from, next) => {
 
     &:active {
         transform: translateX(-50%) scale(0.92);
+    }
+}
+
+.chat.is-legal-workspace .scroll-to-bottom-btn {
+    border-color: var(--legal-border);
+    color: var(--legal-text-secondary);
+    background: var(--legal-bg-surface);
+    box-shadow: var(--legal-shadow-soft);
+
+    &:hover {
+        color: var(--legal-ai-strong);
+        background: var(--legal-bg-hover);
+        box-shadow: var(--legal-shadow-soft);
     }
 }
 

@@ -551,10 +551,19 @@ func (h *AgentStreamHandler) handleError(ctx context.Context, evt event.Event) e
 		return nil
 	}
 
+	// A generic agent error terminates the current stream but does not mean
+	// that the assistant message contains a complete answer. Keep the partial
+	// content collected by handleFinalAnswer. The completion event carries the
+	// failed state; leave the message flag untouched here so a user stop that
+	// already finalized the message is not turned back into a failure by a late
+	// context-cancellation error.
+
 	// Build error metadata
 	metadata := map[string]interface{}{
-		"stage": data.Stage,
-		"error": data.Error,
+		"stage":        data.Stage,
+		"error":        data.Error,
+		"is_completed": false,
+		"terminal":     true,
 	}
 
 	// Append error event to stream
@@ -607,13 +616,18 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 		return nil
 	}
 
+	isCompleted := true
+	if data.IsCompleted != nil {
+		isCompleted = *data.IsCompleted
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	// Update assistant message with final data
 	if data.MessageID == h.assistantMessageID {
 		// h.assistantMessage.Content = data.FinalAnswer
-		h.assistantMessage.IsCompleted = true
+		h.assistantMessage.IsCompleted = isCompleted
 		h.assistantMessage.AgentDurationMs = data.TotalDurationMs
 
 		// Update knowledge references if provided
@@ -687,6 +701,7 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 		Data: map[string]interface{}{
 			"total_steps":       data.TotalSteps,
 			"total_duration_ms": data.TotalDurationMs,
+			"is_completed":      isCompleted,
 		},
 	}); err != nil {
 		logger.GetLogger(h.ctx).Errorf("Append complete event to stream failed: %v", err)

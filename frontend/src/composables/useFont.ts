@@ -225,8 +225,10 @@ function applyFont() {
   }
   if (lastApplied.scale !== scale) {
     // Apply size via CSS zoom on <html> so the multiplier reaches every
-    // element — including the ~1000+ hard-coded `font-size: NNpx` rules
-    // scattered across the frontend. The previous approach set
+    // interface element — including the ~1000+ hard-coded `font-size: NNpx`
+    // rules scattered across the frontend. Document viewers can deliberately
+    // apply an inverse zoom when the source document must keep its own scale.
+    // The previous approach set
     // `--app-font-scale` and relied on `calc(NNpx * var(--app-font-scale))`,
     // but calc() only runs where the variable is consumed (a few TDesign
     // tokens plus the body reset), so users saw only parts of the UI

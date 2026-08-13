@@ -134,9 +134,13 @@ type AgentQueryData struct {
 
 // AgentCompleteData represents agent completion event data
 type AgentCompleteData struct {
-	SessionID       string                 `json:"session_id"`
-	TotalSteps      int                    `json:"total_steps"`
-	FinalAnswer     string                 `json:"final_answer"`
+	SessionID   string `json:"session_id"`
+	TotalSteps  int    `json:"total_steps"`
+	FinalAnswer string `json:"final_answer"`
+	// IsCompleted is optional for backward compatibility with completion events
+	// emitted by the normal QA pipeline and older IM producers. A nil value is
+	// interpreted as a successful completion by consumers.
+	IsCompleted     *bool                  `json:"is_completed,omitempty"`
 	KnowledgeRefs   []interface{}          `json:"knowledge_refs,omitempty"` // []*types.SearchResult
 	AgentSteps      interface{}            `json:"agent_steps,omitempty"`    // []types.AgentStep - detailed execution steps
 	TotalDurationMs int64                  `json:"total_duration_ms"`

@@ -88,6 +88,15 @@ func buildKBResponse(
 	if err := json.Unmarshal(b, &m); err != nil || m == nil {
 		return kb
 	}
+	// The Smart Archive knowledge base is a system-owned read surface.  It is
+	// still returned by the normal knowledge-base APIs so users can inspect the
+	// parsed documents, but its import/configuration mutations are handled by
+	// the Smart Archive module.  Expose an explicit capability marker instead
+	// of making the frontend infer this from the human-readable description.
+	m["is_managed_smart_archive"] = strings.HasPrefix(
+		strings.TrimSpace(kb.Description),
+		types.ManagedSmartArchiveKnowledgeBaseMarker,
+	)
 	if storeView.Source == types.StoreSourceShared {
 		delete(m, "vector_store_id")
 	}
@@ -891,6 +900,10 @@ func (h *KnowledgeBaseHandler) UpdateKnowledgeBase(c *gin.Context) {
 	kb, err := h.service.UpdateKnowledgeBase(ctx, id, req.Name, req.Description, req.Config)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
+		if stderrors.Is(err, service.ErrManagedSmartArchiveKnowledgeBase) {
+			c.Error(apperrors.NewForbiddenError("managed Smart Archive knowledge base can only be changed from Smart Archive"))
+			return
+		}
 		c.Error(apperrors.NewInternalServerError(err.Error()))
 		return
 	}
@@ -940,6 +953,10 @@ func (h *KnowledgeBaseHandler) DeleteKnowledgeBase(c *gin.Context) {
 	// Delete the knowledge base
 	if err := h.service.DeleteKnowledgeBase(ctx, id); err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
+		if stderrors.Is(err, service.ErrManagedSmartArchiveKnowledgeBase) {
+			c.Error(apperrors.NewForbiddenError("managed Smart Archive knowledge base can only be deleted from Smart Archive"))
+			return
+		}
 		c.Error(apperrors.NewInternalServerError(err.Error()))
 		return
 	}

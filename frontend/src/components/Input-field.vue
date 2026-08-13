@@ -2924,15 +2924,15 @@ const getImgSrc = (url: string) => {
 }
 
 .mention-chip--tag .mention-chip__icon-wrap {
-  color: #9f7aea;
+  color: var(--legal-ai, #9f7aea);
 }
 
 .mention-chip--mcp .mention-chip__icon-wrap {
-  color: #0f766e;
+  color: var(--legal-ai-strong, #0f766e);
 }
 
 .mention-chip--tool .mention-chip__icon-wrap {
-  color: #b7791f;
+  color: var(--legal-warning, #b7791f);
 }
 
 /* 智能体预配置：虚线边框区分 */
@@ -3155,15 +3155,15 @@ const getImgSrc = (url: string) => {
   }
 
   &.active {
-    background: rgba(16, 185, 129, 0.1);
-    color: #07C05F;
+    background: color-mix(in srgb, var(--td-brand-color, #07C05F) 10%, transparent);
+    color: var(--td-brand-color, #07C05F);
   }
 
   .image-count {
     position: absolute;
     top: -2px;
     right: -2px;
-    background: #07C05F;
+    background: var(--td-brand-color, #07C05F);
     color: #fff;
     font-size: 10px;
     width: 14px;
@@ -3194,15 +3194,15 @@ const getImgSrc = (url: string) => {
   }
 
   &.active {
-    background: rgba(16, 185, 129, 0.1);
-    color: #07C05F;
+    background: color-mix(in srgb, var(--td-brand-color, #07C05F) 10%, transparent);
+    color: var(--td-brand-color, #07C05F);
   }
 
   .attachment-count {
     position: absolute;
     top: -2px;
     right: -2px;
-    background: #07C05F;
+    background: var(--td-brand-color, #07C05F);
     color: #fff;
     font-size: 10px;
     width: 14px;
@@ -3269,14 +3269,14 @@ const getImgSrc = (url: string) => {
   position: relative;
 
   &.active {
-    background: rgba(16, 185, 129, 0.1);
+    background: color-mix(in srgb, var(--td-brand-color, #07C05F) 10%, transparent);
 
     .websearch-icon {
       color: var(--td-brand-color);
     }
 
     &:hover {
-      background: rgba(16, 185, 129, 0.15);
+      background: color-mix(in srgb, var(--td-brand-color, #07C05F) 15%, transparent);
     }
   }
 
@@ -3303,7 +3303,7 @@ const getImgSrc = (url: string) => {
     }
 
     &.active:hover {
-      background: rgba(16, 185, 129, 0.1);
+      background: color-mix(in srgb, var(--td-brand-color, #07C05F) 10%, transparent);
     }
   }
 }
@@ -3360,21 +3360,21 @@ const getImgSrc = (url: string) => {
   width: 28px;
   height: 28px;
   padding: 0;
-  background: rgba(16, 185, 129, 0.08);
+  background: color-mix(in srgb, var(--td-brand-color, #07C05F) 8%, transparent);
   color: var(--td-brand-color);
-  border: 1.5px solid rgba(16, 185, 129, 0.2);
+  border: 1.5px solid color-mix(in srgb, var(--td-brand-color, #07C05F) 20%, transparent);
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 
   &:hover {
-    background: rgba(16, 185, 129, 0.12);
+    background: color-mix(in srgb, var(--td-brand-color, #07C05F) 12%, transparent);
     border-color: var(--td-brand-color);
   }
 
   &:active {
-    background: rgba(16, 185, 129, 0.15);
+    background: color-mix(in srgb, var(--td-brand-color, #07C05F) 15%, transparent);
   }
 
   svg {

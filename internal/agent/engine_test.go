@@ -92,6 +92,26 @@ func TestStreamLLMResourceAliasesRoundTrip(t *testing.T) {
 	require.Equal(t, "source=res://0001", model.calls[0][0].Content)
 }
 
+func TestStreamLLMToEventBus_PartialStreamErrorIsReturned(t *testing.T) {
+	mock := &mockChat{responses: []mockResponse{{chunks: []types.StreamResponse{
+		{ResponseType: types.ResponseTypeAnswer, Content: "partial answer"},
+		{ResponseType: types.ResponseTypeError, Content: "context deadline exceeded", Done: true},
+	}}}}
+	engine := newTestEngine(t, mock)
+
+	result, err := engine.streamLLMToEventBus(
+		context.Background(),
+		[]chat.Message{{Role: "user", Content: "test"}},
+		nil,
+		nil,
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, result.Content, "partial answer")
+	assert.True(t, isLLMStreamError(err))
+}
+
 // TestStreamLLMSummarySlugSurvivesDocumentCompaction is the regression guard for
 // the mangled `summary/<uuid>` → `summary/d1` bug. A wiki summary-page slug
 // embeds a document's UUID. The unified model-context registry owns the
@@ -349,6 +369,87 @@ func TestExecuteLoop_NonEmptyContentWithStop_ShouldComplete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, state.IsComplete)
 	assert.Equal(t, "Here is my answer", state.FinalAnswer)
+}
+
+func TestExecuteLoop_PartialStreamErrorStaysIncompleteAndDoesNotRetry(t *testing.T) {
+	mock := &mockChat{
+		responses: []mockResponse{
+			{chunks: []types.StreamResponse{
+				{ResponseType: types.ResponseTypeAnswer, Content: "partial answer"},
+				{ResponseType: types.ResponseTypeError, Content: "context deadline exceeded", Done: true},
+			}},
+		},
+	}
+
+	engine := newTestEngine(t, mock)
+	var completion *event.AgentCompleteData
+	var answerEvents []event.AgentFinalAnswerData
+	var eventTypes []event.EventType
+	engine.eventBus.On(event.EventError, func(_ context.Context, _ event.Event) error {
+		eventTypes = append(eventTypes, event.EventError)
+		return nil
+	})
+	engine.eventBus.On(event.EventAgentComplete, func(_ context.Context, evt event.Event) error {
+		eventTypes = append(eventTypes, event.EventAgentComplete)
+		data, ok := evt.Data.(event.AgentCompleteData)
+		if ok {
+			completion = &data
+		}
+		return nil
+	})
+	engine.eventBus.On(event.EventAgentFinalAnswer, func(_ context.Context, evt event.Event) error {
+		if data, ok := evt.Data.(event.AgentFinalAnswerData); ok {
+			answerEvents = append(answerEvents, data)
+		}
+		return nil
+	})
+
+	state := &types.AgentState{
+		RoundSteps: []types.AgentStep{{
+			ToolCalls: []types.ToolCall{{
+				Result: &types.ToolResult{Success: true, Output: "retrieved result"},
+			}},
+		}},
+	}
+	_, err := engine.executeLoop(context.Background(), state, "test query", emptyMessages(), emptyTools(), "sess-1", "msg-1")
+
+	require.Error(t, err)
+	assert.False(t, state.IsComplete)
+	assert.Equal(t, 1, mock.callCount, "a started stream error must not trigger retry or synthesis")
+	require.NotNil(t, completion)
+	require.NotNil(t, completion.IsCompleted)
+	assert.False(t, *completion.IsCompleted)
+	assert.Equal(t, []event.EventType{event.EventError, event.EventAgentComplete}, eventTypes)
+	var streamedAnswer strings.Builder
+	var answerDone bool
+	for _, answerEvent := range answerEvents {
+		streamedAnswer.WriteString(answerEvent.Content)
+		answerDone = answerDone || answerEvent.Done
+	}
+	assert.Equal(t, "partial answer", streamedAnswer.String())
+	assert.True(t, answerDone)
+}
+
+func TestExecuteLoop_UserCancellationKeepsStoppedMessageCompleted(t *testing.T) {
+	engine := newTestEngine(t, &mockChat{})
+	var completion *event.AgentCompleteData
+	engine.eventBus.On(event.EventAgentComplete, func(_ context.Context, evt event.Event) error {
+		data, ok := evt.Data.(event.AgentCompleteData)
+		if ok {
+			completion = &data
+		}
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	state := &types.AgentState{}
+	_, err := engine.executeLoop(ctx, state, "test query", emptyMessages(), emptyTools(), "sess-1", "msg-1")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotNil(t, completion)
+	require.NotNil(t, completion.IsCompleted)
+	assert.True(t, *completion.IsCompleted)
 }
 
 // ---------------------------------------------------------------------------
@@ -645,8 +746,8 @@ func TestStreamFinalAnswerToEventBus_TrimsOldToolResultsToReserveOutput(t *testi
 	engine := newTestEngine(t, mock)
 	state := &types.AgentState{
 		RoundSteps: []types.AgentStep{
-			{ToolCalls: []types.ToolCall{{Name: "first", Result: &types.ToolResult{Output: strings.Repeat("旧工具结果", 2000)}}}},
-			{ToolCalls: []types.ToolCall{{Name: "last", Result: &types.ToolResult{Output: "关键结果"}}}},
+			{ToolCalls: []types.ToolCall{{Name: "first", Result: &types.ToolResult{Success: true, Output: strings.Repeat("旧工具结果", 2000)}}}},
+			{ToolCalls: []types.ToolCall{{Name: "last", Result: &types.ToolResult{Success: true, Output: "关键结果"}}}},
 		},
 	}
 

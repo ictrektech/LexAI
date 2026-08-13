@@ -276,16 +276,22 @@ func (e *AgentEngine) Execute(
 	_, err := e.executeLoop(ctx, state, query, messages, tools, sessionID, messageID)
 	if err != nil {
 		logger.Errorf(ctx, "[Agent] Execution failed: %v", err)
-		e.eventBus.Emit(ctx, event.Event{
-			ID:        generateEventID("error"),
-			Type:      event.EventError,
-			SessionID: sessionID,
-			Data: event.ErrorData{
-				Error:     err.Error(),
-				Stage:     "agent_execution",
+		// A started provider stream emits its terminal error from executeLoop
+		// before the deferred completion event. Avoid emitting it again here.
+		// Keep the old caller-level behavior for pre-stream failures and user
+		// cancellation.
+		if !isLLMStreamError(err) || ctx.Err() == context.Canceled {
+			e.eventBus.Emit(ctx, event.Event{
+				ID:        generateEventID("error"),
+				Type:      event.EventError,
 				SessionID: sessionID,
-			},
-		})
+				Data: event.ErrorData{
+					Error:     err.Error(),
+					Stage:     "agent_execution",
+					SessionID: sessionID,
+				},
+			})
+		}
 		finishAgentSpan(agentSpan, state, err)
 		return nil, err
 	}
@@ -372,7 +378,31 @@ func (e *AgentEngine) executeLoop(
 			return
 		}
 		completionEmitted = true
-		e.emitCompletionEvent(context.WithoutCancel(ctx), state, sessionID, messageID, startTime)
+		// User cancellation has historically been persisted as a completed
+		// stopped message. Keep that behavior even though the agent state itself
+		// never reached a natural LLM stop.
+		completed := state.IsComplete || ctx.Err() == context.Canceled
+		e.emitCompletionEvent(context.WithoutCancel(ctx), state, sessionID, messageID, startTime, completed)
+	}
+	emitStreamError := func(err error) {
+		// The outer Execute method historically emits errors after executeLoop
+		// returns. Emit provider stream failures here so SSE observes the error
+		// before the completion marker and can close the failed stream reliably.
+		// A cancelled parent context represents the user-stop path and retains
+		// its existing behavior.
+		if !isLLMStreamError(err) || ctx.Err() == context.Canceled {
+			return
+		}
+		e.eventBus.Emit(context.WithoutCancel(ctx), event.Event{
+			ID:        generateEventID("error"),
+			Type:      event.EventError,
+			SessionID: sessionID,
+			Data: event.ErrorData{
+				Error:     err.Error(),
+				Stage:     "agent_execution",
+				SessionID: sessionID,
+			},
+		})
 	}
 	defer emitCompletion()
 
@@ -404,6 +434,7 @@ loop:
 		outcome, iterErr := e.runReActIteration(ctx, state, &messages, tools,
 			sessionID, messageID, query, &emptyRetries, &consecutiveSameContent, &lastResponseContent)
 		if iterErr != nil {
+			emitStreamError(iterErr)
 			return state, iterErr
 		}
 		switch outcome {
@@ -423,7 +454,10 @@ loop:
 	// complete answer." message, which then leaks to the UI as the final
 	// answer for a conversation the user deliberately stopped.
 	if !state.IsComplete && ctx.Err() == nil {
-		e.handleMaxIterations(ctx, query, state, sessionID)
+		if err := e.handleMaxIterations(ctx, query, state, sessionID); err != nil {
+			emitStreamError(err)
+			return state, err
+		}
 	}
 
 	return state, nil

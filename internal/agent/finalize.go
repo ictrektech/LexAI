@@ -140,6 +140,19 @@ Now generate the final answer:`, query, imageRequirement)
 		},
 	)
 	if err != nil {
+		// The stream may have emitted a partial final answer before failing.
+		// Close that UI stream, but do not write a synthetic successful answer.
+		if llmResult != nil && !answerDoneEmitted {
+			e.eventBus.Emit(ctx, event.Event{
+				ID:        answerID,
+				Type:      event.EventAgentFinalAnswer,
+				SessionID: sessionID,
+				Data: event.AgentFinalAnswerData{
+					Content: "",
+					Done:    true,
+				},
+			})
+		}
 		logger.Errorf(ctx, "[Agent][FinalAnswer] Final answer generation failed: %v", err)
 		common.PipelineError(ctx, "Agent", "final_answer_stream_failed", map[string]interface{}{
 			"session_id": sessionID,
@@ -236,10 +249,12 @@ func envInt(name string, fallback int) int {
 }
 
 // handleMaxIterations generates a final answer when the agent loop exhausted all iterations
-// without the LLM producing a natural stop. It marks state.IsComplete = true.
+// without the LLM producing a natural stop. It marks state.IsComplete = true
+// only when the synthesis succeeds or a pre-stream error can use the legacy
+// fallback message. A provider stream error must remain incomplete.
 func (e *AgentEngine) handleMaxIterations(
 	ctx context.Context, query string, state *types.AgentState, sessionID string,
-) {
+) error {
 	logger.Info(ctx, "Reached max iterations, generating final answer")
 	common.PipelineWarn(ctx, "Agent", "max_iterations_reached", map[string]interface{}{
 		"iterations": state.CurrentRound,
@@ -252,14 +267,18 @@ func (e *AgentEngine) handleMaxIterations(
 		common.PipelineError(ctx, "Agent", "final_answer_failed", map[string]interface{}{
 			"error": err.Error(),
 		})
+		if isLLMStreamError(err) {
+			return err
+		}
 		state.FinalAnswer = "Sorry, I was unable to generate a complete answer."
 	}
 	state.IsComplete = true
+	return nil
 }
 
 // emitCompletionEvent emits the EventAgentComplete event with execution summary.
 func (e *AgentEngine) emitCompletionEvent(
-	ctx context.Context, state *types.AgentState, sessionID, messageID string, startTime time.Time,
+	ctx context.Context, state *types.AgentState, sessionID, messageID string, startTime time.Time, completed bool,
 ) {
 	// Convert knowledge refs to interface{} slice for event data
 	knowledgeRefsInterface := make([]interface{}, 0, len(state.KnowledgeRefs))
@@ -273,6 +292,7 @@ func (e *AgentEngine) emitCompletionEvent(
 		SessionID: sessionID,
 		Data: event.AgentCompleteData{
 			FinalAnswer:     state.FinalAnswer,
+			IsCompleted:     &completed,
 			KnowledgeRefs:   knowledgeRefsInterface,
 			AgentSteps:      state.RoundSteps, // Include detailed execution steps for message storage
 			TotalSteps:      len(state.RoundSteps),

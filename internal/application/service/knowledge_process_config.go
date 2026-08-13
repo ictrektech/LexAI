@@ -170,7 +170,10 @@ func ValidateProcessOverrides(
 
 	eff := ResolveProcessConfig(kb, overrides)
 
-	if hasImage {
+	// A shared parse artifact already contains the OCR/reader output. Image
+	// mirrors using it must not be forced to configure a second VLM; standalone
+	// image imports without an artifact still require the normal vision gate.
+	if hasImage && strings.TrimSpace(overrides.ParseArtifactID) == "" {
 		if !eff.VLMConfig.IsEnabled() {
 			return werrors.NewBadRequestError("上传图片文件需要设置VLM模型")
 		}

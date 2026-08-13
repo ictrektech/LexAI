@@ -2,6 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { autoSetup, getCurrentUser, userInfoFromApi } from '@/api/auth'
+import {
+  DEFAULT_AUTHENTICATED_PATH,
+  LEGAL_ASSISTANT_CHAT_ROUTE,
+  LEGAL_ASSISTANT_HOME_ROUTE,
+  LEGAL_CONTRACT_REVIEW_ROUTE,
+  LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+  LEGAL_SMART_ARCHIVE_ROUTE,
+  PLATFORM_KNOWLEDGE_BASES_PATH,
+} from '@/router/paths'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
@@ -23,13 +32,17 @@ function isLiteSpaDefaultEntry(to: RouteLocationNormalized) {
   return (
     to.path === '/' ||
     to.path === '/platform' ||
-    to.path === '/platform/knowledge-bases' ||
+    to.path === PLATFORM_KNOWLEDGE_BASES_PATH ||
+    to.path === DEFAULT_AUTHENTICATED_PATH ||
     to.name === 'knowledgeBaseList'
   )
 }
 
 function isSafeLiteRestoreTarget(path: string) {
-  return path.startsWith('/platform/') && !path.startsWith('/platform/organizations')
+  return (
+    (path.startsWith('/platform/') && !path.startsWith('/platform/organizations')) ||
+    path.startsWith('/legal/')
+  )
 }
 
 function hasPendingOIDCCallback() {
@@ -43,12 +56,12 @@ const router = createRouter({
   routes: [
     {
       path: "/",
-      redirect: "/platform/knowledge-bases",
+      redirect: DEFAULT_AUTHENTICATED_PATH,
     },
     {
       path: "/login",
       name: "login",
-      redirect: "/platform/knowledge-bases",
+      redirect: DEFAULT_AUTHENTICATED_PATH,
       meta: { requiresAuth: false, requiresInit: false }
     },
     // Embed chat is a separate entry (embed.html + embed-main.ts), not this SPA.
@@ -87,6 +100,50 @@ const router = createRouter({
       name: "home",
       component: () => import("../views/knowledge/KnowledgeBase.vue"),
       meta: { requiresInit: true, requiresAuth: true }
+    },
+    {
+      path: '/legal',
+      name: 'LegalWorkspace',
+      redirect: DEFAULT_AUTHENTICATED_PATH,
+      component: () => import('../views/legal/index.vue'),
+      meta: { requiresInit: true, requiresAuth: true },
+      children: [
+        {
+          path: 'ai-assistant',
+          name: LEGAL_ASSISTANT_HOME_ROUTE,
+          component: () => import('../views/creatChat/creatChat.vue'),
+          props: { chatRouteName: LEGAL_ASSISTANT_CHAT_ROUTE },
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'ai-assistant/chat/:chatid',
+          name: LEGAL_ASSISTANT_CHAT_ROUTE,
+          component: () => import('../views/chat/index.vue'),
+          props: {
+            workspaceMode: 'legal',
+            removedRedirect: DEFAULT_AUTHENTICATED_PATH,
+          },
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'contract-review',
+          name: LEGAL_CONTRACT_REVIEW_ROUTE,
+          component: () => import('../views/legal/ContractReviewWorkspace.vue'),
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'contract-review/:reviewId',
+          name: LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+          component: () => import('../views/legal/contract-review/ContractReviewDetail.vue'),
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'smart-archive',
+          name: LEGAL_SMART_ARCHIVE_ROUTE,
+          component: () => import('../views/legal/SmartArchive.vue'),
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+      ],
     },
     {
       path: "/platform",
@@ -351,7 +408,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
     if (authStore.hasValidTenant) {
-      next('/platform/knowledge-bases')
+      next(DEFAULT_AUTHENTICATED_PATH)
     } else {
       next()
     }
@@ -363,12 +420,12 @@ router.beforeEach(async (to, from, next) => {
     // 如果已登录用户访问登录页面，重定向到知识库列表页面
     if (to.path === '/login') {
       if (authStore.isLoggedIn) {
-        next(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
+        next(authStore.hasValidTenant ? DEFAULT_AUTHENTICATED_PATH : '/onboarding/workspace')
         return
       }
       const restored = await hydrateSessionFromToken(authStore)
       if (restored || await tryAutoSetupSession(authStore, true)) {
-        next(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
+        next(authStore.hasValidTenant ? DEFAULT_AUTHENTICATED_PATH : '/onboarding/workspace')
         return
       }
     }
@@ -420,7 +477,7 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach((to) => {
   if (!isLiteEdition(useAuthStore())) return
   if (to.path === '/login') return
-  if (!to.path.startsWith('/platform')) return
+  if (!to.path.startsWith('/platform') && !to.path.startsWith('/legal')) return
   sessionStorage.setItem(LITE_LAST_PATH_KEY, to.fullPath)
 })
 
