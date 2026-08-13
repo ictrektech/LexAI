@@ -22,6 +22,10 @@ Parsing or model failures move the task to `failed`; the retry endpoint resumes 
 
 The list UI can select the current visible tasks and archive, restore, or delete them together. Running tasks cannot be archived and are skipped by that action. Deleting a running task is allowed after an explicit warning; the scoped update path prevents an in-flight background worker from recreating a soft-deleted review.
 
+The detail workspace uses SSE with a 1.5-second snapshot fallback. The list
+refreshes every 2 seconds while work is running, so status changes do not
+require a manual refresh.
+
 Every endpoint derives tenant and user ownership from the authenticated request. API-key access is intentionally not declared.
 
 ## Models and playbooks

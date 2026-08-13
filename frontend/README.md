@@ -5,14 +5,18 @@ The Vue frontend exposes two authenticated application shells:
 - `/legal/ai-assistant` is the default LexAI legal workspace. Conversations stay inside this shell at `/legal/ai-assistant/chat/:chatid`.
 - `/legal/contract-review` lists active and archived Contract Review tasks.
 - `/legal/contract-review/:reviewId` opens the persistent document/review workspace.
-- `/legal/smart-archive` opens the shared Contract Archive workspace.
+- `/legal/smart-archive` opens the Smart Archive / Contract Archive workspace.
 - `/platform/*` retains the existing knowledge-base, agent, organization, settings, and legacy chat surfaces.
 
 The root route and successful login/onboarding flows open the LexAI workspace. The legacy `/platform` root still opens `/platform/knowledge-bases`.
 
+## Brand assets
+
+The shared LexAI wordmark is `src/assets/img/LexAI_logo_exact.svg`. The login header and expanded navigation shells use this asset; the legal sidebar keeps its compact `L` monogram when collapsed so the narrow layout remains usable.
+
 ## Extending the legal workspace
 
-Legal-tool navigation is registered in `src/config/legalWorkspace.ts`. Add a typed navigation item, a child route under `/legal` in `src/router/index.ts`, and the corresponding lazy-loaded workspace component. Disabled future tools can remain in the registry without a destination.
+Legal-tool navigation is registered in `src/config/legalWorkspace.ts`. To add a tool, define its route constant in `src/router/paths.ts`, add a typed navigation item with its `labelKey`, destination, icon, and `activeRouteNames`, register the child route under `/legal` in `src/router/index.ts`, add the corresponding lazy-loaded workspace component, and add the label to each locale file. Disabled future tools can remain in the registry without a destination.
 
 The LexAI sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. Resource links intentionally leave the LexAI shell and open their existing `/platform/*` pages.
 
@@ -35,24 +39,43 @@ The task list supports selecting individual rows or all visible rows. Active tas
 
 PDF contracts use `pdfjs-dist` for page navigation, zoom, selectable text, and issue highlights. DOCX contracts use `docx-preview`; its browser pagination can differ slightly from Microsoft Word. AI issue highlights are included in this release, while manual annotations, redlining, exports, and collaboration are extension points.
 
+Completed reviews can enter reconfiguration mode: update the playbook or represented party, cancel the pending changes, or rerun the review with the new configuration. Failed reviews can be retried without uploading the source document again.
+
 Add future playbooks to the backend playbook registry and preserve their version on each review. The typed frontend API and viewer adapter live under `src/views/legal/contract-review`.
 
 ## Smart Archive MVP
 
-Smart Archive is a separate, workspace-scoped module. Batch import accepts PDF, DOC/DOCX, XLS/XLSX, JPG/JPEG, PNG and WEBP files through `/api/v1/archive/import-batches`; each file is persisted, parsed, and stored with structured fields and field-level source evidence. Images remain in their original format; OCR uses a bounded derivative of large camera originals, retries transient vision failures, and preserves page-1 image evidence. Loan agreements are recognized before the generic contract marker, including borrower, device/SN and “借用期自…至…” return deadlines. If no vision model or no verifiable field is available, the source is kept in Review Queue with a reason and a Re-identify action; retrying never requires re-uploading the source file and does not fabricate reminder candidates. The UI exposes Documents, Reminders and Review Queue tabs, plus keyword/natural-language search at `/api/v1/archive/search`. An optional related-party/customer association remains available in document details and search results, but is not a required top-level workspace. Party values are cleaned before linking, role-only strings such as `乙方：` are rejected, and government procurement buyers (`采购人` or `甲方（买方）`) are recognized explicitly. Asset tabs and document-to-asset association are intentionally disabled; imported files remain document records.
+Smart Archive imports PDF, Word, Excel, JPG/JPEG, PNG and WEBP files. It stores
+structured fields with source evidence, supports OCR and natural-language
+search, and sends unverifiable documents to Review Queue. Related-party values
+are cleaned before linking; new imports do not create asset rows.
 
-Each import is also mirrored into the read-only managed knowledge base **合同智能档案**. Smart Archive persists one versioned `document_parse_artifacts` record after its reader/OCR pass; the managed Knowledge Base receives that artifact ID and reuses the normalized `ReadResult` for indexing, so importing a file does not run OCR/document parsing twice. Image mirrors only carry the multimodal flag needed by the legacy worker gate and do not invoke a second vision model. Older completed rows can be backfilled from their stored extracted text, while legacy failed image mirrors are repaired on retry/reparse; the archive document row keeps the mirror link in `knowledge_id`.
+Each import is mirrored into the read-only managed knowledge base **合同智能档案**
+through a reusable parse artifact, avoiding duplicate parsing or OCR. Documents
+can be archived/restored; Admin/Owner users can delete archived documents to
+move them into the recycle bin. Deletion preserves the audit record while
+removing the managed mirror and canceling related reminders.
 
-Extraction only creates persisted reminder candidates. A user confirms the evidence, offset, time and assignee before the candidate becomes a formal `draft` reminder; the user must then activate it. The assignee picker uses active workspace members and the backend validates the tenant membership. Low-confidence candidates stay pending until the source field is corrected. Only active reminders are scanned from the database and produce idempotent in-app notifications; the default due time is 09:00 in the workspace timezone. Documents use a single archive/restore lifecycle; the workspace does not expose a recycle-bin action.
+Extraction creates reminder candidates only. Users confirm the evidence and
+schedule, create a `draft`, then activate it. Active reminders generate
+idempotent in-app notifications. While an import batch is active, progress uses
+SSE plus a durable 1.5-second snapshot poll; each snapshot refreshes the
+document rows, so manual refresh is unnecessary while the workspace remains
+open.
 
-Import status is refreshed through both the batch SSE stream and a durable
-1.5-second batch snapshot poll. The Documents view also polls while any row is
-in `uploading`, `parsing`, `extracting` or `linking`, so a buffered/disconnected
-SSE connection or reopening the page cannot leave a stale status displayed.
+### Smart Archive bulk management
 
-Archiving a document keeps its source, extracted fields, knowledge-base mirror and reminders intact. “Show archived” lists archived records and supports restoring them to the active list. Document delete and move-to-trash endpoints are not exposed by the workspace.
+The document table supports bulk archive, restore and delete with per-item
+results. Restore and delete require Admin or Owner; archive requires Contributor
+or above. Delete is available from archived rows and the document detail panel.
+
+The Reminders tab supports batch deletion; active and snoozed reminders stop
+scheduling immediately while notification history remains. Pending candidates
+can be batch-marked `ignored` and remain available for audit.
 
 To extend the module, add an enum/schema field in `internal/types/smart_archive.go`, persist its evidence in `archive_field_evidence`, and expose the field in `src/views/legal/SmartArchive.vue`. Keep citations bound to a document and source locator; never display an AI value without its evidence.
+
+The backend API, extraction lifecycle, evidence model, and reminder endpoints are documented in [`docs/smart-archive.md`](../docs/smart-archive.md).
 
 ## Verification
 
@@ -65,18 +88,3 @@ npm run build
 ```
 
 Repository policy requires choosing the build/test host first. For remote verification, copy the working tree to the selected host without using Git on that host, then run the commands from the copied `frontend` directory.
-### Smart Archive bulk document actions
-
-The Legal Smart Archive document table supports selecting visible records and
-running bulk archive or restore actions. The API returns a per-document result
-so partial failures remain visible; archived documents keep their reminder
-candidates and formal reminders.
-
-The Reminders tab also supports selecting formal reminders for batch deletion
-through `POST /api/v1/archive/reminders/bulk/delete`. Active and snoozed rows
-are deleted only after an explicit warning and stop scheduling immediately;
-notification history remains available. Pending reminder candidates can be
-selected and marked `ignored` through
-`POST /api/v1/archive/reminder-candidates/bulk/ignore`. Ignored candidates are
-retained for audit and are available with `status=ignored`; they never create
-formal reminders or notifications.
