@@ -49,6 +49,7 @@ func (s *knowledgeService) cloneKnowledge(
 		EnableStatus:     "disabled",
 		EmbeddingModelID: targetKB.EmbeddingModelID,
 		FileName:         src.FileName,
+		FolderPath:       src.FolderPath,
 		FileType:         src.FileType,
 		FileSize:         src.FileSize,
 		FileHash:         src.FileHash,
@@ -219,24 +220,14 @@ func buildSplitterConfig(kb *types.KnowledgeBase) chunker.SplitterConfig {
 }
 
 func buildSplitterConfigFromChunking(cc types.ChunkingConfig) chunker.SplitterConfig {
-	chunkCfg := chunker.SplitterConfig{
+	return chunker.NormalizeSplitterConfig(chunker.SplitterConfig{
 		ChunkSize:    cc.ChunkSize,
 		ChunkOverlap: cc.ChunkOverlap,
 		Separators:   cc.Separators,
 		Strategy:     cc.Strategy,
 		TokenLimit:   cc.TokenLimit,
 		Languages:    cc.Languages,
-	}
-	if chunkCfg.ChunkSize <= 0 {
-		chunkCfg.ChunkSize = chunker.DefaultChunkSize
-	}
-	if chunkCfg.ChunkOverlap <= 0 {
-		chunkCfg.ChunkOverlap = chunker.DefaultChunkOverlap
-	}
-	if len(chunkCfg.Separators) == 0 {
-		chunkCfg.Separators = []string{"\n\n", "\n", "。"}
-	}
-	return chunkCfg
+	})
 }
 
 // buildParentChildConfigs derives parent and child SplitterConfig from ChunkingConfig.
@@ -246,27 +237,7 @@ func buildSplitterConfigFromChunking(cc types.ChunkingConfig) chunker.SplitterCo
 // splitter, so parent-child chunks would silently lose heading alignment and
 // ContextHeader breadcrumbs regardless of the configured strategy.
 func buildParentChildConfigs(cc types.ChunkingConfig, base chunker.SplitterConfig) (parent, child chunker.SplitterConfig) {
-	parentSize := cc.ParentChunkSize
-	if parentSize <= 0 {
-		parentSize = 4096
-	}
-	childSize := cc.ChildChunkSize
-	if childSize <= 0 {
-		childSize = 384
-	}
-	parent = chunker.SplitterConfig{
-		ChunkSize:    parentSize,
-		ChunkOverlap: base.ChunkOverlap, // reuse configured overlap for parents
-		Separators:   base.Separators,
-		Strategy:     base.Strategy,
-	}
-	child = chunker.SplitterConfig{
-		ChunkSize:    childSize,
-		ChunkOverlap: childSize / 5, // ~20% overlap for child chunks
-		Separators:   base.Separators,
-		Strategy:     base.Strategy,
-	}
-	return
+	return chunker.DeriveParentChildConfigs(base, cc.ParentChunkSize, cc.ChildChunkSize)
 }
 
 // processChunks processes chunks and creates embeddings for knowledge content
@@ -680,7 +651,7 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 	} else {
 		s.skipStage(ctx, knowledge.ID, types.StageMultimodal, "skipped")
 		// If there are no multimodal tasks, enqueue the post process task immediately
-		lang, _ := types.LanguageFromContext(ctx)
+		lang := types.LanguageFromContextOrDefault(ctx)
 		postProcessPayload := types.KnowledgePostProcessPayload{
 			TenantID:        knowledge.TenantID,
 			KnowledgeID:     knowledge.ID,
@@ -792,10 +763,9 @@ func (s *knowledgeService) getSummary(ctx context.Context,
 	// any chunk has been manually edited; after that ChunkIndex is safer.
 	sortedChunks := sortChunksForSummary(chunks)
 
-	// Concatenate original chunk contents by StartAt offset to reconstruct the
-	// document, then enrich with image info in a second pass. Enrichment must
-	// happen AFTER concatenation because StartAt is based on original document
-	// offsets — enriched (longer) content would break the positioning.
+	// Reconstruct the document before enriching it with image info. Enrichment
+	// must happen AFTER reconstruction because StartAt is based on original
+	// document offsets; enriched (longer) content would break the positioning.
 	chunkContents := ""
 	hasEditedChunk := false
 	for _, chunk := range sortedChunks {
@@ -816,14 +786,9 @@ func (s *knowledgeService) getSummary(ctx context.Context,
 		}
 		chunkContents = strings.Join(parts, "\n\n")
 	} else {
-		for _, chunk := range sortedChunks {
-			runes := []rune(chunkContents)
-			if chunk.StartAt <= len(runes) {
-				chunkContents = string(runes[:chunk.StartAt]) + chunk.Content
-			} else {
-				chunkContents += chunk.Content
-			}
-		}
+		// Synthetic table headers are not represented in StartAt/EndAt. Match
+		// real text overlap instead of slicing by source offsets.
+		chunkContents = searchutil.MergeTextChunks(sortedChunks, "")
 	}
 
 	// Collect image_info from image_ocr/image_caption children and enrich
@@ -2417,7 +2382,7 @@ func (s *knowledgeService) ReparseKnowledge(
 			questionCount = 3
 		}
 
-		lang, _ := types.LanguageFromContext(ctx)
+		lang := types.LanguageFromContextOrDefault(ctx)
 		taskPayload := types.DocumentProcessPayload{
 			TenantID:                 tenantID,
 			KnowledgeID:              existing.ID,
@@ -2471,7 +2436,7 @@ func (s *knowledgeService) ReparseKnowledge(
 			questionCount = 3
 		}
 
-		lang, _ := types.LanguageFromContext(ctx)
+		lang := types.LanguageFromContextOrDefault(ctx)
 		taskPayload := types.DocumentProcessPayload{
 			TenantID:                 tenantID,
 			KnowledgeID:              existing.ID,
@@ -2524,7 +2489,7 @@ func (s *knowledgeService) ReparseKnowledge(
 			questionCount = 3
 		}
 
-		lang, _ := types.LanguageFromContext(ctx)
+		lang := types.LanguageFromContextOrDefault(ctx)
 		taskPayload := types.DocumentProcessPayload{
 			TenantID:                 tenantID,
 			KnowledgeID:              existing.ID,
@@ -3750,7 +3715,7 @@ func (s *knowledgeService) enqueueImageMultimodalTasks(
 			chunkID = chunks[0].ChunkID
 		}
 
-		lang, _ := types.LanguageFromContext(ctx)
+		lang := types.LanguageFromContextOrDefault(ctx)
 		payload := types.ImageMultimodalPayload{
 			TenantID:        knowledge.TenantID,
 			KnowledgeID:     knowledge.ID,
