@@ -734,6 +734,12 @@ if [[ "$FRONTEND_DEFERRED" == "1" ]]; then
   log "app is healthy; updating frontend"
   log "recreate services: frontend"
   docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps frontend
+elif [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]] && compose_has_service frontend; then
+  log "app recreated; reloading frontend proxy DNS"
+  if ! docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T frontend nginx -s reload; then
+    log "frontend nginx reload failed; recreating frontend"
+    docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps frontend
+  fi
 fi
 
 if [[ "${WEKNORA_SKIP_DEPLOY_UPDATER_UPDATE:-false}" == "true" ]] \
