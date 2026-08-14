@@ -98,7 +98,7 @@ cd /data/jhu/lexai-build
 只补写飞书，不重新构建：
 
 ```bash
-./build_image.sh --target amd --feishu-only --tag amd_YYYYMMDD
+./build_image.sh --target amd --feishu-only
 ```
 
 ## 提交和 push

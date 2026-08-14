@@ -58,7 +58,6 @@ Options:
   --dry-run              Print the plan without building or writing Feishu
   --target TARGET        Build target tag prefix: amd or arm (default: detect current machine)
   --sheet SHEET          Override Feishu sheet title list; comma-separated values are accepted
-  --tag TAG              Override the generated tag
   -h, --help             Show this help
 
 Environment:
@@ -520,8 +519,6 @@ update_feishu() {
   return 0
 }
 
-TAG_OVERRIDE=""
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app-only)
@@ -571,10 +568,6 @@ while [[ $# -gt 0 ]]; do
       PUSH_IMAGES=0
       UPDATE_FEISHU=0
       shift
-      ;;
-    --tag)
-      TAG_OVERRIDE="$2"
-      shift 2
       ;;
     --target)
       TARGET="$2"
@@ -647,7 +640,7 @@ if [[ "$DRY_RUN" != "1" ]]; then
 fi
 
 DATE="$(date +%Y%m%d)"
-TAG="${TAG_OVERRIDE:-${PROFILE_TAG}_${DATE}}"
+TAG="${PROFILE_TAG}_${DATE}"
 
 log "TARGET=${TARGET}"
 log "PROFILE_TAG=${PROFILE_TAG}"
