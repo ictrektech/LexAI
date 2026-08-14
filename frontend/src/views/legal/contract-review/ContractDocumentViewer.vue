@@ -31,7 +31,7 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { getContractReviewDocument, type ReviewIssue } from '@/api/contract-review'
 import { hasReviewQuoteMatch, normalizeReviewText } from './documentLinking'
 
-GlobalWorkerOptions.workerSrc = pdfWorker
+GlobalWorkerOptions.workerSrc = `${pdfWorker}?pdfjs-worker=1`
 
 const props = defineProps<{ reviewId: string; fileName: string; fileType: string; issues: ReviewIssue[]; selectedIssueId?: string }>()
 const emit = defineEmits<{ markerClick: [issueId: string]; locateFailed: [] }>()
