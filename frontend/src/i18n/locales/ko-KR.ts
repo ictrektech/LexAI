@@ -2184,10 +2184,6 @@ export default {
     helpAndDocs: '도움말 및 문서',
     description: '언어, 외관 등 기본 옵션 설정',
     settings: '설정',
-    reparseFailedDocuments: '실패한 문서 다시 분석',
-    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 분석하도록 제출했습니다',
-    reparseFailedDocumentsFailed: '실패한 문서를 다시 분석하지 못했습니다',
-    downloadKnowledgeBaseDocuments: '지식베이스 문서 다운로드',
     close: '설정 닫기'
   },
   language: {
@@ -5219,6 +5215,10 @@ export default {
     name: '이름',
     description: '설명',
     settings: '설정',
+    reparseFailedDocuments: '실패한 문서 다시 분석',
+    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 분석하도록 제출했습니다',
+    reparseFailedDocumentsFailed: '실패한 문서를 다시 분석하지 못했습니다',
+    downloadKnowledgeBaseDocuments: '지식베이스 문서 다운로드',
     managedSmartArchiveReadOnly: '스마트 아카이브 관리형 지식베이스입니다. 문서 가져오기, 추출 및 필드 관리는 스마트 아카이브에서 진행하세요.',
     tagUpdateSuccess: '태그 업데이트 성공',
     tagEditDialogHeading: '태그 편집',

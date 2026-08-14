@@ -2184,10 +2184,6 @@ export default {
     helpAndDocs: 'Справка и документация',
     description: 'Настройка языка, внешнего вида и других базовых параметров',
     settings: 'Настройки',
-    reparseFailedDocuments: 'Повторно разобрать сбойные документы',
-    reparseFailedDocumentsSuccess: 'Отправлено на повторный разбор: {count}',
-    reparseFailedDocumentsFailed: 'Не удалось повторно разобрать сбойные документы',
-    downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
     close: 'Закрыть настройки'
   },
   language: {
@@ -5219,6 +5215,10 @@ export default {
     name: 'Название',
     description: 'Описание',
     settings: 'Настройки',
+    reparseFailedDocuments: 'Повторно разобрать сбойные документы',
+    reparseFailedDocumentsSuccess: 'Отправлено на повторный разбор: {count}',
+    reparseFailedDocumentsFailed: 'Не удалось повторно разобрать сбойные документы',
+    downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
     managedSmartArchiveReadOnly: 'Это индекс Smart Archive только для просмотра. Управляйте импортом, извлечением и полями в Smart Archive.',
     tagUpdateSuccess: 'Тег успешно обновлен',
     tagEditDialogHeading: 'Редактировать теги',

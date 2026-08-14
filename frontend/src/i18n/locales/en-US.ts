@@ -403,6 +403,10 @@ export default {
     name: 'Name',
     description: 'Description',
     settings: 'Settings',
+    reparseFailedDocuments: 'Reparse Failed Documents',
+    reparseFailedDocumentsSuccess: 'Submitted {count} failed documents for reparsing',
+    reparseFailedDocumentsFailed: 'Failed to reparse failed documents',
+    downloadKnowledgeBaseDocuments: 'Download Knowledge Base Documents',
     managedSmartArchiveReadOnly: 'This is the read-only Smart Archive index. Manage imports, extraction, and fields from Smart Archive.',
     tagUpdateSuccess: 'Tag updated successfully',
     tagEditDialogHeading: 'Edit tags',
@@ -3720,10 +3724,6 @@ export default {
     helpAndDocs: 'Help & Documentation',
     description: 'Configure language, appearance and other basic options',
     settings: 'Settings',
-    reparseFailedDocuments: 'Reparse Failed Documents',
-    reparseFailedDocumentsSuccess: 'Submitted {count} failed documents for reparsing',
-    reparseFailedDocumentsFailed: 'Failed to reparse failed documents',
-    downloadKnowledgeBaseDocuments: 'Download Knowledge Base Documents',
     close: 'Close Settings'
   },
   theme: {

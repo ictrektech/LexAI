@@ -2194,10 +2194,6 @@ export default {
     helpAndDocs: '帮助与文档',
     description: '配置语言、外观等基础选项',
     settings: '设置',
-    reparseFailedDocuments: '重新解析失败文档',
-    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
-    reparseFailedDocumentsFailed: '重新解析失败文档失败',
-    downloadKnowledgeBaseDocuments: '下载知识库文档',
     close: '关闭设置'
   },
   language: {
@@ -5229,6 +5225,10 @@ export default {
     name: '名称',
     description: '描述',
     settings: '设置',
+    reparseFailedDocuments: '重新解析失败文档',
+    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
+    reparseFailedDocumentsFailed: '重新解析失败文档失败',
+    downloadKnowledgeBaseDocuments: '下载知识库文档',
     managedSmartArchiveReadOnly: '这是智能档案托管知识库，仅用于查看解析完成的文档；导入、解析和字段管理请在智能档案中进行。',
     tagUpdateSuccess: '标签更新成功',
     tagEditDialogHeading: '编辑标签',
