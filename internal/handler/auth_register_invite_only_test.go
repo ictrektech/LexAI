@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/config"
@@ -22,40 +21,11 @@ import (
 // branching logic without dragging in the entire user service surface.
 type stubRegisterUserService struct {
 	interfaces.UserService
-	register          func(ctx context.Context, req *types.RegisterRequest) (*types.User, error)
-	getUserByEmail    func(ctx context.Context, email string) (*types.User, error)
-	getUserByTenantID func(ctx context.Context, tenantID uint64) (*types.User, error)
-	generateTokens    func(ctx context.Context, user *types.User) (string, string, error)
+	register func(ctx context.Context, req *types.RegisterRequest) (*types.User, error)
 }
 
 func (s *stubRegisterUserService) Register(ctx context.Context, req *types.RegisterRequest) (*types.User, error) {
 	return s.register(ctx, req)
-}
-
-func (s *stubRegisterUserService) GetUserByEmail(ctx context.Context, email string) (*types.User, error) {
-	return s.getUserByEmail(ctx, email)
-}
-
-func (s *stubRegisterUserService) GetUserByTenantID(ctx context.Context, tenantID uint64) (*types.User, error) {
-	return s.getUserByTenantID(ctx, tenantID)
-}
-
-func (s *stubRegisterUserService) GenerateTokens(ctx context.Context, user *types.User) (string, string, error) {
-	return s.generateTokens(ctx, user)
-}
-
-type stubAuthTenantService struct {
-	interfaces.TenantService
-	getTenantByID func(ctx context.Context, id uint64) (*types.Tenant, error)
-	listTenants   func(ctx context.Context) ([]*types.Tenant, error)
-}
-
-func (s *stubAuthTenantService) GetTenantByID(ctx context.Context, id uint64) (*types.Tenant, error) {
-	return s.getTenantByID(ctx, id)
-}
-
-func (s *stubAuthTenantService) ListTenants(ctx context.Context) ([]*types.Tenant, error) {
-	return s.listTenants(ctx)
 }
 
 // errorCapture mirrors gin's default ErrorHandler behaviour for tests:
@@ -85,27 +55,10 @@ func newRegisterTestRouter(h *AuthHandler) *gin.Engine {
 	return r
 }
 
-func newAutoSetupTestRouter(h *AuthHandler) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.Use(errorCapture())
-	r.POST("/auth/auto-setup", h.AutoSetup)
-	return r
-}
-
 func doRegister(t *testing.T, r *gin.Engine, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	buf, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(buf))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	return w
-}
-
-func doAutoSetup(t *testing.T, r *gin.Engine) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/auth/auto-setup", bytes.NewReader([]byte(`{}`)))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -215,75 +168,36 @@ func TestRegister_NilAuthConfigDoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestAutoSetup_StandardEditionRequiresSingleUserMode(t *testing.T) {
-	oldEdition := Edition
-	Edition = "standard"
-	defer func() { Edition = oldEdition }()
+// TestRegister_PreservesPasswordBytes is the regression for #2521.
+// SanitizeForLog is for log output only; applying it to credentials
+// rewrites tabs/newlines/control chars before hashing, so a password
+// that registers successfully cannot be used at login.
+func TestRegister_PreservesPasswordBytes(t *testing.T) {
+	// Password contains a tab and a newline — both are rewritten by
+	// SanitizeForLog (tab → space, newline → space). The handler must
+	// pass the exact original string to UserService.Register.
+	const originalPassword = "abc\t123!\nX"
 
-	h := NewAuthHandler(&config.Config{Auth: &config.AuthConfig{}}, &stubRegisterUserService{}, nil, nil, nil)
-	w := doAutoSetup(t, newAutoSetupTestRouter(h))
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("standard auto-setup without single_user_mode must return 403, got %d body=%s", w.Code, w.Body.String())
-	}
-}
-
-func TestAutoSetup_SingleUserModeAllowsDefaultUser(t *testing.T) {
-	oldEdition := Edition
-	Edition = "standard"
-	defer func() { Edition = oldEdition }()
-
-	user := &types.User{ID: "u1", Username: "default", Email: "admin@weknora.local", TenantID: 7, IsActive: true}
-	tenant := &types.Tenant{ID: 7, Name: "Default"}
+	var gotPassword string
 	us := &stubRegisterUserService{
-		getUserByEmail: func(context.Context, string) (*types.User, error) { return user, nil },
-		generateTokens: func(context.Context, *types.User) (string, string, error) {
-			return "access", "refresh", nil
-		},
-	}
-	ts := &stubAuthTenantService{
-		getTenantByID: func(context.Context, uint64) (*types.Tenant, error) { return tenant, nil },
-	}
-	h := NewAuthHandler(&config.Config{Auth: &config.AuthConfig{SingleUserMode: true}}, us, ts, nil, nil)
-
-	w := doAutoSetup(t, newAutoSetupTestRouter(h))
-	if w.Code != http.StatusOK {
-		t.Fatalf("single_user_mode auto-setup must return 200, got %d body=%s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), `"token":"access"`) {
-		t.Fatalf("auto-setup response missing token: %s", w.Body.String())
-	}
-}
-
-func TestAutoSetup_SingleUserModeCreatesDefaultUser(t *testing.T) {
-	oldEdition := Edition
-	Edition = "standard"
-	defer func() { Edition = oldEdition }()
-
-	tenant := &types.Tenant{ID: 7, Name: "Default"}
-	registered := false
-	us := &stubRegisterUserService{
-		getUserByEmail: func(context.Context, string) (*types.User, error) { return nil, nil },
 		register: func(_ context.Context, req *types.RegisterRequest) (*types.User, error) {
-			registered = true
-			if req.Username != "lexai" || req.Email != "admin@lexai.local" {
-				t.Fatalf("unexpected default user: username=%q email=%q", req.Username, req.Email)
-			}
-			return &types.User{ID: "u1", Username: req.Username, Email: req.Email, TenantID: 7, IsActive: true}, nil
-		},
-		generateTokens: func(context.Context, *types.User) (string, string, error) {
-			return "access", "refresh", nil
+			gotPassword = req.Password
+			return &types.User{ID: "u1", Email: "alice@example.com"}, nil
 		},
 	}
-	ts := &stubAuthTenantService{
-		getTenantByID: func(context.Context, uint64) (*types.Tenant, error) { return tenant, nil },
-	}
-	h := NewAuthHandler(&config.Config{Auth: &config.AuthConfig{SingleUserMode: true}}, us, ts, nil, nil)
+	h := NewAuthHandler(&config.Config{
+		Auth: &config.AuthConfig{RegistrationMode: config.AuthRegistrationModeSelfServe},
+	}, us, nil, nil, nil)
 
-	w := doAutoSetup(t, newAutoSetupTestRouter(h))
-	if w.Code != http.StatusOK {
-		t.Fatalf("single_user_mode auto-setup must return 200, got %d body=%s", w.Code, w.Body.String())
+	body := validRegisterBody()
+	body["password"] = originalPassword
+	w := doRegister(t, newRegisterTestRouter(h), body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("registration with control chars in password must succeed, got %d body=%s",
+			w.Code, w.Body.String())
 	}
-	if !registered {
-		t.Fatalf("single_user_mode must create the default user when missing")
+	if gotPassword != originalPassword {
+		t.Fatalf("password mutated before UserService.Register:\n  got  %q\n  want %q",
+			gotPassword, originalPassword)
 	}
 }

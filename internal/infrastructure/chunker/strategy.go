@@ -200,9 +200,23 @@ func NormalizeSplitterConfig(cfg SplitterConfig) SplitterConfig {
 	return cfg
 }
 
+// NormalizeLineEndings canonicalizes text before chunking. Browser textareas
+// normalize pasted CRLF text to LF, while uploaded files preserve their
+// original line endings; without this, the same document produces different
+// character counts and chunk boundaries.
+func NormalizeLineEndings(text string) string {
+	if !strings.Contains(text, "\r") {
+		return text
+	}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	return strings.ReplaceAll(text, "\r", "\n")
+}
+
 // DeriveParentChildConfigs produces the exact parent and child splitter
 // configurations used by knowledge ingestion. Keeping this here lets preview
 // and ingestion remain in lockstep as the parent-child defaults evolve.
+// Languages are copied to both levels so parent and child splitters use the same boundary rules.
+// TokenLimit is copied only to children because parents keep the configured context window.
 func DeriveParentChildConfigs(base SplitterConfig, parentSize, childSize int) (parent, child SplitterConfig) {
 	if parentSize <= 0 {
 		parentSize = 4096
@@ -215,12 +229,15 @@ func DeriveParentChildConfigs(base SplitterConfig, parentSize, childSize int) (p
 		ChunkOverlap: base.ChunkOverlap,
 		Separators:   base.Separators,
 		Strategy:     base.Strategy,
+		Languages:    base.Languages,
 	}
 	child = SplitterConfig{
 		ChunkSize:    childSize,
 		ChunkOverlap: childSize / 5,
 		Separators:   base.Separators,
 		Strategy:     base.Strategy,
+		TokenLimit:   base.TokenLimit,
+		Languages:    base.Languages,
 	}
 	return
 }

@@ -86,7 +86,11 @@ func prepareChatModel(ctx context.Context, modelService interfaces.ModelService,
 // prepareMessagesWithHistory prepare complete messages including history.
 // When SystemPromptOverride is set (e.g. by intent-specific prompt logic),
 // it takes precedence over the default SummaryConfig.Prompt.
-func prepareMessagesWithHistory(chatManage *types.ChatManage, opt *chat.ChatOptions) []chat.Message {
+func prepareMessagesWithHistory(chatManage *types.ChatManage, opts ...*chat.ChatOptions) []chat.Message {
+	var opt *chat.ChatOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	base := chatManage.SummaryConfig.Prompt
 	if chatManage.SystemPromptOverride != "" {
 		base = chatManage.SystemPromptOverride
@@ -98,6 +102,10 @@ func prepareMessagesWithHistory(chatManage *types.ChatManage, opt *chat.ChatOpti
 			"contexts": contexts,
 		})
 		systemPrompt = appendRetrievedImageOutputRequirement(systemPrompt, contexts)
+		// Memory goes at the end of the system prompt, after the retrieved-context
+		// placeholders have been rendered, so a remembered sentence can never be
+		// substituted into prompt structure.
+		systemPrompt += chatManage.MemoryPrompt
 
 		chatMessages := []chat.Message{
 			{Role: "system", Content: systemPrompt},

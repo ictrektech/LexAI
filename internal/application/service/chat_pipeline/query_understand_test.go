@@ -86,62 +86,66 @@ func TestApplyIntentPromptOverride_GlobalOnly(t *testing.T) {
 	}
 }
 
-func TestShouldUseOriginalQueryWithoutModel(t *testing.T) {
+// TestParseOutput_UnparsableFallsBackToOriginalQuery pins the degradation
+// contract for query understanding: when the LLM returns output that cannot be
+// parsed as the structured {"rewrite_query","intent",...} JSON, RewriteQuery
+// must remain the original user query (which OnEvent sets before calling
+// parseOutput) instead of leaking the raw model text into the downstream
+// retrieval query.
+func TestParseOutput_UnparsableFallsBackToOriginalQuery(t *testing.T) {
+	p := &PluginQueryUnderstand{}
 	cm := &types.ChatManage{
-		PipelineRequest: types.PipelineRequest{
-			EnableRewrite: true,
-			Query:         "刑法的适用范围是什么？",
+		PipelineState: types.PipelineState{
+			RewriteQuery: "original user query",
+			Intent:       types.IntentKBSearch,
 		},
-		PipelineState: types.PipelineState{RewriteQuery: "刑法的适用范围是什么？"},
 	}
 
-	if !shouldUseOriginalQueryWithoutModel(cm, nil) {
-		t.Fatal("expected simple RAG query to skip query-understand model call")
-	}
+	p.parseOutput(cm, "The answer is: check the admin console")
 
-	cm.History = []*types.History{{Query: "前面的问题", Answer: "前面的回答"}}
-	if shouldUseOriginalQueryWithoutModel(cm, cm.History) {
-		t.Fatal("expected history query to keep query-understand model call")
+	if cm.RewriteQuery != "original user query" {
+		t.Fatalf("RewriteQuery = %q, want original user query", cm.RewriteQuery)
 	}
-
-	cm.History = nil
-	cm.Images = []string{"data:image/png;base64,abc"}
-	if shouldUseOriginalQueryWithoutModel(cm, nil) {
-		t.Fatal("expected image query to keep query-understand model call")
+	if cm.Intent != types.IntentKBSearch {
+		t.Errorf("Intent = %q, want kb_search", cm.Intent)
 	}
 }
 
-func TestShouldUseOriginalQueryWithoutModel_ChitchatSkipsRetrieval(t *testing.T) {
+// TestParseOutput_UnparsableBlankDoesNotRewrite verifies that empty LLM output
+// also leaves the original query untouched.
+func TestParseOutput_UnparsableBlankDoesNotRewrite(t *testing.T) {
+	p := &PluginQueryUnderstand{}
 	cm := &types.ChatManage{
-		PipelineRequest: types.PipelineRequest{
-			EnableRewrite: true,
-			Query:         "你是谁？",
-		},
-	}
-
-	if !shouldUseOriginalQueryWithoutModel(cm, nil) {
-		t.Fatal("expected simple chitchat query to skip query-understand model call")
-	}
-	if cm.Intent != types.IntentChitchat {
-		t.Fatalf("intent = %q, want %q", cm.Intent, types.IntentChitchat)
-	}
-	if cm.NeedsRetrieval() {
-		t.Fatal("expected chitchat query to skip retrieval")
-	}
-
-	cm = &types.ChatManage{
-		PipelineRequest: types.PipelineRequest{
-			EnableRewrite: true,
-			Query:         "你是谁？",
-		},
 		PipelineState: types.PipelineState{
-			History: []*types.History{{Query: "前一个问题", Answer: "前一个回答"}},
+			RewriteQuery: "original user query",
+			Intent:       types.IntentKBSearch,
 		},
 	}
-	if !shouldUseOriginalQueryWithoutModel(cm, cm.History) {
-		t.Fatal("expected chitchat query with history to skip query-understand model call")
+
+	p.parseOutput(cm, "   \n\t  ")
+
+	if cm.RewriteQuery != "original user query" {
+		t.Fatalf("RewriteQuery = %q, want original user query", cm.RewriteQuery)
 	}
-	if cm.NeedsRetrieval() {
-		t.Fatal("expected chitchat query with history to skip retrieval")
+}
+
+// TestParseOutput_ValidJSONStillAppliesRewrite guards the happy path: a
+// well-formed structured output still overrides RewriteQuery and Intent.
+func TestParseOutput_ValidJSONStillAppliesRewrite(t *testing.T) {
+	p := &PluginQueryUnderstand{}
+	cm := &types.ChatManage{
+		PipelineState: types.PipelineState{
+			RewriteQuery: "original user query",
+			Intent:       types.IntentKBSearch,
+		},
+	}
+
+	p.parseOutput(cm, `{"rewrite_query":"rewritten query","intent":"summarize"}`)
+
+	if cm.RewriteQuery != "rewritten query" {
+		t.Fatalf("RewriteQuery = %q, want rewritten query", cm.RewriteQuery)
+	}
+	if cm.Intent != types.IntentSummarize {
+		t.Errorf("Intent = %q, want summarize", cm.Intent)
 	}
 }
