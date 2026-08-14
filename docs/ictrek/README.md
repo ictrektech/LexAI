@@ -24,7 +24,7 @@
 
 | 场景 | 需要的文件 | 不需要的文件 | 主要改哪里 |
 | --- | --- | --- | --- |
-| Thor `jhu@192.168.1.97`，完整启动 LexAI + model_hub + qwen35-9b-vLLM + bge-m3-vLLM | [deploy-thor.sh](deploy-template/deploy-thor.sh)、[docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)、[.env.thor.example](deploy-template/.env.thor.example)、[config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)、[config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)、[THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 `.env.example` 不是 Thor 运行入口；tc232 文件也不用 | `.env.thor` 的密钥、端口、`/data/jhu/dev/workspace/lexai` 数据目录、vLLM 模型路径、bge-m3 路径、并发/队列参数；具体按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) |
+| Thor `jhu@192.168.1.97`，完整启动 ChatSwitch + model_hub + qwen35-9b-vLLM + bge-m3 embedding vLLM + bge reranker vLLM | [deploy-thor.sh](deploy-template/deploy-thor.sh)、[docker-compose.thor.yml](deploy-template/docker-compose.thor.yml)、[docker-compose.thor.models.yml](deploy-template/docker-compose.thor.models.yml)、[.env.thor.example](deploy-template/.env.thor.example)、[config/builtin_models.thor.yaml](deploy-template/config/builtin_models.thor.yaml)、[config/legal_graph_preset.json](deploy-template/config/legal_graph_preset.json)、[THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 [docker-compose.yml](deploy-template/docker-compose.yml) 和 `.env.example` 不是 Thor 运行入口；tc232 文件也不用 | `.env.thor` 的密钥、端口、`/data/jhu/dev/workspace/lexai` 数据目录、vLLM 模型路径、bge-m3 路径、bge-reranker 路径、并发/队列参数；具体按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) |
 | tc232，已有 `qwen35-9b-awq-vllm` | [deploy-tc232.sh](deploy-template/deploy-tc232.sh)、[docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml)、[.env.tc232.example](deploy-template/.env.tc232.example)、[config/](deploy-template/config/)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md)；本地同步可用 [sync-tc232.sh](deploy-template/sync-tc232.sh) | [docker-compose.yml](deploy-template/docker-compose.yml) 里的 vllm 服务不会用；`.env.example` 不是运行入口 | `.env.tc232` 的端口、密钥、数据目录、并发；如已有 vllm 容器名不同，改 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 里的 `base_url` |
 | 全新主机，没有可用 vllm | [deploy.sh](deploy-template/deploy.sh)、[docker-compose.yml](deploy-template/docker-compose.yml)、[.env.example](deploy-template/.env.example)、[config/](deploy-template/config/)、[CONCURRENCY.md](deploy-template/CONCURRENCY.md) | `deploy-tc232.sh`、`docker-compose.tc232.yml`、`.env.tc232.example` | `.env` 的 `VLLM_HOST_PORT`、`VLLM_HF_MODELS_DIR`、模型目录、端口、密钥、并发 |
 | 主机已有可用 vllm，且同一个模型同时支持文本和 VLM | 以 [docker-compose.tc232.yml](deploy-template/docker-compose.tc232.yml) 为模板另存一份机器专用 compose，配套一份 env，再带上 [config/](deploy-template/config/) 和 [CONCURRENCY.md](deploy-template/CONCURRENCY.md) | 通用 compose 里的 `qwen35-9b-awq-vllm` 服务不需要启动 | 把 [config/builtin_models.yaml](deploy-template/config/builtin_models.yaml) 中 QA 和 Vision 模型的 `base_url` 都指向已有 vllm 容器名；模型 ID 可以共用同一个 served model |
@@ -73,11 +73,12 @@ tc232 部署，即复用 `lexai` 网络里已有的 `qwen35-9b-awq-vllm`：
 2. 在 tc232 执行 `cp .env.tc232.example .env.tc232`，如果已有 `.env.tc232` 就只补缺失项。
 3. tc232 不需要配置 `VLLM_*` 镜像服务，compose 会通过 `http://qwen35-9b-awq-vllm:8000/v1` 访问 `lexai` 网络里已有的 vllm。
 
-Thor 部署，即 97 上完整启动 LexAI、model_hub、qwen35-9b-vLLM、bge-m3-vLLM：
+Thor 部署，即 97 上完整启动 ChatSwitch、model_hub、qwen35-9b-vLLM、bge-m3-vLLM、bge-reranker-vLLM：
 
 1. 把 [deploy-template](deploy-template/) 目录同步到 `jhu@192.168.1.97:/data/jhu/dev/workspace/lexai/deploy`。
 2. 在 97 执行 `cp .env.thor.example .env.thor`，如果已有 `.env.thor` 就只补缺失项和新版并发变量。
-3. 按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 检查 `/data/jhu/dev/workspace/lexai`、模型路径、vLLM 参数、默认 Embedding、队列/并发参数后执行 `./deploy-thor.sh`。
+3. 按 [THOR_DEPLOYMENT.md](deploy-template/THOR_DEPLOYMENT.md) 检查 `/data/jhu/dev/workspace/lexai`、模型路径、vLLM 参数、默认 Embedding/Rerank、队列/并发参数后执行 `./deploy-thor.sh`。脚本会先用 `docker-compose.thor.models.yml` 启动模型服务，再启动只包含 ChatSwitch 运行组件的 `docker-compose.thor.yml`。
+4. `docker-compose.thor.models.yml` 包含 `model-hub-backend`、`model-hub-frontend`、`model-hub-ollama`、`model-hub-bootstrap` 和 3 个 vLLM 服务；`MODEL_HUB_PRELOAD_MODELS` 支持 `hf://...` 和 `ms://...`，默认预拉取 `hf://BAAI/bge-m3`、`hf://BAAI/bge-reranker-v2-m3`、`hf://QuantTrio/Qwen3.5-9B-AWQ`。只有这些模型在 Model Hub 下导出到 `export/*/.../current` 后，qwen/embedding/rerank vLLM 才应保持运行。
 
 其他已有 vllm 的主机：
 

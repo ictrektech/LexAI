@@ -1,6 +1,6 @@
 export default {
   legalWorkspace: {
-    navigationLabel: 'LexAI workspace navigation',
+    navigationLabel: 'ChatSwitch workspace navigation',
     tools: 'Legal tools',
     resources: 'Resources',
     newChat: 'New Chat',
@@ -15,7 +15,9 @@ export default {
     settings: 'Settings',
     comingSoon: 'Coming soon',
     collapseSidebar: 'Collapse sidebar',
-    expandSidebar: 'Expand sidebar'
+    expandSidebar: 'Expand sidebar',
+    platformConsole: 'Platform Console',
+    legalWorkspace: 'Legal Workspace'
   },
   contractReview: {
     workspaceEyebrow: 'Legal workspace', title: 'Contract Review', subtitle: 'Review contracts against your standards and resolve risk clause by clause.', newReview: 'New Review',
@@ -1614,6 +1616,7 @@ export default {
     defaultUser: 'User',
     copyFailed: 'Copy failed',
     retry: 'Retry',
+    deployUpdateCheckButton: 'Check for Updates',
     expand: 'Expand',
     collapse: 'Collapse'
   },
@@ -3717,6 +3720,10 @@ export default {
     helpAndDocs: 'Help & Documentation',
     description: 'Configure language, appearance and other basic options',
     settings: 'Settings',
+    reparseFailedDocuments: 'Reparse Failed Documents',
+    reparseFailedDocumentsSuccess: 'Submitted {count} failed documents for reparsing',
+    reparseFailedDocumentsFailed: 'Failed to reparse failed documents',
+    downloadKnowledgeBaseDocuments: 'Download Knowledge Base Documents',
     close: 'Close Settings'
   },
   theme: {

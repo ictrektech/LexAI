@@ -1,0 +1,42 @@
+name: ${COMPOSE_PROJECT_NAME:-lexai-thor}
+
+services:
+  model-hub-frontend:
+    extends:
+      file: docker-compose.thor.yml
+      service: model-hub-frontend
+
+  model-hub-backend:
+    extends:
+      file: docker-compose.thor.yml
+      service: model-hub-backend
+
+  model-hub-bootstrap:
+    extends:
+      file: docker-compose.thor.yml
+      service: model-hub-bootstrap
+
+  model-hub-ollama:
+    extends:
+      file: docker-compose.thor.yml
+      service: model-hub-ollama
+
+  qwen35-9b-vllm:
+    extends:
+      file: docker-compose.thor.yml
+      service: qwen35-9b-vllm
+
+  bge-m3-vllm:
+    extends:
+      file: docker-compose.thor.yml
+      service: bge-m3-vllm
+
+  bge-reranker-vllm:
+    extends:
+      file: docker-compose.thor.yml
+      service: bge-reranker-vllm
+
+networks:
+  lexai:
+    external: true
+    name: ${LEXAI_NETWORK:-lexai}

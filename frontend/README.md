@@ -2,23 +2,23 @@
 
 The Vue frontend exposes two authenticated application shells:
 
-- `/legal/ai-assistant` is the default LexAI legal workspace. Conversations stay inside this shell at `/legal/ai-assistant/chat/:chatid`.
+- `/legal/ai-assistant` is the default ChatSwitch legal workspace. Conversations stay inside this shell at `/legal/ai-assistant/chat/:chatid`.
 - `/legal/contract-review` lists active and archived Contract Review tasks.
 - `/legal/contract-review/:reviewId` opens the persistent document/review workspace.
 - `/legal/smart-archive` opens the Smart Archive / Contract Archive workspace.
 - `/platform/*` retains the existing knowledge-base, agent, organization, settings, and legacy chat surfaces.
 
-The root route and successful login/onboarding flows open the LexAI workspace. The legacy `/platform` root still opens `/platform/knowledge-bases`.
+The root route and successful login/onboarding flows open the ChatSwitch workspace. The legacy `/platform` root still opens `/platform/knowledge-bases`.
 
 ## Brand assets
 
-The shared LexAI wordmark is `src/assets/img/LexAI_logo_exact.svg`. The login header and expanded navigation shells use this asset; the legal sidebar keeps its compact `L` monogram when collapsed so the narrow layout remains usable.
+The shared ChatSwitch wordmark is `src/assets/img/ChatSwitch_logo.svg`. The login header and expanded navigation shells use this asset; the legal sidebar keeps its compact `C` monogram when collapsed so the narrow layout remains usable.
 
 ## Extending the legal workspace
 
 Legal-tool navigation is registered in `src/config/legalWorkspace.ts`. To add a tool, define its route constant in `src/router/paths.ts`, add a typed navigation item with its `labelKey`, destination, icon, and `activeRouteNames`, register the child route under `/legal` in `src/router/index.ts`, add the corresponding lazy-loaded workspace component, and add the label to each locale file. Disabled future tools can remain in the registry without a destination.
 
-The LexAI sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. Resource links intentionally leave the LexAI shell and open their existing `/platform/*` pages.
+The ChatSwitch sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. Resource links intentionally leave the ChatSwitch shell and open their existing `/platform/*` pages.
 
 ## Legal workspace color system
 

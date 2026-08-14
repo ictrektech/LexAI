@@ -78,6 +78,13 @@ export const LEGAL_WORKSPACE_NAV_ITEMS: readonly LegalWorkspaceNavItem[] = [
     badgeKey: 'legalWorkspace.comingSoon',
   },
   {
+    id: 'platform-console',
+    labelKey: 'legalWorkspace.platformConsole',
+    icon: 'view-module',
+    section: 'resources',
+    destination: '/platform/knowledge-bases',
+  },
+  {
     id: 'knowledge-bases',
     labelKey: 'legalWorkspace.knowledgeBases',
     icon: 'book',

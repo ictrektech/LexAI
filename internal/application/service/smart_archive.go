@@ -139,7 +139,7 @@ func (s *smartArchiveService) ensureManagedKnowledgeBase(ctx context.Context, te
 	kb, err := s.kbs.CreateKnowledgeBase(ctx, &types.KnowledgeBase{
 		Name:             "合同智能档案",
 		Type:             types.KnowledgeBaseTypeDocument,
-		Description:      types.ManagedSmartArchiveKnowledgeBaseMarker + " LexAI 智能档案托管知识库；请通过智能档案模块管理导入与字段。",
+		Description:      types.ManagedSmartArchiveKnowledgeBaseMarker + " ChatSwitch 智能档案托管知识库；请通过智能档案模块管理导入与字段。",
 		EmbeddingModelID: embeddingModelID,
 	})
 	if err != nil {

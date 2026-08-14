@@ -47,6 +47,19 @@ builtin_models:
         dimension: 1024
         truncate_prompt_tokens: 8192
 
+  - id: lexai-thor-vllm-bge-reranker
+    name: bge-reranker-v2-m3
+    display_name: bge-reranker-v2-m3 (vLLM Rerank)
+    type: Rerank
+    source: remote
+    description: Thor OpenAI-compatible rerank model served by bge-reranker-vllm.
+    is_default: true
+    parameters:
+      base_url: http://bge-reranker-vllm:22224/v1
+      api_key: ""
+      interface_type: openai
+      provider: generic
+
   - id: lexai-thor-ollama-bge-m3-embedding
     name: bge-m3:latest
     display_name: bge-m3 (Ollama Embedding)

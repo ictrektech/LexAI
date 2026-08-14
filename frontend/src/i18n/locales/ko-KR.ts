@@ -1,6 +1,6 @@
 export default {
   legalWorkspace: {
-    navigationLabel: 'LexAI 워크스페이스 탐색',
+    navigationLabel: 'ChatSwitch 워크스페이스 탐색',
     tools: '법률 도구',
     resources: '리소스',
     newChat: '새 대화',
@@ -15,7 +15,9 @@ export default {
     settings: '설정',
     comingSoon: '출시 예정',
     collapseSidebar: '사이드바 접기',
-    expandSidebar: '사이드바 펼치기'
+    expandSidebar: '사이드바 펼치기',
+    platformConsole: '플랫폼 콘솔',
+    legalWorkspace: '법률 워크스페이스'
   },
   contractReview: {
     selectAll:'현재 목록 전체 선택',selectedCount:'{count}개 선택됨',bulkArchive:'선택 항목 보관',bulkRestore:'선택 항목 복원',bulkDelete:'선택 항목 삭제',bulkArchiveConfirm:'선택한 검토 {count}개를 보관하시겠습니까?',bulkArchiveRunningConfirm:'검토 {count}개를 보관합니다. 실행 중인 {running}개는 건너뜁니다. 계속하시겠습니까?',bulkRestoreConfirm:'선택한 검토 {count}개를 복원하시겠습니까?',bulkDeleteConfirm:'선택한 검토 {count}개와 문서를 영구 삭제하시겠습니까?',bulkDeleteRunningConfirm:'선택한 {count}개 중 {running}개가 실행 중입니다. 삭제하면 검토와 결과 저장이 즉시 중지됩니다. 계속하시겠습니까?',bulkActionSuccess:'검토 {count}개를 처리했습니다.',bulkActionPartial:'{succeeded}개 처리, {failed}개 실패했습니다.',bulkActionFailed:'일괄 작업에 실패했습니다.',
@@ -2182,6 +2184,10 @@ export default {
     helpAndDocs: '도움말 및 문서',
     description: '언어, 외관 등 기본 옵션 설정',
     settings: '설정',
+    reparseFailedDocuments: '실패한 문서 다시 분석',
+    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 분석하도록 제출했습니다',
+    reparseFailedDocumentsFailed: '실패한 문서를 다시 분석하지 못했습니다',
+    downloadKnowledgeBaseDocuments: '지식베이스 문서 다운로드',
     close: '설정 닫기'
   },
   language: {
@@ -4325,6 +4331,7 @@ export default {
     defaultUser: '사용자',
     copyFailed: '복사 실패',
     retry: '재시도',
+    deployUpdateCheckButton: '업데이트 확인',
     expand: '펼치기',
     collapse: '접기'
   },

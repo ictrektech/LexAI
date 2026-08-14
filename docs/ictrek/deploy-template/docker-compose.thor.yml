@@ -45,7 +45,7 @@ services:
       DOCREADER_TRANSPORT: grpc
       OLLAMA_BASE_URL: http://model-hub-ollama:11434
       SSRF_WHITELIST: ${SSRF_WHITELIST:-}
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-backend,model-hub-ollama,qwen35-9b-vllm,bge-m3-vllm,searxng,qdrant,milvus,weaviate,doris-fe}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-backend,model-hub-ollama,qwen35-9b-vllm,bge-m3-vllm,bge-reranker-vllm,searxng,qdrant,milvus,weaviate,doris-fe}
       ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
       NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
       NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
@@ -80,7 +80,7 @@ services:
       CRYPTO_SALT: ${CRYPTO_SALT:-}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
       WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-      WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models}
+      WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-http://qwen35-9b-vllm:22222/v1/models,http://bge-m3-vllm:22223/v1/models,http://bge-reranker-vllm:22224/v1/models}
       WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
       WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
       WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
@@ -108,14 +108,6 @@ services:
         condition: service_healthy
       docreader:
         condition: service_healthy
-      model-hub-backend:
-        condition: service_healthy
-      model-hub-ollama:
-        condition: service_healthy
-      bge-m3-vllm:
-        condition: service_started
-      qwen35-9b-vllm:
-        condition: service_started
     networks:
       - lexai
     restart: unless-stopped
@@ -168,6 +160,7 @@ services:
 
   model-hub-frontend:
     image: ${MODEL_HUB_FRONTEND_IMAGE:?set MODEL_HUB_FRONTEND_IMAGE in .env.thor}
+    profiles: ["models"]
     ports:
       - "${MODEL_HUB_FRONTEND_PORT:-30175}:80"
     depends_on:
@@ -179,6 +172,7 @@ services:
 
   model-hub-backend:
     image: ${MODEL_HUB_BACKEND_IMAGE:?set MODEL_HUB_BACKEND_IMAGE in .env.thor}
+    profiles: ["models"]
     ports:
       - "${MODEL_HUB_BACKEND_PORT:-30005}:5005"
     environment:
@@ -208,6 +202,7 @@ services:
 
   model-hub-bootstrap:
     image: ${MODEL_HUB_BACKEND_IMAGE:?set MODEL_HUB_BACKEND_IMAGE in .env.thor}
+    profiles: ["models"]
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -240,7 +235,7 @@ services:
                     time.sleep(5)
         PY
     environment:
-      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-hf://BAAI/bge-m3 hf://QuantTrio/Qwen3.5-9B-AWQ}
+      MODEL_HUB_PRELOAD_MODELS: ${MODEL_HUB_PRELOAD_MODELS:-hf://BAAI/bge-m3 hf://BAAI/bge-reranker-v2-m3 hf://QuantTrio/Qwen3.5-9B-AWQ}
     depends_on:
       model-hub-backend:
         condition: service_healthy
@@ -252,6 +247,7 @@ services:
 
   model-hub-ollama:
     image: ${OLLAMA_SERVER_IMAGE:?set OLLAMA_SERVER_IMAGE in .env.thor}
+    profiles: ["models"]
     ipc: host
     runtime: nvidia
     entrypoint: ["/bin/sh", "-c"]
@@ -285,6 +281,7 @@ services:
   qwen35-9b-vllm:
     image: ${VLLM_IMAGE:?set VLLM_IMAGE in .env.thor}
     container_name: qwen35-9b-vllm
+    profiles: ["models"]
     privileged: true
     runtime: nvidia
     shm_size: 12g
@@ -367,6 +364,7 @@ services:
   bge-m3-vllm:
     image: ${VLLM_IMAGE:?set VLLM_IMAGE in .env.thor}
     container_name: bge-m3-vllm
+    profiles: ["models"]
     privileged: true
     runtime: nvidia
     shm_size: 4g
@@ -407,6 +405,65 @@ services:
           --max-model-len "${BGE_VLLM_MAX_MODEL_LEN:-8192}" \
           --max-num-batched-tokens "${BGE_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
           --gpu-memory-utilization "${BGE_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
+    environment:
+      TZ: Asia/Shanghai
+      DEBIAN_FRONTEND: noninteractive
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
+      MAX_JOBS: ${VLLM_MAX_JOBS:-4}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - lexai
+
+  bge-reranker-vllm:
+    image: ${VLLM_IMAGE:?set VLLM_IMAGE in .env.thor}
+    container_name: bge-reranker-vllm
+    profiles: ["models"]
+    privileged: true
+    runtime: nvidia
+    shm_size: 4g
+    restart: unless-stopped
+    ports:
+      - "${BGE_RERANK_VLLM_HOST_PORT:-32224}:22224"
+    volumes:
+      - ${MODEL_HUB_DATA_DIR:-/data/jhu/dev/workspace/lexai/model_hub}:/modelhub:ro
+      - ${THOR_HOST_HOME:-/home/jhu}:${THOR_CONTAINER_HOME:-/home/jhu}
+    working_dir: ${THOR_CONTAINER_HOME:-/home/jhu}
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        resolve_model_path() {
+          local candidate="$1"
+          if [ -f "$$candidate/config.json" ]; then
+            printf '%s\n' "$$candidate"
+            return 0
+          fi
+          local resolved
+          resolved="$$(find "$$candidate/snapshots" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/config.json' ';' -print 2>/dev/null | sort | tail -n 1 || true)"
+          if [ -n "$$resolved" ]; then
+            printf '%s\n' "$$resolved"
+            return 0
+          fi
+          printf '%s\n' "$$candidate"
+        }
+        model_path="$$(resolve_model_path "${BGE_RERANK_VLLM_MODEL_PATH:-/modelhub/export/hf/BAAI/bge-reranker-v2-m3/current}")"
+        echo "Using bge reranker model path: $$model_path"
+        exec vllm serve "$$model_path" \
+          --served-model-name "${BGE_RERANK_VLLM_SERVED_MODEL_NAME:-bge-reranker-v2-m3}" \
+          --runner pooling \
+          --convert classify \
+          --host 0.0.0.0 \
+          --port 22224 \
+          --trust-remote-code \
+          --max-num-seqs "${BGE_RERANK_VLLM_MAX_NUM_SEQS:-16}" \
+          --max-model-len "${BGE_RERANK_VLLM_MAX_MODEL_LEN:-8192}" \
+          --max-num-batched-tokens "${BGE_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}" \
+          --gpu-memory-utilization "${BGE_RERANK_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
     environment:
       TZ: Asia/Shanghai
       DEBIAN_FRONTEND: noninteractive

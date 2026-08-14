@@ -1,14 +1,14 @@
 <template>
   <aside class="legal-sidebar" :class="{ 'legal-sidebar--collapsed': sidebarProps.collapsed }">
     <div class="legal-sidebar__header">
-      <button class="legal-sidebar__brand" type="button" aria-label="LexAI" @click="goHome">
+      <button class="legal-sidebar__brand" type="button" aria-label="ChatSwitch" @click="goHome">
         <img
           v-if="!sidebarProps.collapsed"
           class="legal-sidebar__brand-logo"
           :src="lexaiLogo"
-          alt="LexAI"
+          alt="ChatSwitch"
         />
-        <span v-else class="legal-sidebar__brand-mark" aria-hidden="true">L</span>
+        <span v-else class="legal-sidebar__brand-mark" aria-hidden="true">C</span>
       </button>
       <button
         v-if="!sidebarProps.collapsed"
@@ -56,7 +56,7 @@ import { computed, defineComponent, h, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as TIcon, Tooltip as TTooltip } from 'tdesign-vue-next'
-import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg'
+import lexaiLogo from '@/assets/img/ChatSwitch_logo.svg'
 
 import {
   isLegalWorkspaceItemActive,

@@ -12,7 +12,7 @@
           @click="handleDeployUpdateCheck"
         >
           <template #icon><t-icon name="refresh" size="16px" /></template>
-          {{ $t('system.deployUpdateCheckButton') }}
+          {{ $t('common.deployUpdateCheckButton') }}
         </t-button>
       </div>
       <t-dialog

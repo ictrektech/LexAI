@@ -3,7 +3,7 @@
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <img class="brand-logo" :src="lexaiLogo" alt="LexAI" />
+                <img class="brand-logo" :src="lexaiLogo" alt="ChatSwitch" />
             </div>
             <div class="logo_actions">
                 <t-tooltip placement="bottom">
@@ -254,7 +254,7 @@ import UserMenu from '@/components/UserMenu.vue';
 import TenantSelector from '@/components/TenantSelector.vue';
 import { useI18n } from 'vue-i18n';
 import { getSystemInfo } from '@/api/system';
-import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg';
+import lexaiLogo from '@/assets/img/ChatSwitch_logo.svg';
 
 const chatResources = useChatResourcesStore();
 // Platform logos reused from IMChannelsOverviewPanel — keeps the session list
@@ -407,6 +407,8 @@ const isMenuItemActive = (itemPath: string): boolean => {
             return currentRoute === 'organizationList';
         case 'creatChat':
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
+        case 'legalWorkspace':
+            return typeof route.path === 'string' && route.path.startsWith('/legal/');
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -425,6 +427,7 @@ const getIconActiveState = (itemPath: string) => {
             currentRoute === 'knowledgeBaseSettings'
         ),
         isCreatChatActive: itemPath === 'creatChat' && (currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat'),
+        isLegalWorkspaceActive: itemPath === 'legalWorkspace' && typeof route.path === 'string' && route.path.startsWith('/legal/'),
         isSettingsActive: itemPath === 'settings' && currentRoute === 'settings',
         isChatActive: itemPath === 'chat' && currentRoute === 'chat'
     };
@@ -433,13 +436,13 @@ const getIconActiveState = (itemPath: string) => {
 // 分离上下两部分菜单（使用 visibleMenuArr 以便 lite 模式过滤 logout）
 const topMenuItems = computed<MenuItem[]>(() => {
     return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) =>
-        item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat'
+        item.path === 'legalWorkspace' || item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat'
     );
 });
 
 const bottomMenuItems = computed<MenuItem[]>(() => {
     return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => {
-        if (item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat') {
+        if (item.path === 'legalWorkspace' || item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat') {
             return false;
         }
         return true;
@@ -1069,6 +1072,8 @@ const handleMenuClick = async (path: string) => {
         } else {
             router.push('/platform/knowledge-bases')
         }
+    } else if (path === 'legalWorkspace') {
+        router.push('/legal/ai-assistant')
     } else if (path === 'agents') {
         router.push('/platform/agents')
     } else if (path === 'organizations') {

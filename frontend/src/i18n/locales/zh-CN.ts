@@ -1,6 +1,6 @@
 export default {
   legalWorkspace: {
-    navigationLabel: 'LexAI 工作台导航',
+    navigationLabel: 'ChatSwitch 工作台导航',
     tools: '法律工具',
     resources: '资源与设置',
     newChat: '新对话',
@@ -15,7 +15,9 @@ export default {
     settings: '设置',
     comingSoon: '即将推出',
     collapseSidebar: '收起侧边栏',
-    expandSidebar: '展开侧边栏'
+    expandSidebar: '展开侧边栏',
+    platformConsole: '平台控制台',
+    legalWorkspace: '法律工作台'
   },
   contractReview: {
     workspaceEyebrow: '法律工作台', title: '合同审查', subtitle: '依据审查标准逐条识别并处理合同风险。', newReview: '新建审查',
@@ -2192,6 +2194,10 @@ export default {
     helpAndDocs: '帮助与文档',
     description: '配置语言、外观等基础选项',
     settings: '设置',
+    reparseFailedDocuments: '重新解析失败文档',
+    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
+    reparseFailedDocumentsFailed: '重新解析失败文档失败',
+    downloadKnowledgeBaseDocuments: '下载知识库文档',
     close: '关闭设置'
   },
   language: {
@@ -4123,7 +4129,7 @@ export default {
     }
   },
   createChat: {
-    title: '你好，我是 LexAI。今天有什么法律事务需要协助？',
+    title: '你好，我是 ChatSwitch。今天有什么法律事务需要协助？',
     newSessionTitle: '新会话',
     messages: {
       createFailed: '创建会话失败',
@@ -4335,6 +4341,7 @@ export default {
     defaultUser: '用户',
     copyFailed: '复制失败',
     retry: '重试',
+    deployUpdateCheckButton: '检测更新',
     expand: '展开',
     collapse: '收起'
   },

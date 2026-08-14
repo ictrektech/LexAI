@@ -1,6 +1,6 @@
 export default {
   legalWorkspace: {
-    navigationLabel: 'Навигация рабочего пространства LexAI',
+    navigationLabel: 'Навигация рабочего пространства ChatSwitch',
     tools: 'Юридические инструменты',
     resources: 'Ресурсы',
     newChat: 'Новый чат',
@@ -15,7 +15,9 @@ export default {
     settings: 'Настройки',
     comingSoon: 'Скоро',
     collapseSidebar: 'Свернуть панель',
-    expandSidebar: 'Развернуть панель'
+    expandSidebar: 'Развернуть панель',
+    platformConsole: 'Консоль платформы',
+    legalWorkspace: 'Юридическое рабочее пространство'
   },
   contractReview: {
     selectAll:'Выбрать все в списке',selectedCount:'Выбрано: {count}',bulkArchive:'Архивировать выбранные',bulkRestore:'Восстановить выбранные',bulkDelete:'Удалить выбранные',bulkArchiveConfirm:'Архивировать выбранные проверки ({count})?',bulkArchiveRunningConfirm:'Будет архивировано проверок: {count}. Выполняющиеся проверки ({running}) будут пропущены. Продолжить?',bulkRestoreConfirm:'Восстановить выбранные проверки ({count})?',bulkDeleteConfirm:'Безвозвратно удалить выбранные проверки и документы ({count})?',bulkDeleteRunningConfirm:'Среди выбранных проверок ({count}) выполняются {running}. Удаление немедленно остановит проверку и запись результатов. Продолжить?',bulkActionSuccess:'Обработано проверок: {count}.',bulkActionPartial:'Обработано: {succeeded}, ошибок: {failed}.',bulkActionFailed:'Не удалось выполнить массовую операцию.',
@@ -2182,6 +2184,10 @@ export default {
     helpAndDocs: 'Справка и документация',
     description: 'Настройка языка, внешнего вида и других базовых параметров',
     settings: 'Настройки',
+    reparseFailedDocuments: 'Повторно разобрать сбойные документы',
+    reparseFailedDocumentsSuccess: 'Отправлено на повторный разбор: {count}',
+    reparseFailedDocumentsFailed: 'Не удалось повторно разобрать сбойные документы',
+    downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
     close: 'Закрыть настройки'
   },
   language: {
@@ -4325,6 +4331,7 @@ export default {
     defaultUser: 'Пользователь',
     copyFailed: 'Ошибка копирования',
     retry: 'Повторить',
+    deployUpdateCheckButton: 'Проверить обновления',
     expand: 'Развернуть',
     collapse: 'Свернуть'
   },

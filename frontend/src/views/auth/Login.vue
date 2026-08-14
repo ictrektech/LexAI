@@ -97,7 +97,7 @@
 
     <!-- Logo - Top Left -->
     <a href="https://github.com/Tencent/WeKnora" target="_blank" class="header-logo" :title="$t('common.github')">
-      <img class="logo-image" :src="lexaiLogo" alt="LexAI法律小助手" />
+      <img class="logo-image" :src="lexaiLogo" alt="ChatSwitch法律小助手" />
     </a>
 
     <!-- Header Links - Top Right -->
@@ -355,7 +355,7 @@ import screenshot1 from '@/assets/img/screenshot-1.svg'
 import screenshot2 from '@/assets/img/screenshot-2.svg'
 import screenshot3 from '@/assets/img/screenshot-3.svg'
 import screenshot4 from '@/assets/img/screenshot-4.svg'
-import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg'
+import lexaiLogo from '@/assets/img/ChatSwitch_logo.svg'
 
 const router = useRouter()
 const route = useRoute()

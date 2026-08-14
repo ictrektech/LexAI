@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-${ROOT_DIR}/.env.thor}"
 COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.thor.yml}"
+MODELS_COMPOSE_FILE="${MODELS_COMPOSE_FILE:-${ROOT_DIR}/docker-compose.thor.models.yml}"
 NETWORK_NAME="$(
   python3 - "$ENV_FILE" <<'PY'
 from pathlib import Path
@@ -19,6 +20,10 @@ PY
 )"
 
 docker network inspect "$NETWORK_NAME" >/dev/null 2>&1 || docker network create "$NETWORK_NAME" >/dev/null
+
+if [[ -f "$MODELS_COMPOSE_FILE" ]]; then
+  docker compose --env-file "$ENV_FILE" -f "$MODELS_COMPOSE_FILE" --profile models up -d
+fi
 
 ENV_FILE="$ENV_FILE" \
 COMPOSE_FILE="$COMPOSE_FILE" \
