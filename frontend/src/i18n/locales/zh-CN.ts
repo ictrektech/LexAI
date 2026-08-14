@@ -4263,7 +4263,7 @@ export default {
     }
   },
   createChat: {
-    title: '你好，我是 ChatSwitch。今天有什么法律事务需要协助？',
+    title: '你好，我是 LexAI。今天有什么法律事务需要协助？',
     newSessionTitle: '新会话',
     messages: {
       createFailed: '创建会话失败',

@@ -12,7 +12,7 @@ The root route and successful login/onboarding flows open the ChatSwitch workspa
 
 ## Brand assets
 
-The shared ChatSwitch wordmark is `src/assets/img/ChatSwitch_logo.svg`. The login header and expanded navigation shells use this asset; the legal sidebar keeps its compact `C` monogram when collapsed so the narrow layout remains usable.
+The shared ChatSwitch wordmark is `src/assets/img/ChatSwitch_logo.svg`. The login header and platform navigation shell use this asset. The legal workspace keeps the LexAI identity and uses `src/assets/img/LexAI_logo_exact.svg` in its sidebar, with a compact `L` monogram when collapsed so the narrow layout remains usable.
 
 ## Extending the legal workspace
 
