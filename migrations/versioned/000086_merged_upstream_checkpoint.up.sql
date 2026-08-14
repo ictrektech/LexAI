@@ -1,0 +1,3 @@
+-- Compatibility checkpoint for ictrek deployments that already reached
+-- migration version 86 before the Tencent upstream migration files were
+-- renumbered into the 87+ range.

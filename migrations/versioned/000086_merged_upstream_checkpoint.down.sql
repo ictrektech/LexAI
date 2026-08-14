@@ -1,0 +1,1 @@
+-- Compatibility checkpoint; no schema changes to revert.
