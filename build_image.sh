@@ -172,7 +172,33 @@ ensure_dockerfile_base_images() {
       err "Base image is not available locally and pull failed: ${image}"
       missing=1
     fi
-  done < <(awk 'toupper($1) == "FROM" { print $2 }' "$dockerfile" | sort -u)
+  # `FROM <image> AS <stage>` introduces a local multi-stage build alias.
+  # Only pull actual external images here; aliases such as `runtime` and
+  # `cube` are resolved by Docker during the build and are not registries.
+  done < <(
+    awk '
+      toupper($1) == "FROM" {
+        i = 2
+        if ($i ~ /^--/) i++
+
+        base_images[$i] = 1
+
+        for (j = i + 1; j <= NF; j++) {
+          if (toupper($j) == "AS" && j < NF) {
+            stage_names[tolower($(j + 1))] = 1
+            break
+          }
+        }
+      }
+
+      END {
+        for (base in base_images) {
+          if (base == "scratch" || (tolower(base) in stage_names)) continue
+          print base
+        }
+      }
+    ' "$dockerfile" | sort -u
+  )
 
   [[ "$missing" == "0" ]]
 }
