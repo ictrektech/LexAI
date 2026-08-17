@@ -46,8 +46,9 @@ const pageCount = ref(0)
 const currentPage = ref(1)
 const documentFontCompensation = ref(1)
 let pdf: PDFDocumentProxy | null = null
-let sourceData: ArrayBuffer | null = null
 let fontScaleObserver: MutationObserver | null = null
+let loadGeneration = 0
+let pdfRenderGeneration = 0
 
 const normalize = normalizeReviewText
 
@@ -62,32 +63,57 @@ function updateDocumentFontCompensation() {
 }
 
 async function load() {
-  loading.value = true; error.value = ''; pdf = null
+  const generation = ++loadGeneration
+  const previousPdf = pdf
+  pdf = null
+  pdfRenderGeneration++
+  if (previousPdf) void previousPdf.destroy().catch(() => {})
+  loading.value = true; error.value = ''
+  pageCount.value = 0; currentPage.value = 1
   try {
-    sourceData = await getContractReviewDocument(props.reviewId)
-    if (props.fileType === '.pdf') await loadPdf()
-    else await loadDocx()
-  } catch (cause: any) { error.value = cause?.message || t('contractReview.documentLoadFailed') }
-  finally { loading.value = false; await nextTick(); applyIssueMarks() }
+    const data = await getContractReviewDocument(props.reviewId)
+    if (generation !== loadGeneration) return
+    if (props.fileType === '.pdf') await loadPdf(data, generation)
+    else await loadDocx(data, generation)
+  } catch (cause: any) {
+    if (generation === loadGeneration) error.value = cause?.message || t('contractReview.documentLoadFailed')
+  } finally {
+    if (generation !== loadGeneration) return
+    loading.value = false
+    await nextTick()
+    if (generation === loadGeneration) applyIssueMarks()
+  }
 }
 
-async function loadPdf() {
-  if (!sourceData || !pdfEl.value) return
-  pdf = await getDocument({ data: new Uint8Array(sourceData.slice(0)) }).promise
-  pageCount.value = pdf.numPages
-  await renderPdf()
+async function loadPdf(data: ArrayBuffer, generation: number) {
+  if (generation !== loadGeneration || !pdfEl.value) return
+  const loadedPdf = await getDocument({ data: new Uint8Array(data.slice(0)) }).promise
+  if (generation !== loadGeneration || !pdfEl.value) {
+    await loadedPdf.destroy().catch(() => {})
+    return
+  }
+  pdf = loadedPdf
+  pageCount.value = loadedPdf.numPages
+  await renderPdf(loadedPdf, generation)
 }
 
-async function renderPdf() {
-  if (!pdf || !pdfEl.value) return
+async function renderPdf(documentProxy: PDFDocumentProxy | null = pdf, generation = loadGeneration) {
+  if (!documentProxy || !pdfEl.value || generation !== loadGeneration || pdf !== documentProxy) return
+  const renderGeneration = ++pdfRenderGeneration
+  const isCurrentRender = () => renderGeneration === pdfRenderGeneration
+    && generation === loadGeneration
+    && pdf === documentProxy
+    && pdfEl.value !== null
   pdfEl.value.innerHTML = ''
   // The document container counteracts the application's CSS zoom, so the
   // PDF should be rasterized only for the physical display density. Including
   // the app font scale here would render an oversized bitmap and then make the
   // browser downsample it through the inverse document zoom, which softens text.
   const outputScale = Math.max(1, window.devicePixelRatio || 1)
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const page = await pdf.getPage(pageNumber)
+  for (let pageNumber = 1; pageNumber <= documentProxy.numPages; pageNumber++) {
+    if (!isCurrentRender()) return
+    const page = await documentProxy.getPage(pageNumber)
+    if (!isCurrentRender()) return
     const viewport = page.getViewport({ scale: zoom.value * 1.25 })
     const pageEl = document.createElement('section'); pageEl.className = 'pdf-page'; pageEl.dataset.page = String(pageNumber)
     pageEl.style.width = `${viewport.width}px`; pageEl.style.height = `${viewport.height}px`
@@ -105,7 +131,9 @@ async function renderPdf() {
       viewport,
       transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
     }).promise
+    if (!isCurrentRender()) return
     const content = await page.getTextContent()
+    if (!isCurrentRender()) return
     for (const raw of content.items as any[]) {
       if (!('str' in raw) || !raw.str) continue
       const tx = Util.transform(viewport.transform, raw.transform)
@@ -117,11 +145,13 @@ async function renderPdf() {
   }
 }
 
-async function loadDocx() {
-  if (!sourceData || !docxEl.value) return
+async function loadDocx(data: ArrayBuffer, generation: number) {
+  if (generation !== loadGeneration || !docxEl.value) return
   const { renderAsync } = await import('docx-preview')
+  if (generation !== loadGeneration || !docxEl.value) return
   docxEl.value.innerHTML = ''
-  await renderAsync(new Blob([sourceData]), docxEl.value, undefined, { className: 'contract-docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true, useBase64URL: true })
+  await renderAsync(new Blob([data]), docxEl.value, undefined, { className: 'contract-docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true, useBase64URL: true })
+  if (generation !== loadGeneration || !docxEl.value) return
   pageCount.value = Math.max(1, docxEl.value.querySelectorAll('section').length)
 }
 
@@ -230,7 +260,14 @@ watch(() => props.selectedIssueId, selectMark)
 watch(() => props.issues, applyIssueMarks, { deep: true })
 watch(() => props.reviewId, load)
 onMounted(() => { observeAppFontScale(); void load() })
-onBeforeUnmount(() => { fontScaleObserver?.disconnect(); void pdf?.destroy() })
+onBeforeUnmount(() => {
+  loadGeneration++
+  pdfRenderGeneration++
+  fontScaleObserver?.disconnect()
+  const documentProxy = pdf
+  pdf = null
+  if (documentProxy) void documentProxy.destroy().catch(() => {})
+})
 defineExpose({ locateIssue, goToPage, setZoom })
 </script>
 

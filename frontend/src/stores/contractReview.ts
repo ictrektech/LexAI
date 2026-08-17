@@ -22,7 +22,17 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   }
   async function create() { const review = (await createContractReview()).data; current.value = review; return review }
   async function loadPlaybooks() { if (!playbooks.value.length) playbooks.value = (await listContractReviewPlaybooks()).data || [] }
-  async function load(id: string) { loading.value = true; try { current.value = (await getContractReview(id)).data; return current.value } finally { loading.value = false } }
+  async function load(id: string) {
+    loading.value = true
+    // Do not let a detail view render the previous contract while the new
+    // route is loading. That can start a PDF render which becomes stale as
+    // soon as the requested review arrives.
+    if (current.value?.id !== id) {
+      disconnect()
+      current.value = null
+    }
+    try { current.value = (await getContractReview(id)).data; return current.value } finally { loading.value = false }
+  }
   async function update(id: string, data: Parameters<typeof updateContractReview>[1]) { const review = (await updateContractReview(id, data)).data; if (current.value?.id === id) current.value = review; return review }
   async function upload(id: string, file: File) { uploadProgress.value = 0; const review = (await uploadContractReviewDocument(id, file, (v) => uploadProgress.value = v)).data; current.value = review; connect(id); return review }
   async function start(id: string) { const review = (await startContractReview(id)).data; current.value = review; connect(id); return review }
