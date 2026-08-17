@@ -49,7 +49,8 @@ const impressed = new Set<string>()
 watch(
   () => props.suggestionSet,
   (set) => {
-    if (set?.status === 'ready' && set.questions.length > 0 && !impressed.has(set.id)) {
+    const questions = Array.isArray(set?.questions) ? set.questions : []
+    if (set?.status === 'ready' && questions.length > 0 && !impressed.has(set.id)) {
       impressed.add(set.id)
       emit('impression', set)
     }

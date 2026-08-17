@@ -17,6 +17,11 @@ test('keeps the existing follow-up card visible while regenerating', () => {
   assert.match(component, /class="follow-ups__list"/)
 })
 
+test('guards ready responses that omit the questions array', () => {
+  assert.match(component, /const questions = Array\.isArray\(set\?\.questions\) \? set\.questions : \[\]/)
+  assert.match(component, /set\?\.status === 'ready' && questions\.length > 0/)
+})
+
 test('carries the lightbulb into the expanding question card', () => {
   assert.match(component, /class="follow-ups__title"/)
   assert.match(component, /name="lightbulb"/)

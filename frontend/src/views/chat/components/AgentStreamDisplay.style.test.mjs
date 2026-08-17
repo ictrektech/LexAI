@@ -29,6 +29,13 @@ test('streaming log renders reasoning alongside tool calls', () => {
   assert.match(source, /if \(!isConversationDone\.value\)\s*\{\s*return result;\s*\}/)
 })
 
+test('event-list helpers are safe for immediate typewriter evaluation', () => {
+  assert.match(source, /function isThinkingLikeEvent\(event: any\): boolean/)
+  assert.match(source, /function getThinkingContent\(event: any\): string/)
+  assert.match(source, /function buildFullEventList\(stream: any\[\]\)/)
+  assert.doesNotMatch(source, /const buildFullEventList =/)
+})
+
 test('expanded model reasoning stays inline without a separate thinking title', () => {
   assert.match(source, /class="thinking-inline-content markdown-content"/)
   assert.match(source, /class="thinking-inline-markdown" v-html="renderMarkdownContent\(event\.content\)"/)
