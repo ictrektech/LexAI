@@ -45,7 +45,7 @@ Creating a review immediately persists a draft. Upload one PDF or DOCX, wait for
 
 The task list supports selecting individual rows or all visible rows. Active tasks can be archived in bulk, archived tasks can be restored in bulk, and either view can permanently delete selected reviews. Running reviews are skipped by archive operations. Deleting a running review warns the user and prevents any later background result from recreating the deleted task. Bulk APIs process up to 500 unique IDs and report per-item success so one invalid task does not block the rest.
 
-PDF contracts use `pdfjs-dist` for page navigation, zoom, selectable text, and issue highlights. DOCX contracts use `docx-preview`; its browser pagination can differ slightly from Microsoft Word. AI issue highlights are included in this release, while manual annotations, redlining, exports, and collaboration are extension points.
+PDF contracts use `pdfjs-dist` for page navigation, zoom, selectable text, and issue highlights. DOCX contracts use `docx-preview`; its browser pagination can differ slightly from Microsoft Word. AI issue highlights accept whitespace differences and omission markers such as `...` when locating quoted source text. Manual annotations, redlining, exports, and collaboration are extension points.
 
 Completed reviews can enter reconfiguration mode: update the playbook or represented party, cancel the pending changes, or rerun the review with the new configuration. Failed reviews can be retried without uploading the source document again.
 
