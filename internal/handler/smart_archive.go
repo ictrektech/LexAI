@@ -259,6 +259,10 @@ func (h *SmartArchiveHandler) BatchDeleteDocuments(c *gin.Context) {
 	h.batchDocumentAction(c, types.ArchiveBulkDelete)
 }
 
+func (h *SmartArchiveHandler) BatchPurgeDocuments(c *gin.Context) {
+	h.batchDocumentAction(c, types.ArchiveBulkPurge)
+}
+
 func (h *SmartArchiveHandler) batchDocumentAction(c *gin.Context, action types.ArchiveBulkAction) {
 	_, tenant, ok := archiveContext(c)
 	if !ok {
@@ -567,6 +571,18 @@ func (h *SmartArchiveHandler) MarkNotificationRead(c *gin.Context) {
 		return
 	}
 	if err := h.service.MarkNotificationRead(c.Request.Context(), tenant, user, c.Param("id")); err != nil {
+		archiveError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *SmartArchiveHandler) DeleteNotification(c *gin.Context) {
+	user, tenant, ok := archiveContext(c)
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteNotification(c.Request.Context(), tenant, user, c.Param("id")); err != nil {
 		archiveError(c, err)
 		return
 	}

@@ -158,6 +158,34 @@ func TestDeliverReminderIsTransactionalAndIdempotent(t *testing.T) {
 	require.Zero(t, notificationCount)
 }
 
+func TestDeleteReminderRemovesDeliveryArtifacts(t *testing.T) {
+	repo, db := newSmartArchiveSearchRepository(t)
+	reminder := &types.ArchiveReminder{TenantID: 7, AssigneeID: "user-1", Type: types.ArchiveReminderDelivery, Title: "交付节点提醒", Rule: types.JSON(`{}`), Status: types.ArchiveReminderActive, CreatedBy: "user-1"}
+	require.NoError(t, db.Create(reminder).Error)
+	require.NoError(t, db.Create(&types.ArchiveReminderOccurrence{TenantID: 7, ReminderID: reminder.ID, Fingerprint: "delivery-occurrence", DueAt: time.Now().UTC()}).Error)
+	require.NoError(t, db.Create(&types.ArchiveNotification{TenantID: 7, UserID: "user-1", ReminderID: reminder.ID, Title: reminder.Title}).Error)
+
+	require.NoError(t, repo.DeleteReminder(context.Background(), 7, reminder.ID))
+	var occurrenceCount, notificationCount, reminderCount int64
+	require.NoError(t, db.Model(&types.ArchiveReminderOccurrence{}).Where("reminder_id = ?", reminder.ID).Count(&occurrenceCount).Error)
+	require.NoError(t, db.Model(&types.ArchiveNotification{}).Where("reminder_id = ?", reminder.ID).Count(&notificationCount).Error)
+	require.NoError(t, db.Model(&types.ArchiveReminder{}).Where("id = ?", reminder.ID).Count(&reminderCount).Error)
+	require.Zero(t, occurrenceCount)
+	require.Zero(t, notificationCount)
+	require.Zero(t, reminderCount)
+}
+
+func TestDeleteNotificationIsTenantAndUserScoped(t *testing.T) {
+	repo, db := newSmartArchiveSearchRepository(t)
+	notification := &types.ArchiveNotification{TenantID: 7, UserID: "user-1", Title: "交付节点提醒"}
+	require.NoError(t, db.Create(notification).Error)
+	require.ErrorIs(t, repo.DeleteNotification(context.Background(), 7, "user-2", notification.ID), gorm.ErrRecordNotFound)
+	require.NoError(t, repo.DeleteNotification(context.Background(), 7, "user-1", notification.ID))
+	var count int64
+	require.NoError(t, db.Model(&types.ArchiveNotification{}).Where("id = ?", notification.ID).Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestNextReminderWakeAtUsesActiveDueAndSnoozeTimes(t *testing.T) {
 	repo, db := newSmartArchiveSearchRepository(t)
 	now := time.Now().UTC().Truncate(time.Second)

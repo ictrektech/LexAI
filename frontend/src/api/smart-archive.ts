@@ -5,7 +5,7 @@ import { del, get, getDown, patch, post, postUpload } from '@/utils/request'
 export type ArchiveDocumentType = 'contract' | 'loan_agreement' | 'outbound_order' | 'return_order' | 'renewal' | 'payment' | 'delivery' | 'other'
 export type ArchiveExtractionStatus = 'uploading' | 'parsing' | 'extracting' | 'linking' | 'needs_review' | 'completed' | 'failed'
 export type ArchiveReminderStatus = 'draft' | 'active' | 'snoozed' | 'handled' | 'canceled'
-export type ArchiveBulkAction = 'archive' | 'restore' | 'delete' | 'ignore'
+export type ArchiveBulkAction = 'archive' | 'restore' | 'delete' | 'purge' | 'ignore'
 
 export interface ArchiveEvidence { id: string; document_id: string; knowledge_id?: string; chunk_id?: string; field_name: string; value: string; confidence: number; quote: string; locator_kind: string; locator: Record<string, unknown>; source_start: number; source_end: number; is_manual: boolean }
 export interface ArchiveCustomer { id: string; name: string; normalized: string; aliases: string[]; notes?: string }
@@ -32,6 +32,7 @@ export const bulkArchiveDocuments = (ids: string[]) => post<ApiResponse<ArchiveB
 export const bulkRestoreDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/restore', { ids })
 export const deleteArchiveDocument = (id: string) => del(`/api/v1/archive/documents/${id}`)
 export const bulkDeleteArchiveDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/delete', { ids })
+export const bulkPurgeArchiveDocuments = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/purge', { ids })
 export const getArchiveDocumentEvidence = (id: string) => get<ApiResponse<ArchiveEvidence[]>>(`/api/v1/archive/documents/${id}/evidence`)
 export const getArchiveDocumentPreview = (id: string) => getDown(`/api/v1/archive/documents/${id}/preview`)
 export const listArchiveCustomers = (q = '') => get<ApiResponse<ArchiveCustomer[]>>(`/api/v1/archive/customers?q=${encodeURIComponent(q)}`)
@@ -47,6 +48,7 @@ export const deleteArchiveReminder = (id: string) => del(`/api/v1/archive/remind
 export const bulkDeleteArchiveReminders = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/reminders/bulk/delete', { ids })
 export const listArchiveNotifications = (unread = false) => get<ApiResponse<ArchiveNotification[]>>(`/api/v1/archive/notifications?unread=${unread}`)
 export const markArchiveNotificationRead = (id: string) => post(`/api/v1/archive/notifications/${id}/read`)
+export const deleteArchiveNotification = (id: string) => del(`/api/v1/archive/notifications/${id}`)
 
 export const importArchiveFiles = (files: File[], onProgress?: (value: number) => void) => {
   const data = new FormData(); files.forEach((file) => data.append('files', file))

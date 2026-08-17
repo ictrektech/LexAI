@@ -97,6 +97,7 @@ const (
 	ArchiveBulkArchive ArchiveBulkAction = "archive"
 	ArchiveBulkRestore ArchiveBulkAction = "restore"
 	ArchiveBulkDelete  ArchiveBulkAction = "delete"
+	ArchiveBulkPurge   ArchiveBulkAction = "purge"
 	ArchiveBulkIgnore  ArchiveBulkAction = "ignore"
 )
 

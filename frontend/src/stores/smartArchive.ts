@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { archiveDocument, bulkArchiveDocuments, bulkDeleteArchiveDocuments, bulkDeleteArchiveReminders, bulkIgnoreArchiveReminderCandidates, bulkRestoreDocuments, createArchiveReminderFromCandidate, deleteArchiveDocument, getArchiveBatch, getArchiveDocument, getArchiveSettings, importArchiveFiles, listArchiveCustomers, listArchiveDocuments, listArchiveReminderCandidates, listArchiveReminders, listArchiveNotifications, restoreDocument, retryArchiveDocumentExtraction, searchArchive, streamArchiveBatch, updateArchiveDocument, updateArchiveReminder, type ArchiveBatch, type ArchiveBulkActionResult, type ArchiveCustomer, type ArchiveDocument, type ArchiveNotification, type ArchiveReminder, type ArchiveReminderCandidate, type ArchiveSearchResponse, type ArchiveSettings } from '@/api/smart-archive'
+import { archiveDocument, bulkArchiveDocuments, bulkDeleteArchiveDocuments, bulkDeleteArchiveReminders, bulkIgnoreArchiveReminderCandidates, bulkPurgeArchiveDocuments, bulkRestoreDocuments, createArchiveReminderFromCandidate, deleteArchiveDocument, deleteArchiveNotification, getArchiveBatch, getArchiveDocument, getArchiveSettings, importArchiveFiles, listArchiveCustomers, listArchiveDocuments, listArchiveReminderCandidates, listArchiveReminders, listArchiveNotifications, markArchiveNotificationRead, restoreDocument, retryArchiveDocumentExtraction, searchArchive, streamArchiveBatch, updateArchiveDocument, updateArchiveReminder, type ArchiveBatch, type ArchiveBulkActionResult, type ArchiveCustomer, type ArchiveDocument, type ArchiveNotification, type ArchiveReminder, type ArchiveReminderCandidate, type ArchiveSearchResponse, type ArchiveSettings } from '@/api/smart-archive'
 
 export const useSmartArchiveStore = defineStore('smartArchive', () => {
   const documents = ref<ArchiveDocument[]>([])
@@ -28,14 +28,16 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
   async function loadReminderCandidates(status = 'pending') { reminderCandidates.value = (await listArchiveReminderCandidates(status)).data || [] }
   async function createReminderFromCandidate(id: string, data: { offset_days: number; time: string; assignee_id?: string }) { const row = (await createArchiveReminderFromCandidate(id, data)).data; reminderCandidates.value = reminderCandidates.value.filter((item) => item.id !== id); reminders.value = [...reminders.value, row]; return row }
   async function loadNotifications(unread = false) { notifications.value = (await listArchiveNotifications(unread)).data || [] }
+  async function markNotificationRead(id: string) { await markArchiveNotificationRead(id); notifications.value = notifications.value.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item) }
+  async function deleteNotification(id: string) { await deleteArchiveNotification(id); notifications.value = notifications.value.filter((item) => item.id !== id) }
   async function search(query: string, filters: Record<string, unknown> = {}) { searchResult.value = (await searchArchive({ query, filters, page: 1, page_size: 30 })).data; return searchResult.value }
   async function updateDocument(id: string, data: Record<string, unknown>) { const row = (await updateArchiveDocument(id, data)).data; current.value = row; documents.value = documents.value.map((item) => item.id === id ? row : item); return row }
   async function retryExtraction(id: string) { const row = (await retryArchiveDocumentExtraction(id)).data; documents.value = documents.value.map((item) => item.id === id ? row : item); if (current.value?.id === id) current.value = row; return row }
   async function archive(id: string) { const row = (await archiveDocument(id)).data; documents.value = documents.value.filter((item) => item.id !== id); return row }
   async function restore(id: string) { const row = (await restoreDocument(id)).data; documents.value = documents.value.filter((item) => item.id !== id); return row }
   async function deleteDocument(id: string) { await deleteArchiveDocument(id); documents.value = documents.value.filter((item) => item.id !== id); if (current.value?.id === id) current.value = null }
-  async function bulkAction(action: 'archive' | 'restore' | 'delete', ids: string[]): Promise<ArchiveBulkActionResult> {
-    const response = action === 'archive' ? await bulkArchiveDocuments(ids) : action === 'restore' ? await bulkRestoreDocuments(ids) : await bulkDeleteArchiveDocuments(ids)
+  async function bulkAction(action: 'archive' | 'restore' | 'delete' | 'purge', ids: string[]): Promise<ArchiveBulkActionResult> {
+    const response = action === 'archive' ? await bulkArchiveDocuments(ids) : action === 'restore' ? await bulkRestoreDocuments(ids) : action === 'purge' ? await bulkPurgeArchiveDocuments(ids) : await bulkDeleteArchiveDocuments(ids)
     const result = response.data
     const succeeded = new Set(result.items.filter((item) => item.success).map((item) => item.id))
     documents.value = documents.value.filter((item) => !succeeded.has(item.id))
@@ -68,5 +70,5 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
     batchPollTimer = setInterval(() => { void refreshBatch(id) }, 1500)
   }
   function disconnect() { streamController?.abort(); streamController = null; stopBatchPolling() }
-  return { documents, customers, reminders, reminderCandidates, notifications, settings, current, searchResult, loading, importProgress, loadDocuments, refreshDocuments, loadSettings, loadDocument, upload, loadEntities, loadReminders, loadReminderCandidates, createReminderFromCandidate, loadNotifications, search, updateDocument, retryExtraction, archive, restore, deleteDocument, bulkAction, updateReminder, bulkDeleteReminders, bulkIgnoreReminderCandidates, connectBatch, disconnect }
+  return { documents, customers, reminders, reminderCandidates, notifications, settings, current, searchResult, loading, importProgress, loadDocuments, refreshDocuments, loadSettings, loadDocument, upload, loadEntities, loadReminders, loadReminderCandidates, createReminderFromCandidate, loadNotifications, markNotificationRead, deleteNotification, search, updateDocument, retryExtraction, archive, restore, deleteDocument, bulkAction, updateReminder, bulkDeleteReminders, bulkIgnoreReminderCandidates, connectBatch, disconnect }
 })

@@ -16,6 +16,7 @@ func RegisterSmartArchiveRoutes(r *gin.RouterGroup, h *handler.SmartArchiveHandl
 	archive.POST("/documents/bulk/archive", g.Contributor(), h.BatchArchiveDocuments)
 	archive.POST("/documents/bulk/restore", g.Admin(), h.BatchRestoreDocuments)
 	archive.POST("/documents/bulk/delete", g.Admin(), h.BatchDeleteDocuments)
+	archive.POST("/documents/bulk/purge", g.Admin(), h.BatchPurgeDocuments)
 	archive.GET("/documents/:id", g.Viewer(), h.GetDocument)
 	archive.PATCH("/documents/:id", g.Contributor(), h.UpdateDocument)
 	archive.POST("/documents/:id/retry-extraction", g.Contributor(), h.RetryExtraction)
@@ -39,4 +40,5 @@ func RegisterSmartArchiveRoutes(r *gin.RouterGroup, h *handler.SmartArchiveHandl
 	archive.POST("/reminders/bulk/delete", g.Contributor(), h.BatchDeleteReminders)
 	archive.GET("/notifications", g.Viewer(), h.Notifications)
 	archive.POST("/notifications/:id/read", g.Viewer(), h.MarkNotificationRead)
+	archive.DELETE("/notifications/:id", g.Viewer(), h.DeleteNotification)
 }

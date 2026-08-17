@@ -70,8 +70,11 @@ results. Restore and delete require Admin or Owner; archive requires Contributor
 or above. Delete is available from archived rows and the document detail panel.
 
 The Reminders tab supports batch deletion; active and snoozed reminders stop
-scheduling immediately while notification history remains. Pending candidates
-can be batch-marked `ignored` and remain available for audit.
+scheduling immediately and their in-app notifications are removed. Deleting a
+source document also cancels its reminders and clears their notifications.
+Individual notifications can be deleted from the notification list, while
+pending candidates can be batch-marked `ignored` and remain available for
+audit.
 
 To extend the module, add an enum/schema field in `internal/types/smart_archive.go`, persist its evidence in `archive_field_evidence`, and expose the field in `src/views/legal/SmartArchive.vue`. Keep citations bound to a document and source locator; never display an AI value without its evidence.
 

@@ -48,6 +48,8 @@ type ArchiveRepository interface {
 	CreateNotification(context.Context, *types.ArchiveNotification) error
 	ListNotifications(context.Context, uint64, string, bool) ([]*types.ArchiveNotification, error)
 	MarkNotificationRead(context.Context, uint64, string, string) error
+	DeleteNotification(context.Context, uint64, string, string) error
+	DeleteReminderDeliveryArtifacts(context.Context, uint64, string) error
 	ListReminderCandidates(context.Context, uint64, string) ([]*types.ArchiveReminderCandidate, error)
 	GetReminderCandidate(context.Context, uint64, string) (*types.ArchiveReminderCandidate, error)
 	UpsertReminderCandidate(context.Context, *types.ArchiveReminderCandidate) error
@@ -88,6 +90,7 @@ type SmartArchiveService interface {
 	BackfillReminderCandidates(context.Context) error
 	ListNotifications(context.Context, uint64, string, bool) ([]*types.ArchiveNotification, error)
 	MarkNotificationRead(context.Context, uint64, string, string) error
+	DeleteNotification(context.Context, uint64, string, string) error
 	RunDueReminders(context.Context) error
 	NextReminderWakeAt(context.Context) (*time.Time, error)
 	ReminderWakeups() <-chan struct{}

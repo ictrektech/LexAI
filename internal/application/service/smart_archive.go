@@ -1690,6 +1690,49 @@ func (s *smartArchiveService) ArchiveDocument(ctx context.Context, tenantID uint
 	}
 	return row, nil
 }
+
+// clearDocumentReminderAssociations removes delivery artifacts when their
+// source document leaves the active archive. Reminders remain as canceled
+// records for audit, while their notifications and one-shot delivery state no
+// longer have a useful source to point at.
+func (s *smartArchiveService) clearDocumentReminderAssociations(ctx context.Context, tenantID uint64, documentID string) error {
+	reminders, err := s.repo.ListReminders(ctx, tenantID, "")
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, reminder := range reminders {
+		if reminder == nil || reminder.DocumentID != documentID {
+			continue
+		}
+		if reminder.Status != types.ArchiveReminderHandled && reminder.Status != types.ArchiveReminderCanceled {
+			reminder.Status = types.ArchiveReminderCanceled
+			if updateErr := s.repo.UpdateReminder(ctx, reminder); updateErr != nil && firstErr == nil {
+				firstErr = updateErr
+			}
+		}
+		if cleanupErr := s.repo.DeleteReminderDeliveryArtifacts(ctx, tenantID, reminder.ID); cleanupErr != nil && firstErr == nil {
+			firstErr = cleanupErr
+		}
+	}
+	if candidates, listErr := s.repo.ListReminderCandidates(ctx, tenantID, ""); listErr != nil {
+		if firstErr == nil {
+			firstErr = listErr
+		}
+	} else {
+		for _, candidate := range candidates {
+			if candidate == nil || candidate.DocumentID != documentID || candidate.Status != types.ArchiveReminderCandidatePending {
+				continue
+			}
+			candidate.Status = types.ArchiveReminderCandidateSuperseded
+			if updateErr := s.repo.UpdateReminderCandidate(ctx, candidate); updateErr != nil && firstErr == nil {
+				firstErr = updateErr
+			}
+		}
+	}
+	return firstErr
+}
+
 func (s *smartArchiveService) DeleteDocument(ctx context.Context, tenantID uint64, id string) error {
 	row, err := s.GetDocument(ctx, tenantID, id)
 	if err != nil {
@@ -1716,28 +1759,59 @@ func (s *smartArchiveService) DeleteDocument(ctx context.Context, tenantID uint6
 	if err := s.repo.UpdateDocument(ctx, row); err != nil {
 		return err
 	}
-	if reminders, listErr := s.repo.ListReminders(ctx, tenantID, ""); listErr == nil {
-		for _, reminder := range reminders {
-			if reminder.DocumentID == id && reminder.Status != types.ArchiveReminderHandled && reminder.Status != types.ArchiveReminderCanceled {
-				reminder.Status = types.ArchiveReminderCanceled
-				_ = s.repo.UpdateReminder(ctx, reminder)
-			}
-		}
-	}
-	if candidates, listErr := s.repo.ListReminderCandidates(ctx, tenantID, ""); listErr == nil {
-		for _, candidate := range candidates {
-			if candidate.DocumentID == id && candidate.Status == types.ArchiveReminderCandidatePending {
-				candidate.Status = types.ArchiveReminderCandidateSuperseded
-				_ = s.repo.UpdateReminderCandidate(ctx, candidate)
-			}
-		}
+	if err := s.clearDocumentReminderAssociations(ctx, tenantID, id); err != nil {
+		return err
 	}
 	return nil
 }
 
+// permanentlyDeleteDocument is intentionally separate from DeleteDocument:
+// the latter is the user-facing recycle-bin operation, while this path is
+// reserved for the explicit admin-only bulk purge action.
+func (s *smartArchiveService) permanentlyDeleteDocument(ctx context.Context, tenantID uint64, id string) error {
+	row, err := s.GetDocument(ctx, tenantID, id)
+	if err != nil {
+		return err
+	}
+	// Purge is exposed from the archived view, so keep the same state
+	// restriction in the service layer as well. This prevents a caller from
+	// turning the endpoint into a general-purpose destructive delete API.
+	if row.ArchivedAt == nil || row.TrashedAt != nil {
+		return ErrArchiveInvalidState
+	}
+
+	// Reminders and candidates do not have a document foreign key with
+	// cascading deletion. Stop their future work and remove their delivery
+	// artifacts before removing the source document.
+	if err := s.clearDocumentReminderAssociations(ctx, tenantID, id); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(row.KnowledgeID) != "" && s.knowledge == nil {
+		return errors.New("knowledge service is unavailable for permanent archive deletion")
+	}
+	if err := s.deleteManagedKnowledgeMirror(ctx, tenantID, row); err != nil {
+		return err
+	}
+	if row.FilePath != "" {
+		if s.files == nil {
+			return errors.New("file service is unavailable for permanent archive deletion")
+		}
+		if err := s.files.DeleteFile(ctx, row.FilePath); err != nil {
+			return err
+		}
+	}
+	if s.parseArtifacts != nil {
+		if err := s.parseArtifacts.DeleteBySourceDocument(archiveContextWithTenant(ctx, tenantID), tenantID, id); err != nil {
+			return err
+		}
+	}
+	return s.repo.HardDeleteDocument(ctx, tenantID, id)
+}
+
 func (s *smartArchiveService) BatchDocumentAction(ctx context.Context, tenantID uint64, ids []string, action types.ArchiveBulkAction) (*types.ArchiveBulkActionResult, error) {
 	switch action {
-	case types.ArchiveBulkArchive, types.ArchiveBulkRestore, types.ArchiveBulkDelete:
+	case types.ArchiveBulkArchive, types.ArchiveBulkRestore, types.ArchiveBulkDelete, types.ArchiveBulkPurge:
 	default:
 		return nil, ErrArchiveInvalidState
 	}
@@ -1765,6 +1839,8 @@ func (s *smartArchiveService) BatchDocumentAction(ctx context.Context, tenantID 
 			_, err = s.ArchiveDocument(ctx, tenantID, id, false)
 		case types.ArchiveBulkDelete:
 			err = s.DeleteDocument(ctx, tenantID, id)
+		case types.ArchiveBulkPurge:
+			err = s.permanentlyDeleteDocument(ctx, tenantID, id)
 		}
 		if err != nil {
 			item.Error = err.Error()
@@ -2229,6 +2305,15 @@ func (s *smartArchiveService) ListNotifications(ctx context.Context, tenantID ui
 func (s *smartArchiveService) MarkNotificationRead(ctx context.Context, tenantID uint64, userID, id string) error {
 	return s.repo.MarkNotificationRead(ctx, tenantID, userID, id)
 }
+func (s *smartArchiveService) DeleteNotification(ctx context.Context, tenantID uint64, userID, id string) error {
+	if err := s.repo.DeleteNotification(ctx, tenantID, userID, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArchiveNotFound
+		}
+		return err
+	}
+	return nil
+}
 
 func (s *smartArchiveService) NextReminderWakeAt(ctx context.Context) (*time.Time, error) {
 	return s.repo.NextReminderWakeAt(ctx)
@@ -2312,6 +2397,10 @@ func (s *smartArchiveService) cleanupExpiredTrash(ctx context.Context) error {
 			retention = settings.TrashRetentionDays
 		}
 		if row.TrashedAt.AddDate(0, 0, retention).After(now) {
+			continue
+		}
+		if err := s.clearDocumentReminderAssociations(ctx, row.TenantID, row.ID); err != nil {
+			logger.Warnf(ctx, "smart archive: deferred reminder cleanup skipped for %s: %v", row.ID, err)
 			continue
 		}
 		// Older releases could move an archive row to trash without deleting

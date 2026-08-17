@@ -1,75 +1,49 @@
-# Smart Archive MVP
+# 智能档案 MVP
 
-Smart Archive is available at `/legal/smart-archive`. It imports PDF, Word,
-Excel, JPG/JPEG, PNG and WEBP files, extracts structured fields with evidence,
-and optionally links a related customer. New imports do not create asset rows.
+智能档案位于 `/legal/smart-archive`。它支持导入 PDF、Word、Excel、JPG/JPEG、PNG 和 WEBP 文件，提取带证据的结构化字段，并可选关联相关客户。新导入的文件不会创建资产记录。
 
 ## API
 
-- Settings: `GET/PATCH /api/v1/archive/settings`
-- Import: `POST /archive/import-batches`, `GET /archive/import-batches/:id`,
-  `GET /archive/import-batches/:id/events`
-- Documents: `GET/PATCH /archive/documents/:id`, plus `retry-extraction`,
-  `archive`, `restore`, `DELETE`, `evidence` and `preview`
-- Bulk documents: `POST /archive/documents/bulk/archive|restore|delete`
-- Search and entities: `POST /archive/search`, `GET/PATCH /archive/customers/:id`
-- Reminder candidates: list, create reminder, and `bulk/ignore`
-- Reminders: list/create/update/delete and `POST /archive/reminders/bulk/delete`
-- Notifications: list and mark read
+- 设置：`GET/PATCH /api/v1/archive/settings`
+- 导入：`POST /archive/import-batches`、`GET /archive/import-batches/:id`、`GET /archive/import-batches/:id/events`
+- 文档：`GET/PATCH /archive/documents/:id`，以及 `retry-extraction`、`archive`、`restore`、`DELETE`、`evidence` 和 `preview`
+- 批量文档操作：`POST /archive/documents/bulk/archive|restore|delete|purge`
+- 搜索与实体：`POST /archive/search`、`GET/PATCH /archive/customers/:id`
+- 提醒候选项：列表、创建提醒和 `bulk/ignore`
+- 提醒：列表、创建、更新、删除，以及 `POST /archive/reminders/bulk/delete`
+- 通知：列表、标记已读和删除
 
-All paths above are under `/api/v1`. Bulk requests use `{ "ids": [...] }` and
-return per-item results.
+以上路径均位于 `/api/v1` 下。批量请求使用 `{ "ids": [...] }`，并返回逐项处理结果。
 
-Viewer can read, search, preview and mark notifications read. Contributor can
-import, correct fields, retry, archive and manage reminders. Restoring archived
-documents requires Admin or Owner. Every operation is tenant-scoped.
+Viewer（查看者）可以读取、搜索、预览文档，并将通知标记为已读。Contributor（协作者）可以导入文档、修正字段、重试提取、归档文档和管理提醒。恢复已归档文档需要 Admin 或 Owner 权限。所有操作均限定在当前租户范围内。
 
-## Extraction and evidence
+## 提取与证据
 
-- Import is idempotent by file hash and extraction version.
-- Images keep their original bytes; OCR uses an active vision model and a
-  bounded derivative. Missing OCR capability sends the document to Review Queue.
-- Evidence stores the source quote, character range and a PDF, Office,
-  spreadsheet or image locator. Unlocatable values are not presented as facts.
-- Related-party names remove Markdown/OCR decoration and reject role-only values
-  such as `乙方：`. Government procurement documents recognize `采购人` and
-  `甲方（买方）`. Startup backfill repairs old AI values but preserves manual edits.
-- Each import is mirrored into the read-only managed knowledge base
-  **合同智能档案** through a reusable parse artifact, avoiding duplicate OCR.
+- 导入依据文件哈希和提取版本实现幂等。
+- 图片保留原始字节；OCR 使用激活的视觉模型和受控大小的派生文件。缺少 OCR 能力时，文档会进入 Review Queue。
+- 证据会保存源文摘录、字符范围，以及 PDF、Office、电子表格或图片定位信息。无法定位的值不会作为事实展示。
+- 关联方名称会清理 Markdown/OCR 装饰内容，并拒绝仅包含角色的值，例如 `乙方：`。政府采购文档会识别 `采购人` 和 `甲方（买方）`。启动时的回填会修复旧的 AI 值，但保留手工修改。
+- 每次导入都会通过可复用的解析产物镜像到只读托管知识库 **合同智能档案**，避免重复 OCR。
 
-Archiving keeps the source, evidence, knowledge-base mirror, reminder candidates
-and reminders. Admin/Owner users can move archived documents to the recycle bin
-with delete; the operation cancels related pending reminders and removes the
-managed knowledge mirror. Bulk delete accepts up to 500 unique IDs and reports
-per-item results. Trash cleanup follows the configured retention period.
+归档会保留源文件、证据、知识库镜像、提醒候选项和提醒。Admin/Owner 用户可以通过单文档删除操作将已归档文档移入回收站；该操作会取消相关的待处理提醒，并移除托管知识库镜像。归档列表的批量删除操作会调用 `bulk/purge`，永久删除选中的源文件和档案记录，且无法撤销。该操作最多接受 500 个不重复 ID，并返回逐项处理结果。旧版客户端仍可使用 `bulk/delete` 接口执行回收站操作。回收站清理遵循已配置的保留期限。
 
-## Reminders
+## 提醒
 
-Extraction creates reminder candidates, never active reminders. A user must:
+提取过程只会创建提醒候选项，不会直接创建激活中的提醒。用户必须：
 
-1. Confirm the date, offset, time and assignee.
-2. Create a formal `draft` reminder.
-3. Activate it.
+1. 确认日期、提前量、时间和负责人。
+2. 创建正式的 `draft` 提醒。
+3. 激活提醒。
 
-Supported MVP events are expiry, return, payment, delivery, renewal and missing
-return records. Active reminders use the workspace timezone, persist UTC due
-times and create idempotent in-app notifications. The scheduler wakes for the
-next due item, scans immediately after startup and runs a five-minute recovery
-scan so restarts do not lose reminders.
+MVP 支持的事件包括到期、归还、付款、交付、续约和缺少归还记录。激活的提醒使用工作区时区，以 UTC 保存到期时间，并创建幂等的应用内通知。调度器会在下一条任务到期时唤醒，在启动后立即扫描，并每五分钟执行一次恢复扫描，避免重启导致提醒丢失。
 
-The Reminders tab can batch-delete up to 500 formal reminders. Deleting an
-active or snoozed reminder stops future scheduling but keeps notification
-history. Pending candidates can be batch-marked `ignored`; ignored records stay
-queryable for audit and never create notifications.
+提醒页可以批量删除最多 500 条正式提醒。删除激活中或已暂停的提醒后，将停止后续调度，并移除其应用内通知和一次性事件。将源文档移入回收站也会取消其提醒并移除相关通知；待处理的候选项会被标记为已替代。通知也可以在应用内通知列表中逐条删除。待处理候选项可以批量标记为 `ignored`；被忽略的记录仍可查询以供审计，且不会创建通知。
 
-Import progress uses SSE plus a 1.5-second snapshot fallback. The document list
-also polls while a row is uploading, parsing, extracting or linking, so status
-changes do not require a manual refresh.
+导入进度使用 SSE，并以 1.5 秒快照作为回退机制。文档列表在某一行处于上传、解析、提取或关联状态时也会轮询，因此状态变化不需要手动刷新。
 
-## Migrations
+## 数据库迁移
 
-- PostgreSQL: `000080`–`000085`
-- SQLite: `000003`–`000006`
+- PostgreSQL：`000080`–`000085`
+- SQLite：`000003`–`000006`
 
-Use the normal application migration runner. Periodic reminders, external
-notifications, custom schemas and ERP synchronization are out of scope.
+使用应用默认的迁移执行器。周期性提醒、外部通知、自定义 schema 和 ERP 同步不在当前范围内。

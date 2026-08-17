@@ -300,14 +300,23 @@ func (r *smartArchiveRepository) UpdateReminder(ctx context.Context, row *types.
 	return r.db.WithContext(ctx).Save(row).Error
 }
 func (r *smartArchiveRepository) DeleteReminder(ctx context.Context, tenantID uint64, id string) error {
-	result := r.db.WithContext(ctx).Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&types.ArchiveReminder{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Notifications and occurrences are delivery artifacts of the reminder,
+		// not independent history once the reminder itself is deleted. Remove
+		// them explicitly so SQLite and PostgreSQL have identical behavior even
+		// when foreign-key enforcement differs between deployments.
+		if err := deleteReminderDeliveryArtifacts(tx, tenantID, id); err != nil {
+			return err
+		}
+		result := tx.Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&types.ArchiveReminder{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 func (r *smartArchiveRepository) ListDueReminders(ctx context.Context, limit int) ([]*types.ArchiveReminder, error) {
 	var rows []*types.ArchiveReminder
@@ -446,6 +455,30 @@ func (r *smartArchiveRepository) ListNotifications(ctx context.Context, tenantID
 func (r *smartArchiveRepository) MarkNotificationRead(ctx context.Context, tenantID uint64, userID, id string) error {
 	now := gorm.Expr("CURRENT_TIMESTAMP")
 	return r.db.WithContext(ctx).Model(&types.ArchiveNotification{}).Where("tenant_id = ? AND user_id = ? AND id = ?", tenantID, userID, id).Update("read_at", now).Error
+}
+
+func (r *smartArchiveRepository) DeleteNotification(ctx context.Context, tenantID uint64, userID, id string) error {
+	result := r.db.WithContext(ctx).Where("tenant_id = ? AND user_id = ? AND id = ?", tenantID, userID, id).Delete(&types.ArchiveNotification{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func deleteReminderDeliveryArtifacts(db *gorm.DB, tenantID uint64, reminderID string) error {
+	if err := db.Where("tenant_id = ? AND reminder_id = ?", tenantID, reminderID).Delete(&types.ArchiveNotification{}).Error; err != nil {
+		return err
+	}
+	return db.Where("tenant_id = ? AND reminder_id = ?", tenantID, reminderID).Delete(&types.ArchiveReminderOccurrence{}).Error
+}
+
+func (r *smartArchiveRepository) DeleteReminderDeliveryArtifacts(ctx context.Context, tenantID uint64, reminderID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return deleteReminderDeliveryArtifacts(tx, tenantID, reminderID)
+	})
 }
 
 func (r *smartArchiveRepository) Search(ctx context.Context, tenantID uint64, req *types.ArchiveSearchRequest) (*types.ArchiveSearchResponse, error) {

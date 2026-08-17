@@ -26,8 +26,11 @@ func newReminderCandidateService(t *testing.T) (*smartArchiveService, *gorm.DB) 
 	require.NoError(t, db.AutoMigrate(
 		&types.ArchiveSettings{},
 		&types.ArchiveDocument{},
+		&types.ArchiveDocumentLink{},
 		&types.ArchiveFieldEvidence{},
 		&types.ArchiveReminder{},
+		&types.ArchiveReminderOccurrence{},
+		&types.ArchiveNotification{},
 		&types.ArchiveReminderCandidate{},
 	))
 	return &smartArchiveService{repo: archiveRepo.NewSmartArchiveRepository(db)}, db
@@ -84,6 +87,58 @@ func TestBatchDocumentActionReportsPartialFailures(t *testing.T) {
 	require.Equal(t, 1, failed)
 }
 
+func TestBatchPurgePermanentlyDeletesArchivedDocumentsOnly(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	archivedAt := time.Now().UTC()
+	archived := &types.ArchiveDocument{TenantID: 7, Title: "已归档合同", FileName: "archived.pdf", FileType: ".pdf", FileHash: "archived-hash", ExtractionStatus: types.ArchiveExtractionCompleted, ArchivedAt: &archivedAt, CreatedBy: "operator"}
+	active := &types.ArchiveDocument{TenantID: 7, Title: "活动合同", FileName: "active.pdf", FileType: ".pdf", FileHash: "active-hash", ExtractionStatus: types.ArchiveExtractionCompleted, CreatedBy: "operator"}
+	require.NoError(t, db.Create(archived).Error)
+	require.NoError(t, db.Create(active).Error)
+
+	result, err := svc.BatchDocumentAction(context.Background(), 7, []string{archived.ID, active.ID}, types.ArchiveBulkPurge)
+	require.NoError(t, err)
+	require.Equal(t, 2, result.Requested)
+	require.Equal(t, 1, result.Succeeded)
+	require.Equal(t, 1, result.Failed)
+
+	var deleted types.ArchiveDocument
+	require.ErrorIs(t, db.First(&deleted, "id = ?", archived.ID).Error, gorm.ErrRecordNotFound)
+	var retained types.ArchiveDocument
+	require.NoError(t, db.First(&retained, "id = ?", active.ID).Error)
+}
+
+func TestDeleteDocumentCancelsReminderAndClearsNotifications(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	doc := &types.ArchiveDocument{TenantID: 7, Title: "交付合同", FileName: "delivery.pdf", FileType: ".pdf", FileHash: "delivery-hash", ExtractionStatus: types.ArchiveExtractionCompleted, CreatedBy: "operator"}
+	reminder := &types.ArchiveReminder{TenantID: 7, DocumentID: doc.ID, AssigneeID: "user-1", Type: types.ArchiveReminderDelivery, Title: "交付节点提醒", Rule: types.JSON(`{}`), Status: types.ArchiveReminderActive, CreatedBy: "operator"}
+	candidate := &types.ArchiveReminderCandidate{TenantID: 7, DocumentID: doc.ID, Type: types.ArchiveReminderDelivery, SourceField: "delivery_at", EventAt: time.Now().UTC(), Title: "交付节点提醒", Rule: types.JSON(`{}`), Locator: types.JSON(`{}`), Fingerprint: "delivery-candidate", CreatedBy: "operator"}
+	require.NoError(t, db.Create(doc).Error)
+	reminder.DocumentID = doc.ID
+	require.NoError(t, db.Create(reminder).Error)
+	require.NoError(t, db.Create(&types.ArchiveReminderOccurrence{TenantID: 7, ReminderID: reminder.ID, Fingerprint: "delivery-document-occurrence", DueAt: time.Now().UTC()}).Error)
+	require.NoError(t, db.Create(&types.ArchiveNotification{TenantID: 7, UserID: "user-1", ReminderID: reminder.ID, Title: reminder.Title}).Error)
+	candidate.DocumentID = doc.ID
+	require.NoError(t, db.Create(candidate).Error)
+
+	require.NoError(t, svc.DeleteDocument(context.Background(), 7, doc.ID))
+
+	var storedDoc types.ArchiveDocument
+	require.NoError(t, db.First(&storedDoc, "id = ?", doc.ID).Error)
+	require.NotNil(t, storedDoc.TrashedAt)
+	var storedReminder types.ArchiveReminder
+	require.NoError(t, db.First(&storedReminder, "id = ?", reminder.ID).Error)
+	require.Equal(t, types.ArchiveReminderCanceled, storedReminder.Status)
+	var notificationCount int64
+	require.NoError(t, db.Model(&types.ArchiveNotification{}).Where("reminder_id = ?", reminder.ID).Count(&notificationCount).Error)
+	require.Zero(t, notificationCount)
+	var occurrenceCount int64
+	require.NoError(t, db.Model(&types.ArchiveReminderOccurrence{}).Where("reminder_id = ?", reminder.ID).Count(&occurrenceCount).Error)
+	require.Zero(t, occurrenceCount)
+	var storedCandidate types.ArchiveReminderCandidate
+	require.NoError(t, db.First(&storedCandidate, "id = ?", candidate.ID).Error)
+	require.Equal(t, types.ArchiveReminderCandidateSuperseded, storedCandidate.Status)
+}
+
 func TestBatchDeleteRemindersReportsPartialFailuresAndSignalsScheduler(t *testing.T) {
 	svc, db := newReminderCandidateService(t)
 	due := time.Now().UTC().Add(time.Hour)
@@ -127,6 +182,7 @@ func TestBatchIgnoreReminderCandidatesOnlyIgnoresPending(t *testing.T) {
 	var stored types.ArchiveReminderCandidate
 	require.NoError(t, db.First(&stored, "id = ?", pending.ID).Error)
 	require.Equal(t, types.ArchiveReminderCandidateIgnored, stored.Status)
+	stored = types.ArchiveReminderCandidate{}
 	require.NoError(t, db.First(&stored, "id = ?", created.ID).Error)
 	require.Equal(t, types.ArchiveReminderCandidateCreated, stored.Status)
 	rows, err := svc.ListReminderCandidates(context.Background(), 7, string(types.ArchiveReminderCandidateIgnored))
