@@ -97,6 +97,7 @@ const NavButton = defineComponent({
     return () => {
       const button = h('button', {
         type: 'button',
+        'data-testid': `legal-nav-${props.item.id}`,
         class: [
           'legal-nav-item',
           props.primary && 'legal-nav-item--primary',

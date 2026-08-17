@@ -3,7 +3,7 @@
     <header class="review-panel__header">
       <div><span class="eyebrow">{{ t('contractReview.aiReview') }}</span><h2>{{ t('contractReview.reviewPanelTitle') }}</h2></div>
       <div class="review-panel__actions">
-        <button v-if="review.status === 'completed' && !reconfigure" class="rerun-button" type="button" :disabled="busy" @click="emit('reconfigure')"><t-icon name="refresh" /> {{ t('contractReview.reviewAgain') }}</button>
+        <button data-testid="contract-review-again" v-if="review.status === 'completed' && !reconfigure" class="rerun-button" type="button" :disabled="busy" @click="emit('reconfigure')"><t-icon name="refresh" /> {{ t('contractReview.reviewAgain') }}</button>
         <span v-if="review.status !== 'draft'" class="status-dot" :class="`status-dot--${review.status}`">{{ statusLabel }}</span>
       </div>
     </header>
@@ -12,14 +12,14 @@
       <div class="review-setup__intro"><t-icon :name="reconfigure ? 'refresh' : review.status === 'draft' ? 'upload' : 'check-circle'" size="20px" /><div><strong>{{ t(reconfigure ? 'contractReview.reconfigureReview' : review.status === 'draft' ? 'contractReview.uploadFirst' : 'contractReview.readyToReview') }}</strong><p>{{ t(reconfigure ? 'contractReview.reconfigureDescription' : review.status === 'draft' ? 'contractReview.uploadFirstDescription' : 'contractReview.readyDescription') }}</p></div></div>
       <label>{{ t('contractReview.playbook') }}<select :value="review.playbook_id" @change="emit('configChange', { playbook_id: ($event.target as HTMLSelectElement).value })"><option v-for="playbook in playbooks" :key="playbook.id" :value="playbook.id">{{ playbook.name }}</option></select></label>
       <label>{{ t('contractReview.representedParty') }}<select :value="review.represented_party" @change="emit('configChange', { represented_party: ($event.target as HTMLSelectElement).value as RepresentedParty })"><option value="customer">Customer</option><option value="vendor">Vendor</option><option value="neutral">Neutral</option></select></label>
-      <div class="review-setup__actions"><button v-if="reconfigure" class="cancel-config" type="button" :disabled="busy" @click="emit('cancelReconfigure')">{{ t('contractReview.cancel') }}</button><button class="primary-action" type="button" :disabled="busy || review.status === 'uploading' || (!reconfigure && review.status !== 'ready')" @click="emit('start')"><t-icon name="play-circle" /> {{ review.status === 'uploading' ? t('contractReview.preparingDocument') : t('contractReview.startReview') }}</button></div>
+      <div class="review-setup__actions"><button v-if="reconfigure" class="cancel-config" type="button" :disabled="busy" @click="emit('cancelReconfigure')">{{ t('contractReview.cancel') }}</button><button data-testid="contract-start-review" class="primary-action" type="button" :disabled="busy || review.status === 'uploading' || (!reconfigure && review.status !== 'ready')" @click="emit('start')"><t-icon name="play-circle" /> {{ review.status === 'uploading' ? t('contractReview.preparingDocument') : t('contractReview.startReview') }}</button></div>
     </div>
 
     <template v-else>
       <div v-if="isRunning" class="review-progress"><div class="review-progress__row"><span>{{ statusLabel }}</span><strong>{{ review.progress }}%</strong></div><div class="review-progress__track"><i :style="{ width: `${review.progress}%` }" /></div><p>{{ t('contractReview.progressiveResults') }}</p></div>
-      <div v-if="review.status === 'failed'" class="review-error"><strong>{{ t('contractReview.reviewFailed') }}</strong><p>{{ review.error_message }}</p><button v-if="review.error_message?.toLowerCase().includes('model')" type="button" @click="emit('configure')">{{ t('contractReview.configureModel') }}</button><button type="button" @click="emit('retry')">{{ t('contractReview.retry') }}</button></div>
+      <div v-if="review.status === 'failed'" class="review-error"><strong>{{ t('contractReview.reviewFailed') }}</strong><p>{{ review.error_message }}</p><button v-if="review.error_message?.toLowerCase().includes('model')" type="button" @click="emit('configure')">{{ t('contractReview.configureModel') }}</button><button data-testid="contract-retry-review" type="button" @click="emit('retry')">{{ t('contractReview.retry') }}</button></div>
       <nav class="review-tabs">
-        <button v-for="tab in tabs" :key="tab" type="button" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ t(`contractReview.tabs.${tab}`) }}<span v-if="tab === 'issues'">{{ issues.length }}</span></button>
+        <button v-for="tab in tabs" :key="tab" :data-testid="`contract-result-tab-${tab}`" type="button" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ t(`contractReview.tabs.${tab}`) }}<span v-if="tab === 'issues'">{{ issues.length }}</span></button>
       </nav>
       <div class="review-panel__content">
         <section v-if="activeTab === 'overview'" class="overview-pane">
@@ -31,7 +31,7 @@
         </section>
         <section v-else-if="activeTab === 'issues'" class="issues-pane">
           <div v-if="!issues.length" class="empty-results">{{ isRunning ? t('contractReview.findingsAppearHere') : t('contractReview.noIssues') }}</div>
-          <article v-for="issue in sortedIssues" :id="`review-issue-${issue.id}`" :key="issue.id" class="issue" :class="{ selected: selectedIssueId === issue.id }" @click="selectIssue(issue)">
+          <article v-for="issue in sortedIssues" :id="`review-issue-${issue.id}`" :data-testid="`contract-issue-${issue.id}`" :key="issue.id" class="issue" :class="{ selected: selectedIssueId === issue.id }" @click="selectIssue(issue)">
             <div class="issue__top"><RiskBadge :risk="issue.risk_level" /><span>{{ clauseTitle(issue.clause_id) }}</span></div><h3>{{ issue.title }}</h3><p>{{ issue.explanation }}</p>
             <details><summary>{{ t('contractReview.originalLanguage') }}</summary><blockquote>{{ issue.original_quote }}</blockquote></details>
             <div class="issue__suggestion"><span>{{ t('contractReview.suggestedRevision') }}</span><p>{{ issue.suggestion }}</p></div>

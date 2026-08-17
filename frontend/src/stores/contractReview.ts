@@ -6,6 +6,7 @@ import {
   retryContractReview, startContractReview, streamContractReview, updateContractReview,
   uploadContractReviewDocument, type ContractReview, type ContractReviewBulkAction, type ReviewPlaybook,
 } from '@/api/contract-review'
+import { contractReviewIsSettled, removeSuccessfulRows } from './legalState'
 
 export const useContractReviewStore = defineStore('contractReview', () => {
   const tasks = ref<ContractReview[]>([])
@@ -41,11 +42,11 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   async function bulk(action: ContractReviewBulkAction, ids: string[]) {
     const result = (await bulkContractReviews(action, ids)).data
     const succeeded = new Set(result.items.filter((item) => item.success).map((item) => item.id))
-    tasks.value = tasks.value.filter((item) => !succeeded.has(item.id))
+    tasks.value = removeSuccessfulRows(tasks.value, result)
     if (action === 'delete' && current.value && succeeded.has(current.value.id)) current.value = null
     return result
   }
-  const isSettled = (status: ContractReview['status']) => status === 'completed' || status === 'failed' || status === 'ready'
+  const isSettled = contractReviewIsSettled
   function stopDetailPolling() { if (detailPollTimer !== null) { clearInterval(detailPollTimer); detailPollTimer = null } }
   async function refreshCurrent(id: string) {
     try {

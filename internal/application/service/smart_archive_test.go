@@ -87,6 +87,65 @@ func TestBatchDocumentActionReportsPartialFailures(t *testing.T) {
 	require.Equal(t, 1, failed)
 }
 
+func TestSmartArchiveCannotArchiveDocumentsStillProcessing(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	for _, status := range []types.ArchiveExtractionStatus{
+		types.ArchiveExtractionUploading,
+		types.ArchiveExtractionParsing,
+		types.ArchiveExtractionExtracting,
+		types.ArchiveExtractionLinking,
+	} {
+		doc := &types.ArchiveDocument{
+			TenantID: 7, Title: string(status), FileName: string(status) + ".pdf", FileType: ".pdf",
+			FileHash: string(status), ExtractionStatus: status, CreatedBy: "operator",
+		}
+		require.NoError(t, db.Create(doc).Error)
+		_, err := svc.ArchiveDocument(context.Background(), 7, doc.ID, true)
+		require.ErrorIs(t, err, ErrArchiveInvalidState)
+	}
+}
+
+func TestSmartArchiveImportRejectsUnsupportedAndMalformedFiles(t *testing.T) {
+	svc, _ := newReminderCandidateService(t)
+
+	_, err := svc.Import(context.Background(), 7, "operator", []*types.ArchiveUpload{{
+		FileName: "contract.exe", MimeType: "application/octet-stream", Size: 4, Reader: bytes.NewReader([]byte("data")),
+	}})
+	require.ErrorIs(t, err, ErrArchiveInvalidFile)
+
+	_, err = svc.Import(context.Background(), 7, "operator", []*types.ArchiveUpload{{
+		FileName: "contract.png", MimeType: "image/png", Size: 12, Reader: bytes.NewReader([]byte("not an image")),
+	}})
+	require.ErrorIs(t, err, ErrArchiveInvalidFile)
+}
+
+func TestSmartArchiveBulkActionDeduplicatesIDs(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	doc := &types.ArchiveDocument{
+		TenantID: 7, Title: "去重归档合同", FileName: "dedupe.pdf", FileType: ".pdf",
+		FileHash: "dedupe-hash", ExtractionStatus: types.ArchiveExtractionCompleted, CreatedBy: "operator",
+	}
+	require.NoError(t, db.Create(doc).Error)
+
+	result, err := svc.BatchDocumentAction(context.Background(), 7, []string{" ", doc.ID, doc.ID}, types.ArchiveBulkArchive)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Requested)
+	require.Equal(t, 1, result.Succeeded)
+	require.Zero(t, result.Failed)
+}
+
+func TestSmartArchiveDocumentLookupIsTenantScoped(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	doc := &types.ArchiveDocument{
+		TenantID: 7, Title: "租户隔离合同", FileName: "tenant.pdf", FileType: ".pdf",
+		FileHash: "tenant-hash", ExtractionStatus: types.ArchiveExtractionCompleted, CreatedBy: "operator",
+	}
+	require.NoError(t, db.Create(doc).Error)
+
+	_, err := svc.GetDocument(context.Background(), 8, doc.ID)
+	require.ErrorIs(t, err, ErrArchiveNotFound)
+}
+
 func TestBatchPurgePermanentlyDeletesArchivedDocumentsOnly(t *testing.T) {
 	svc, db := newReminderCandidateService(t)
 	archivedAt := time.Now().UTC()

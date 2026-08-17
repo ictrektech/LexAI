@@ -51,5 +51,21 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run legal workspace browser smoke tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+
       - name: Build
         run: npm run build

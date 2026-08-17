@@ -1,7 +1,7 @@
 <template>
   <section v-if="review" class="review-workspace">
     <header class="review-workspace__topbar">
-      <button class="back-button" type="button" @click="router.push({ name: LEGAL_CONTRACT_REVIEW_ROUTE })"><t-icon name="chevron-left" /> {{ t('contractReview.allReviews') }}</button>
+      <button data-testid="contract-back" class="back-button" type="button" @click="router.push({ name: LEGAL_CONTRACT_REVIEW_ROUTE })"><t-icon name="chevron-left" /> {{ t('contractReview.allReviews') }}</button>
       <input v-model="title" maxlength="512" :aria-label="t('contractReview.reviewTitle')" @blur="saveTitle" @keydown.enter="($event.target as HTMLInputElement).blur()" />
       <span>{{ t('contractReview.saved') }}</span>
     </header>
@@ -9,8 +9,8 @@
       <div class="review-workspace__document">
         <div v-if="!review.file_name" class="upload-empty" :class="{ 'upload-empty--dragging': dragging }" @dragenter.prevent="dragging = true" @dragover.prevent @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
           <div class="upload-empty__icon"><t-icon name="file-add" size="27px" /></div><h1>{{ t('contractReview.dropContract') }}</h1><p>{{ t('contractReview.uploadFormats') }}</p>
-          <button type="button" @click="fileInput?.click()">{{ t('contractReview.chooseFile') }}</button><small>{{ t('contractReview.singleDocument') }}</small>
-          <input ref="fileInput" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden @change="onFileInput" />
+          <button data-testid="contract-choose-file" type="button" @click="fileInput?.click()">{{ t('contractReview.chooseFile') }}</button><small>{{ t('contractReview.singleDocument') }}</small>
+          <input data-testid="contract-file-input" ref="fileInput" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden @change="onFileInput" />
         </div>
         <ContractDocumentViewer v-else ref="viewer" :review-id="review.id" :file-name="review.file_name" :file-type="review.file_type" :issues="review.issues || []" :selected-issue-id="selectedIssue?.id" @marker-click="selectIssueById" @locate-failed="MessagePlugin.warning(t('contractReview.locateFailed'))" />
         <div v-if="uploading" class="upload-overlay"><t-loading size="small" /><span>{{ t('contractReview.uploadingFile', { progress: store.uploadProgress }) }}</span><i><b :style="{ width: `${store.uploadProgress}%` }" /></i></div>

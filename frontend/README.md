@@ -95,7 +95,20 @@ Run from this directory:
 ```bash
 npm test
 npm run type-check
+npx playwright install chromium
+npm run test:e2e
 npm run build
 ```
+
+The legal workspace browser tests live under `tests/e2e`. They use a deterministic
+mock of authentication, Contract Review, and Smart Archive APIs, so they do not
+call a real model or modify the deployed archive at `10.144.144.232:30080`.
+Run `npm run test:e2e -- --ui` when debugging interactions locally. Failed CI
+runs retain the Playwright HTML report, trace, screenshot, and video artifacts.
+
+The mock fixtures cover the legal workspace navigation, Contract Review upload
+and result flow, Smart Archive archive/recycle-bin flow, reminder lifecycle, and
+viewer mutation visibility. Backend lifecycle, HTTP error mapping, RBAC, and
+tenant-isolation cases remain in the Go test packages.
 
 Repository policy requires choosing the build/test host first. For remote verification, copy the working tree to the selected host without using Git on that host, then run the commands from the copied `frontend` directory.

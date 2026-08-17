@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { archiveDocument, bulkArchiveDocuments, bulkDeleteArchiveDocuments, bulkDeleteArchiveReminders, bulkIgnoreArchiveReminderCandidates, bulkPurgeArchiveDocuments, bulkRestoreDocuments, createArchiveReminderFromCandidate, deleteArchiveDocument, deleteArchiveNotification, getArchiveBatch, getArchiveDocument, getArchiveSettings, importArchiveFiles, listArchiveCustomers, listArchiveDocuments, listArchiveReminderCandidates, listArchiveReminders, listArchiveNotifications, markArchiveNotificationRead, restoreDocument, retryArchiveDocumentExtraction, searchArchive, streamArchiveBatch, updateArchiveDocument, updateArchiveReminder, type ArchiveBatch, type ArchiveBulkActionResult, type ArchiveCustomer, type ArchiveDocument, type ArchiveNotification, type ArchiveReminder, type ArchiveReminderCandidate, type ArchiveSearchResponse, type ArchiveSettings } from '@/api/smart-archive'
+import { archiveImportProgress, removeSuccessfulRows } from './legalState'
 
 export const useSmartArchiveStore = defineStore('smartArchive', () => {
   const documents = ref<ArchiveDocument[]>([])
@@ -40,7 +41,7 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
     const response = action === 'archive' ? await bulkArchiveDocuments(ids) : action === 'restore' ? await bulkRestoreDocuments(ids) : action === 'purge' ? await bulkPurgeArchiveDocuments(ids) : await bulkDeleteArchiveDocuments(ids)
     const result = response.data
     const succeeded = new Set(result.items.filter((item) => item.success).map((item) => item.id))
-    documents.value = documents.value.filter((item) => !succeeded.has(item.id))
+    documents.value = removeSuccessfulRows(documents.value, result)
     if (current.value && succeeded.has(current.value.id)) current.value = null
     return result
   }
@@ -51,7 +52,7 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
   async function refreshBatch(id: string) {
     try {
       const batch = (await getArchiveBatch(id)).data
-      importProgress.value = batch.total > 0 ? Math.min(100, Math.round(((batch.completed + batch.failed) / batch.total) * 100)) : 0
+      importProgress.value = archiveImportProgress(batch)
       await refreshDocuments()
       if (batch.status === 'completed' || batch.status === 'failed') stopBatchPolling()
     } catch { /* Keep polling; a transient request failure must not leave a stale status on screen. */ }
@@ -60,7 +61,7 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
     disconnect()
     streamController = new AbortController()
     void streamArchiveBatch(id, streamController.signal, (batch) => {
-      importProgress.value = batch.total > 0 ? Math.min(100, Math.round(((batch.completed + batch.failed) / batch.total) * 100)) : 0
+      importProgress.value = archiveImportProgress(batch)
       void refreshDocuments()
       if (batch.status === 'completed' || batch.status === 'failed') stopBatchPolling()
     }).catch(() => undefined)
