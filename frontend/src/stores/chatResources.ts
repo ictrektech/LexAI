@@ -1,11 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { listKnowledgeBases, getKnowledgeBaseById } from '@/api/knowledge-base'
-import { listAgents, type CustomAgent } from '@/api/agent'
+import {
+  listAgents,
+  BUILTIN_QUICK_ANSWER_ID,
+  BUILTIN_SMART_REASONING_ID,
+  type CustomAgent,
+} from '@/api/agent'
 import { listModels, type ModelConfig } from '@/api/model'
 import { listWebSearchProviders, type WebSearchProviderEntity } from '@/api/web-search-provider'
 import { isNamedSandboxBackend, listSandboxConfigs, type SandboxConfigRecord } from '@/api/system'
 import { useOrganizationStore } from '@/stores/organization'
+import { useSettingsStore } from '@/stores/settings'
 
 /** 空间级资源缓存 TTL */
 const CACHE_TTL_MS = 60_000
@@ -150,8 +156,58 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     return agentsAllInflight
   }
 
+  function isSelectedAgentAvailable(): boolean {
+    const settingsStore = useSettingsStore()
+    const agentId = settingsStore.selectedAgentId
+    const sourceTenantId = settingsStore.selectedAgentSourceTenantId
+
+    if (sourceTenantId) {
+      const organizationStore = useOrganizationStore()
+      return organizationStore.sharedAgents.some(
+        (shared) => shared.agent?.id === agentId && String(shared.source_tenant_id) === sourceTenantId,
+      )
+    }
+
+    return agents.value.some((agent) => agent.id === agentId)
+      && !disabledOwnAgentIds.value.includes(agentId)
+  }
+
+  /**
+   * A selected custom/shared agent can disappear between browser sessions
+   * (deleted, unshared, or no longer visible in the active tenant). The ID is
+   * persisted locally, so validate it after the authoritative list loads
+   * before any feature uses it in an API path.
+   */
+  function reconcileSelectedAgent(): void {
+    const settingsStore = useSettingsStore()
+    if (isSelectedAgentAvailable()) return
+
+    const isUsable = (agent: CustomAgent) => !disabledOwnAgentIds.value.includes(agent.id)
+    const fallback = [BUILTIN_SMART_REASONING_ID, BUILTIN_QUICK_ANSWER_ID]
+      .map((id) => agents.value.find((agent) => agent.id === id && isUsable(agent)))
+      .find((agent): agent is CustomAgent => Boolean(agent))
+      || agents.value.find(isUsable)
+
+    if (!fallback) return
+
+    settingsStore.selectAgent(fallback.id)
+    // selectAgent synchronizes the two built-in mode IDs itself. Custom-agent
+    // fallback needs the same mode synchronization explicitly.
+    if (fallback.id !== BUILTIN_QUICK_ANSWER_ID && fallback.id !== BUILTIN_SMART_REASONING_ID) {
+      settingsStore.toggleAgent(fallback.config?.agent_mode === 'smart-reasoning')
+    }
+  }
+
   async function ensureAgents(force = false): Promise<void> {
     await fetchAgentsForList({ creator: 'all' }, force)
+    // The all-agents path normally fetches shared agents too. Fetch again only
+    // when a shared selection is active so the cached path is also safe after
+    // a route/query changes the selected shared agent.
+    const settingsStore = useSettingsStore()
+    if (settingsStore.selectedAgentSourceTenantId) {
+      await useOrganizationStore().fetchSharedAgents({ force })
+    }
+    reconcileSelectedAgent()
   }
 
   async function ensureModels(force = false): Promise<void> {
@@ -323,6 +379,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     fetchAgentsForList,
     ensureKnowledgeBases,
     ensureAgents,
+    isSelectedAgentAvailable,
     ensureModels,
     ensureChatModels,
     ensureWebSearchProviders,

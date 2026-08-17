@@ -141,6 +141,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
 import { useUIStore } from '@/stores/ui';
+import { useChatResourcesStore } from '@/stores/chatResources';
 import KnowledgeBaseEditorModal from '@/views/knowledge/KnowledgeBaseEditorModal.vue';
 import { useKnowledgeBaseCreationNavigation } from '@/hooks/useKnowledgeBaseCreationNavigation';
 import { useChatStreamHandler } from '@/composables/useChatStreamHandler';
@@ -178,6 +179,7 @@ const props = defineProps({
 
 const usemenuStore = useMenuStore();
 const useSettingsStoreInstance = useSettingsStore();
+const chatResources = useChatResourcesStore();
 
 // Whether the active chat session is using the Agent pipeline (not quick-answer).
 const isAgentStreamSession = () => {
@@ -324,8 +326,11 @@ const fetchSuggestedQuestions = async () => {
     suggestedQuestionsLoading.value = true;
     // 加载期间保留旧数据，不清空，避免布局抖动
     try {
+        // The selected agent is persisted locally; validate it against the
+        // current tenant before using it in the suggested-questions URL.
+        await chatResources.ensureAgents();
         const agentId = useSettingsStoreInstance.selectedAgentId;
-        if (!agentId) return;
+        if (!agentId || !chatResources.isSelectedAgentAvailable()) return;
         const res = await getSuggestedQuestions(agentId, useSettingsStoreInstance.getSuggestedQuestionsParams());
         if (fetchId === suggestedQuestionsFetchId) {
             suggestedQuestions.value = res?.data?.questions || [];

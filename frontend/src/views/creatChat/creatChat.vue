@@ -64,6 +64,7 @@ import type { SuggestedQuestion } from "@/api/agent/index";
 import { useMenuStore } from '@/stores/menu';
 import { useSettingsStore } from '@/stores/settings';
 import { useUIStore } from '@/stores/ui';
+import { useChatResourcesStore } from '@/stores/chatResources';
 import { useRoute, useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
@@ -78,6 +79,7 @@ const props = defineProps<{
 const usemenuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUIStore();
+const chatResources = useChatResourcesStore();
 const { t } = useI18n();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
 
@@ -143,8 +145,12 @@ const fetchSuggestedQuestions = async () => {
     const fetchId = ++suggestedQuestionsFetchId;
     sqLoading.value = true;
     try {
+        // selectedAgentId is persisted locally and may refer to an agent that
+        // was deleted, unshared, or disabled in the active tenant. Resolve the
+        // current selection before interpolating it into the API URL.
+        await chatResources.ensureAgents();
         const agentId = settingsStore.selectedAgentId;
-        if (!agentId) return;
+        if (!agentId || !chatResources.isSelectedAgentAvailable()) return;
         const res = await getSuggestedQuestions(agentId, settingsStore.getSuggestedQuestionsParams());
         if (fetchId === suggestedQuestionsFetchId) {
             sqCardsRevealed.value = false;

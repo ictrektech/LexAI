@@ -20,6 +20,14 @@ Legal-tool navigation is registered in `src/config/legalWorkspace.ts`. To add a 
 
 The ChatSwitch sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. Resource links intentionally leave the ChatSwitch shell and open their existing `/platform/*` pages.
 
+## Agent selection recovery
+
+The selected Agent ID is stored in browser settings. When the current tenant's
+Agent list loads, the chat surfaces validate that ID before requesting
+suggested questions. If the Agent was deleted, unshared, or disabled, the
+frontend clears the stale selection and falls back to an available built-in
+Agent, so a stale browser setting does not produce a 404 or block chat startup.
+
 ## Legal workspace color system
 
 All `/legal/*` pages use **Warm Legal + Vercel Neutral**: warm ivory surfaces, soft-black actions, neutral-gray AI cues, and restrained brass/risk accents. The semantic CSS tokens are declared by `src/views/legal/index.vue`; use them instead of adding page-specific hex colors:
