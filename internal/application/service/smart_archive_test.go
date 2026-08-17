@@ -139,6 +139,26 @@ func TestDeleteDocumentCancelsReminderAndClearsNotifications(t *testing.T) {
 	require.Equal(t, types.ArchiveReminderCandidateSuperseded, storedCandidate.Status)
 }
 
+func TestDeleteDocumentSucceedsWhenReminderCandidateCleanupIsUnavailable(t *testing.T) {
+	svc, db := newReminderCandidateService(t)
+	doc := &types.ArchiveDocument{
+		TenantID: 7, Title: "待清理合同", FileName: "pending-cleanup.pdf", FileType: ".pdf",
+		FileHash: "pending-cleanup-hash", ExtractionStatus: types.ArchiveExtractionCompleted,
+		CreatedBy: "operator",
+	}
+	require.NoError(t, db.Create(doc).Error)
+	// Simulate an instance that has started serving the new delete behavior
+	// before the reminder-candidate migration has been applied. The document
+	// must still be moved to trash; the cleanup will be retried later.
+	require.NoError(t, db.Migrator().DropTable(&types.ArchiveReminderCandidate{}))
+
+	require.NoError(t, svc.DeleteDocument(context.Background(), 7, doc.ID))
+
+	var stored types.ArchiveDocument
+	require.NoError(t, db.First(&stored, "id = ?", doc.ID).Error)
+	require.NotNil(t, stored.TrashedAt)
+}
+
 func TestBatchDeleteRemindersReportsPartialFailuresAndSignalsScheduler(t *testing.T) {
 	svc, db := newReminderCandidateService(t)
 	due := time.Now().UTC().Add(time.Hour)

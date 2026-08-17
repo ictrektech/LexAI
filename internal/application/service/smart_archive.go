@@ -1759,8 +1759,14 @@ func (s *smartArchiveService) DeleteDocument(ctx context.Context, tenantID uint6
 	if err := s.repo.UpdateDocument(ctx, row); err != nil {
 		return err
 	}
+	// Moving the source document to trash is the user-facing operation. Keep
+	// reminder cleanup best-effort here: an older deployment may be missing a
+	// reminder migration, and an auxiliary cleanup failure must not turn a
+	// successful archive deletion into a 500 after the trash marker is already
+	// persisted. cleanupExpiredTrash retries the same cleanup before a row is
+	// permanently removed.
 	if err := s.clearDocumentReminderAssociations(ctx, tenantID, id); err != nil {
-		return err
+		logger.Warnf(ctx, "smart archive: reminder cleanup deferred for trashed document %s: %v", id, err)
 	}
 	return nil
 }
