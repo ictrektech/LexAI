@@ -157,6 +157,7 @@ pull_base_image() {
 
 ensure_dockerfile_base_images() {
   local dockerfile="$1"
+  local target="${2:-}"
   local image
   local missing=0
 
@@ -173,28 +174,86 @@ ensure_dockerfile_base_images() {
       missing=1
     fi
   # `FROM <image> AS <stage>` introduces a local multi-stage build alias.
-  # Only pull actual external images here; aliases such as `runtime` and
-  # `cube` are resolved by Docker during the build and are not registries.
+  # When a target is provided, only walk the stages reachable from that
+  # target. This matters for Dockerfiles that keep platform-specific variants
+  # together, such as the amd64-only Cube stage in Dockerfile.sandbox.
   done < <(
-    awk '
-      toupper($1) == "FROM" {
-        i = 2
-        if ($i ~ /^--/) i++
+    awk -v target="$target" '
+      function emit_external(image) {
+        if (image == "" || image == "scratch") return
+        if (tolower(image) in stage_base) return
+        if (!(image in emitted)) {
+          emitted[image] = 1
+          print image
+        }
+      }
 
-        base_images[$i] = 1
+      function walk(stage, base, dep, key, parts) {
+        stage = tolower(stage)
+        if (stage ~ /^[0-9]+$/ && (stage + 1) <= stage_count) {
+          stage = stage_order[stage + 1]
+        }
+        if (stage == "" || visited[stage]++) return
 
-        for (j = i + 1; j <= NF; j++) {
-          if (toupper($j) == "AS" && j < NF) {
-            stage_names[tolower($(j + 1))] = 1
-            break
+        if (!(stage in stage_base)) {
+          emit_external(stage)
+          return
+        }
+
+        base = stage_base[stage]
+        if (tolower(base) in stage_base) {
+          walk(base)
+        } else {
+          emit_external(base)
+        }
+
+        for (key in copy_deps) {
+          split(key, parts, SUBSEP)
+          if (parts[1] == stage) {
+            dep = parts[2]
+            walk(dep)
           }
         }
       }
 
+      toupper($1) == "FROM" {
+        i = 2
+        while (i <= NF && $i ~ /^--/) i++
+
+        base = $i
+        stage = ""
+        for (j = i + 1; j <= NF; j++) {
+          if (toupper($j) == "AS" && j < NF) {
+            stage = tolower($(j + 1))
+            break
+          }
+        }
+
+        stage_count++
+        if (stage == "") stage = "__stage_" stage_count
+        stage_order[stage_count] = stage
+        stage_base[stage] = base
+        current_stage = stage
+        next
+      }
+
+      toupper($1) == "COPY" {
+        for (i = 2; i <= NF; i++) {
+          if ($i ~ /^--from=/) {
+            dep = substr($i, 8)
+            if (dep != "") copy_deps[current_stage SUBSEP tolower(dep)] = 1
+          }
+        }
+        next
+      }
+
       END {
-        for (base in base_images) {
-          if (base == "scratch" || (tolower(base) in stage_names)) continue
-          print base
+        if (target != "") {
+          walk(target)
+        } else {
+          for (stage in stage_base) {
+            emit_external(stage_base[stage])
+          }
         }
       }
     ' "$dockerfile" | sort -u
@@ -205,9 +264,28 @@ ensure_dockerfile_base_images() {
 
 docker_build_with_local_base_fallback() {
   local dockerfile="$1"
+  local target=""
+  local arg
+  local expect_target=0
   shift
 
-  ensure_dockerfile_base_images "$dockerfile"
+  for arg in "$@"; do
+    if [[ "$expect_target" == "1" ]]; then
+      target="$arg"
+      expect_target=0
+      continue
+    fi
+    case "$arg" in
+      --target)
+        expect_target=1
+        ;;
+      --target=*)
+        target="${arg#--target=}"
+        ;;
+    esac
+  done
+
+  ensure_dockerfile_base_images "$dockerfile" "$target"
 
   if docker_build_image "$@"; then
     return 0
@@ -738,6 +816,7 @@ fi
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_SANDBOX" == "1" ]]; then
   docker_build_with_local_base_fallback docker/Dockerfile.sandbox \
     -f docker/Dockerfile.sandbox \
+    --target sandbox \
     -t "${SANDBOX_IMAGE}:${TAG}" \
     .
 fi
