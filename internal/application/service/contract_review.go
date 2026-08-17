@@ -38,9 +38,14 @@ var contractReviewPlaybooks = []types.ContractReviewPlaybook{{
 }}
 
 const (
-	contractReviewClauseSystemPrompt = "You are a senior commercial contracts lawyer. Review only the supplied clause. Identify concrete legal or commercial risks. Return valid JSON only. Do not invent quotations. " +
+	contractReviewClauseSystemPrompt = "You are a senior commercial contracts lawyer reviewing exactly one supplied contract clause. Identify only concrete legal or commercial risks supported by that clause. Return exactly one JSON object and nothing else. Do not output markdown, code fences, headings, citations, a full-contract report, or reasoning text. If there are no concrete risks, return {\"issues\":[]}. Return at most five issues. Keep titles concise; keep explanations and suggestions concise (preferably under 180 Chinese characters each). Do not invent quotations. " +
 		"Write issue titles, explanations, and suggestions in Simplified Chinese. Keep original_quote exactly in the contract's original language and wording so it can be located in the source document."
 	contractReviewOverviewSystemPrompt = "Return a concise, evidence-based contract review overview as valid JSON only. Write executive_summary, contract_type, and key_recommendations in Simplified Chinese. Preserve party names and other proper nouns in their original form."
+)
+
+const (
+	contractReviewClauseDefaultMaxCompletionTokens = 4096
+	contractReviewClauseRetryMaxCompletionTokens   = 8192
 )
 
 func contractReviewPlaybook(id string) (types.ContractReviewPlaybook, bool) {
@@ -514,6 +519,32 @@ func validRisk(value string) types.ContractReviewRiskLevel {
 	}
 }
 
+func contractReviewClauseMaxCompletionTokens(agent *types.CustomAgent) int {
+	if agent != nil && agent.Config.MaxCompletionTokens > 0 {
+		return agent.Config.MaxCompletionTokens
+	}
+	return contractReviewClauseDefaultMaxCompletionTokens
+}
+
+func contractReviewClauseRetryTokens(current int) int {
+	if current < contractReviewClauseRetryMaxCompletionTokens {
+		return contractReviewClauseRetryMaxCompletionTokens
+	}
+	return current
+}
+
+func contractReviewOutputReachedLimit(resp *types.ChatResponse) bool {
+	if resp == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(resp.FinishReason)) {
+	case "length", "max_tokens", "max_completion_tokens":
+		return true
+	default:
+		return false
+	}
+}
+
 func issueFingerprint(reviewID, clauseID, title, quote string) string {
 	sum := sha256.Sum256([]byte(reviewID + "\x00" + clauseID + "\x00" + strings.ToLower(strings.TrimSpace(title)) + "\x00" + strings.Join(strings.Fields(quote), " ")))
 	return hex.EncodeToString(sum[:])
@@ -559,19 +590,17 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 	if err := s.repo.Update(ctx, r); err != nil {
 		return err
 	}
+	// The built-in contract-review agent has a user-facing full-report prompt
+	// (headings, citations, and seven report sections). Do not prepend it here:
+	// this worker needs a small machine-readable clause result, and mixing the
+	// two contracts is what makes the model produce verbose/truncated output.
 	systemPrompt := contractReviewClauseSystemPrompt
-	maxTokens, temperature := 1800, 0.2
+	maxTokens, temperature := contractReviewClauseMaxCompletionTokens(agent), 0.2
 	if agent != nil {
-		if agent.Config.SystemPrompt != "" {
-			systemPrompt = agent.Config.SystemPrompt + "\n\n" + systemPrompt
-		}
-		if agent.Config.MaxCompletionTokens > 0 {
-			maxTokens = agent.Config.MaxCompletionTokens
-		}
 		temperature = agent.Config.Temperature
 	}
 	thinking := false
-	format := json.RawMessage(`{"type":"object","properties":{"issues":{"type":"array","items":{"type":"object","properties":{"risk_level":{"enum":["high","medium","low"]},"title":{"type":"string"},"explanation":{"type":"string"},"original_quote":{"type":"string"},"suggestion":{"type":"string"}},"required":["risk_level","title","explanation","original_quote","suggestion"]}}},"required":["issues"]}`)
+	format := json.RawMessage(`{"type":"object","properties":{"issues":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"risk_level":{"type":"string","enum":["high","medium","low"]},"title":{"type":"string","maxLength":80},"explanation":{"type":"string","maxLength":540},"original_quote":{"type":"string","maxLength":360},"suggestion":{"type":"string","maxLength":540}},"required":["risk_level","title","explanation","original_quote","suggestion"],"additionalProperties":false}}},"required":["issues"],"additionalProperties":false}`)
 	issueSeq := 0
 	contentRunes := []rune(r.ExtractedContent)
 	for idx, clause := range clauses {
@@ -591,9 +620,24 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 		var out reviewBatchOutput
 		var callErr error
 		for attempt := 0; attempt < 2; attempt++ {
-			resp, e := model.Chat(ctx, []chat.Message{{Role: "system", Content: systemPrompt}, {Role: "user", Content: prompt}}, &chat.ChatOptions{Temperature: temperature, MaxCompletionTokens: maxTokens, Thinking: &thinking, Format: format})
+			attemptPrompt := prompt
+			attemptMaxTokens := maxTokens
+			if attempt > 0 {
+				attemptMaxTokens = contractReviewClauseRetryTokens(maxTokens)
+				attemptPrompt += "\nRecovery instruction: the previous response was not a complete valid JSON object. Output only the compact {\"issues\": [...]} object now; do not add any explanation, report headings, citations, or markdown."
+			}
+			out = reviewBatchOutput{}
+			resp, e := model.Chat(ctx, []chat.Message{{Role: "system", Content: systemPrompt}, {Role: "user", Content: attemptPrompt}}, &chat.ChatOptions{Temperature: temperature, MaxCompletionTokens: attemptMaxTokens, Thinking: &thinking, Format: format})
 			if e != nil {
 				callErr = e
+				continue
+			}
+			if resp == nil {
+				callErr = errors.New("model returned no response")
+				continue
+			}
+			if contractReviewOutputReachedLimit(resp) {
+				callErr = fmt.Errorf("model output reached the %d-token completion limit", attemptMaxTokens)
 				continue
 			}
 			callErr = parseModelJSON(resp.Content, &out)

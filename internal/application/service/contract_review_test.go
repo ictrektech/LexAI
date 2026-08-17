@@ -72,6 +72,28 @@ func TestContractReviewPromptsRequireChineseAnalysis(t *testing.T) {
 	if !strings.Contains(contractReviewClauseSystemPrompt, "original language and wording") {
 		t.Fatal("clause prompt must preserve the original quotation for document positioning")
 	}
+	if !strings.Contains(contractReviewClauseSystemPrompt, "exactly one JSON object") || !strings.Contains(contractReviewClauseSystemPrompt, "at most five issues") {
+		t.Fatal("clause prompt must enforce a compact machine-readable response")
+	}
+}
+
+func TestContractReviewClauseRetryRaisesCompletionBudget(t *testing.T) {
+	for current, want := range map[int]int{0: 8192, 1800: 8192, 4096: 8192, 8192: 8192, 12000: 12000} {
+		if got := contractReviewClauseRetryTokens(current); got != want {
+			t.Fatalf("retry tokens for %d = %d, want %d", current, got, want)
+		}
+	}
+}
+
+func TestContractReviewOutputReachedLimit(t *testing.T) {
+	for _, reason := range []string{"length", "max_tokens", "max_completion_tokens"} {
+		if !contractReviewOutputReachedLimit(&types.ChatResponse{FinishReason: reason}) {
+			t.Fatalf("finish reason %q should be treated as truncated", reason)
+		}
+	}
+	if contractReviewOutputReachedLimit(&types.ChatResponse{FinishReason: "stop"}) {
+		t.Fatal("stop should not be treated as truncated")
+	}
 }
 
 func TestContractReviewCanBeRetriedAfterCompletion(t *testing.T) {
