@@ -4,6 +4,8 @@
 
 开发、合并上游、构建镜像和 push 流程见 [开发文档](DEVELOPMENT.md)。
 
+LexAI 产品级变化及后续 GitHub Release Notes 的内容来源见 [CHANGELOG](CHANGELOG.md)。
+
 ## 机器资源评估入口
 
 任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM 并发、聊天预留、后台 worker 池、后台模型并发和 Embedding 并发的统一参考，适用于通用、tc232、Thor 和其他自定义部署。Thor 部署尤其先看其中「管理界面参数和 env 对照」「Thor 当前参数：每个数字限制什么」和「机器资源评估流程」。例如当前 tc97 Thor 配置里，`20` 是 QA vLLM 接收上限，`6` 是聊天目标预留，`14` 是后台进入主 QA 模型的总并发上限；这些值不限制在线聊天或 embedding。

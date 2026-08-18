@@ -41,6 +41,22 @@ git add <resolved-files>
 git commit
 ```
 
+## GitHub Release 发布流程
+
+完成代码并更新 [CHANGELOG](CHANGELOG.md) 后，先提交 CHANGELOG，再创建版本 tag，最后在 GitHub 创建 Release：
+
+```bash
+git fetch upstream main
+# 使用 $cl 准备 vX.Y.Z
+git add docs/ictrek/CHANGELOG.md
+git commit -m "docs(release): prepare LexAI vX.Y.Z"
+git tag -a vX.Y.Z -m "LexAI vX.Y.Z"
+git push origin main
+git push origin vX.Y.Z
+```
+
+GitHub Release 的内容取对应版本的 CHANGELOG 章节。不要先打 tag 再补 CHANGELOG。
+
 ## 哪些改动需要重建哪些镜像
 
 构建脚本是 [build_image.sh](../../build_image.sh)。当前负责四类 ictrek 镜像：

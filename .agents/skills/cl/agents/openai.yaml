@@ -1,0 +1,4 @@
+interface:
+  display_name: "LexAI Changelog"
+  short_description: "审计 LexAI 差异提交并维护可发布的中文 CHANGELOG"
+  default_prompt: "使用 $cl 审计上次发布以来的 LexAI 专属变更，并更新 docs/ictrek/CHANGELOG.md。"

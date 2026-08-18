@@ -8,6 +8,8 @@
 !.github/
 !.codex/
 !.codex/**
+!.agents/
+!.agents/**
 
 # 敏感文件
 *.pem
