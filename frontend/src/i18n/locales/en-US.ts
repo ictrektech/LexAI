@@ -8,7 +8,6 @@ export default {
     contractReview: 'Contract Review',
     legalResearch: 'Legal Research',
     drafting: 'Contract Drafting',
-    dueDiligence: 'Due Diligence',
     smartArchive: 'Smart Archive',
     knowledgeBases: 'Knowledge Bases',
     agents: 'Agents',

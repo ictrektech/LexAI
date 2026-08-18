@@ -22,11 +22,10 @@ test('legal workspace navigation keeps enabled tools and future placeholders dis
     'smart-archive',
     'legal-research',
     'drafting',
-    'due-diligence',
   ])
   assert.deepEqual(
     tools.filter((item) => item.disabled).map((item) => item.id),
-    ['legal-research', 'drafting', 'due-diligence'],
+    ['legal-research', 'drafting'],
   )
   assert.ok(tools.filter((item) => !item.disabled).every((item) => item.destination))
 })

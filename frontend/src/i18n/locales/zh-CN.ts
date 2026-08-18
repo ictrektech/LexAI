@@ -8,7 +8,6 @@ export default {
     contractReview: '合同审查',
     legalResearch: '法律检索',
     drafting: '合同起草',
-    dueDiligence: '尽职调查',
     smartArchive: '智能档案',
     knowledgeBases: '知识库',
     agents: '智能体',

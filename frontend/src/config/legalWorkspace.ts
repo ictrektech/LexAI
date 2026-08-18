@@ -70,14 +70,6 @@ export const LEGAL_WORKSPACE_NAV_ITEMS: readonly LegalWorkspaceNavItem[] = [
     badgeKey: 'legalWorkspace.comingSoon',
   },
   {
-    id: 'due-diligence',
-    labelKey: 'legalWorkspace.dueDiligence',
-    icon: 'task-checked',
-    section: 'tools',
-    disabled: true,
-    badgeKey: 'legalWorkspace.comingSoon',
-  },
-  {
     id: 'platform-console',
     labelKey: 'legalWorkspace.platformConsole',
     icon: 'view-module',

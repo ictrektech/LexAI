@@ -8,7 +8,6 @@ export default {
     contractReview: '계약서 검토',
     legalResearch: '법률 조사',
     drafting: '계약서 작성',
-    dueDiligence: '실사',
     smartArchive: '스마트 아카이브',
     knowledgeBases: '지식 베이스',
     agents: '에이전트',

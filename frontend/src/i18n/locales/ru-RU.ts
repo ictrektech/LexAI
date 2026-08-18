@@ -8,7 +8,6 @@ export default {
     contractReview: 'Проверка договора',
     legalResearch: 'Правовой поиск',
     drafting: 'Подготовка договоров',
-    dueDiligence: 'Due Diligence',
     smartArchive: 'Умный архив',
     knowledgeBases: 'Базы знаний',
     agents: 'Агенты',
