@@ -53,12 +53,26 @@ test.describe('legal workspace', () => {
     await page.getByTestId('archive-archive').click()
     await expect(page.getByTestId('archive-row-doc-1')).toHaveCount(0)
 
-    await page.getByTestId('archive-show-archived').check()
+    await page.getByTestId('archive-show-archived').selectOption('archived')
     await expect(page.getByTestId('archive-row-doc-1')).toBeVisible()
     page.once('dialog', (dialog) => dialog.accept())
     await page.getByTestId('archive-row-doc-1').click()
     await page.getByTestId('archive-delete').click()
     await expect(page.getByTestId('archive-row-doc-1')).toHaveCount(0)
+  })
+
+  test('filters smart archive documents and loads additional search results', async ({ page }) => {
+    await page.goto('/legal/smart-archive')
+    await page.getByTestId('archive-search').fill('many')
+    await page.getByTestId('archive-search').press('Enter')
+    await expect(page.getByTestId('archive-row-many-1')).toBeVisible()
+    await expect(page.getByText('已加载 30/35')).toBeVisible()
+    await page.getByRole('button', { name: '加载更多' }).click()
+    await expect(page.getByTestId('archive-row-many-35')).toBeVisible()
+
+    await page.locator('.archive-status-filter summary').click()
+    await page.locator('.archive-status-filter label').filter({ hasText: '已完成' }).click()
+    await expect(page.locator('.archive-document-status--completed').first()).toBeVisible()
   })
 
   test('creates and activates a reminder and marks its notification read', async ({ page }) => {
@@ -67,7 +81,7 @@ test.describe('legal workspace', () => {
     await page.getByTestId('archive-create-reminder').click()
     await expect(page.locator('.candidate-modal')).toBeVisible()
     await page.locator('.candidate-modal .primary-button').click()
-  await expect(page.getByTestId('archive-activate-reminder').last()).toBeVisible()
+    await expect(page.getByTestId('archive-activate-reminder').last()).toBeVisible()
     await page.getByTestId('archive-activate-reminder').last().click()
     await expect(page.getByTestId('archive-handle-reminder')).toBeVisible()
     await page.getByTestId('archive-mark-read').click()

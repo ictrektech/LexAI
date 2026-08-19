@@ -503,15 +503,19 @@ type ArchiveUpload struct {
 }
 
 type ArchiveSearchFilters struct {
-	DocumentType    string     `json:"document_type,omitempty"`
-	BusinessType    string     `json:"business_type,omitempty"`
-	CustomerID      string     `json:"customer_id,omitempty"`
-	Model           string     `json:"model,omitempty"`
-	SerialNumber    string     `json:"serial_number,omitempty"`
-	AgreementNumber string     `json:"agreement_number,omitempty"`
-	AssetStatus     string     `json:"asset_status,omitempty"`
-	From            *time.Time `json:"from,omitempty"`
-	To              *time.Time `json:"to,omitempty"`
+	DocumentType       string                    `json:"document_type,omitempty"`
+	BusinessType       string                    `json:"business_type,omitempty"`
+	CustomerID         string                    `json:"customer_id,omitempty"`
+	Model              string                    `json:"model,omitempty"`
+	SerialNumber       string                    `json:"serial_number,omitempty"`
+	AgreementNumber    string                    `json:"agreement_number,omitempty"`
+	AssetStatus        string                    `json:"asset_status,omitempty"`
+	From               *time.Time                `json:"from,omitempty"`
+	To                 *time.Time                `json:"to,omitempty"`
+	ImportedFrom       *time.Time                `json:"imported_from,omitempty"`
+	ImportedTo         *time.Time                `json:"imported_to,omitempty"`
+	ExtractionStatuses []ArchiveExtractionStatus `json:"extraction_statuses,omitempty"`
+	Archived           *bool                     `json:"archived,omitempty"`
 }
 
 type ArchiveSearchRequest struct {

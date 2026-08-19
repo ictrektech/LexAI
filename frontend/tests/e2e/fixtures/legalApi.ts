@@ -304,7 +304,25 @@ export async function installLegalApi(page: Page, role: LegalRole = 'admin') {
       return
     }
     if (path === '/api/v1/archive/search' && method === 'POST') {
-      await json(route, { success: true, data: { answer: '', documents, customers: [], citations: [], total: documents.length } })
+      const body = await requestBody(route)
+      const filters = body.filters || {}
+      const archived = Boolean(filters.archived)
+      const query = String(body.query || '').toLowerCase()
+      const source = query === 'many'
+        ? Array.from({ length: 35 }, (_, index) => archiveDocument(`many-${index + 1}`, { title: `批量合同 ${index + 1}` }))
+        : documents
+      const matching = source.filter((item: any) => {
+        if (item.trashed_at || Boolean(item.archived_at) !== archived) return false
+        if (filters.document_type && item.document_type !== filters.document_type) return false
+        if (Array.isArray(filters.extraction_statuses) && filters.extraction_statuses.length && !filters.extraction_statuses.includes(item.extraction_status)) return false
+        if (filters.imported_from && new Date(item.created_at) < new Date(filters.imported_from)) return false
+        if (filters.imported_to && new Date(item.created_at) > new Date(filters.imported_to)) return false
+        return query === 'many' || !query || `${item.title} ${item.file_name} ${item.agreement_number}`.toLowerCase().includes(query)
+      })
+      const page = Math.max(1, Number(body.page) || 1)
+      const pageSize = Math.max(1, Number(body.page_size) || 30)
+      const pageRows = matching.slice((page - 1) * pageSize, page * pageSize)
+      await json(route, { success: true, data: { answer: '', documents: pageRows, customers: [], citations: [], total: matching.length } })
       return
     }
     if (path === '/api/v1/archive/import-batches/batch-1' && method === 'GET') {

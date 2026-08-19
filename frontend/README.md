@@ -36,6 +36,7 @@ All `/legal/*` pages use **Warm Legal + Vercel Neutral**: warm ivory surfaces, s
 - Text and structure: `--legal-text-primary` (`#1F1F1F`), `--legal-text-secondary` (`#6B6B6B`), `--legal-border` (`#E2DED6`), and `--legal-bg-hover`.
 - Actions and AI: `--legal-brand` (`#1F1F1F`) for primary actions, `--legal-brand-hover` (`#2A2A2A`) and `--legal-brand-active` (`#171717`) for interaction states, plus `--legal-ai` (`#737373`), `--legal-ai-strong` (`#4D4D4D`), and `--legal-ai-soft` (`#F1F1EF`) for AI-generated or selected states.
 - Semantics: warning/medium-risk states use `--legal-warning` (`#A9793D`) and `--legal-warning*`; high-risk and error states use `--legal-risk` (`#A6534D`) and `--legal-risk*`. Use the `*-strong` variants for small text and the base colors for icons, borders, progress, or highlights.
+- Async task states use the Vercel-inspired `--legal-status-*` palette: blue queued, amber running, green completed, red failed, gray cancelled, and purple when human review is required. Each state also has `*-strong` text and `*-soft` ring/background tokens.
 
 The legal shell maps these tokens onto TDesign variables and sets `data-workspace-theme="legal"` on the root element while mounted so teleported popups inherit the same palette. The attribute is removed when leaving `/legal/*`; do not move these overrides into the global platform theme. Statuses must retain a text or icon label and must not rely on color alone.
 
@@ -57,6 +58,13 @@ Smart Archive imports PDF, Word, Excel, JPG/JPEG, PNG and WEBP files. It stores
 structured fields with source evidence, supports OCR and natural-language
 search, and sends unverifiable documents to Review Queue. Related-party values
 are cleaned before linking; new imports do not create asset rows.
+
+The Documents tab uses server-side semantic search with import-date, document
+type, multi-status, and active/archived filters. Results load 30 at a time and
+append through **Load more**. Processing documents keep the loaded result range
+fresh during polling. Document rows use the shared Vercel-style status palette,
+and open a responsive detail drawer without changing Reminder or Review Queue
+layouts.
 
 Each import is mirrored into the read-only managed knowledge base **合同智能档案**
 through a reusable parse artifact, avoiding duplicate parsing or OCR. Documents

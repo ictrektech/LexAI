@@ -120,6 +120,35 @@ func TestSmartArchiveSearchAssetFilterDoesNotDuplicateDocuments(t *testing.T) {
 	require.Equal(t, doc.ID, result.Documents[0].ID)
 }
 
+func TestSmartArchiveSearchFiltersImportedDateStatusAndArchiveState(t *testing.T) {
+	repo, db := newSmartArchiveSearchRepository(t)
+	importedFrom := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+	importedTo := time.Date(2026, 8, 19, 23, 59, 59, 999000000, time.UTC)
+	archivedAt := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	documents := []*types.ArchiveDocument{
+		{TenantID: 1, Title: "匹配采购合同", FileName: "match.pdf", FileType: ".pdf", FileHash: "filter-match", FilePath: "local://match.pdf", DocumentType: types.ArchiveDocumentContract, ExtractionStatus: types.ArchiveExtractionCompleted, CreatedAt: time.Date(2026, 8, 19, 8, 0, 0, 0, time.UTC), CreatedBy: "user-1"},
+		{TenantID: 1, Title: "归档采购合同", FileName: "archived.pdf", FileType: ".pdf", FileHash: "filter-archived", FilePath: "local://archived.pdf", DocumentType: types.ArchiveDocumentContract, ExtractionStatus: types.ArchiveExtractionCompleted, ArchivedAt: &archivedAt, CreatedAt: time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC), CreatedBy: "user-1"},
+		{TenantID: 1, Title: "失败采购合同", FileName: "failed.pdf", FileType: ".pdf", FileHash: "filter-failed", FilePath: "local://failed.pdf", DocumentType: types.ArchiveDocumentContract, ExtractionStatus: types.ArchiveExtractionFailed, CreatedAt: time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC), CreatedBy: "user-1"},
+		{TenantID: 1, Title: "旧采购合同", FileName: "old.pdf", FileType: ".pdf", FileHash: "filter-old", FilePath: "local://old.pdf", DocumentType: types.ArchiveDocumentContract, ExtractionStatus: types.ArchiveExtractionCompleted, CreatedAt: time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC), CreatedBy: "user-1"},
+	}
+	for _, document := range documents {
+		require.NoError(t, db.Create(document).Error)
+	}
+	archived := false
+	result, err := repo.Search(context.Background(), 1, &types.ArchiveSearchRequest{
+		Query: "采购合同",
+		Filters: types.ArchiveSearchFilters{
+			DocumentType: string(types.ArchiveDocumentContract), ImportedFrom: &importedFrom, ImportedTo: &importedTo,
+			ExtractionStatuses: []types.ArchiveExtractionStatus{types.ArchiveExtractionCompleted}, Archived: &archived,
+		},
+		Page: 1, PageSize: 30,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, result.Documents, 1)
+	require.Equal(t, "匹配采购合同", result.Documents[0].Title)
+}
+
 func TestDeliverReminderIsTransactionalAndIdempotent(t *testing.T) {
 	repo, db := newSmartArchiveSearchRepository(t)
 	due := time.Now().UTC().Add(-time.Minute)

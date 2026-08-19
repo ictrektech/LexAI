@@ -17,6 +17,22 @@ export interface ArchiveNotification { id: string; reminder_id?: string; occurre
 export interface ArchiveBulkActionResult { action: ArchiveBulkAction; requested: number; succeeded: number; failed: number; items: Array<{ id: string; success: boolean; error?: string }> }
 export interface ArchiveSettings { id: string; managed_knowledge_base_id: string; timezone: string; extraction_model_id: string; extraction_version: string; trash_retention_days: number }
 export interface ArchiveSearchResponse { answer: string; documents: ArchiveDocument[]; customers: ArchiveCustomer[]; citations: Array<{ document_id: string; field_name?: string; quote: string; locator: Record<string, unknown> }>; total: number }
+export interface ArchiveSearchFilters {
+  document_type?: ArchiveDocumentType
+  business_type?: string
+  customer_id?: string
+  model?: string
+  serial_number?: string
+  agreement_number?: string
+  asset_status?: string
+  from?: string
+  to?: string
+  imported_from?: string
+  imported_to?: string
+  extraction_statuses?: ArchiveExtractionStatus[]
+  archived?: boolean
+}
+export interface ArchiveSearchRequest { query: string; filters: ArchiveSearchFilters; page: number; page_size: number }
 interface ApiResponse<T> { success: boolean; data: T }
 
 export const getArchiveSettings = () => get<ApiResponse<ArchiveSettings>>('/api/v1/archive/settings')
@@ -37,7 +53,7 @@ export const getArchiveDocumentEvidence = (id: string) => get<ApiResponse<Archiv
 export const getArchiveDocumentPreview = (id: string) => getDown(`/api/v1/archive/documents/${id}/preview`)
 export const listArchiveCustomers = (q = '') => get<ApiResponse<ArchiveCustomer[]>>(`/api/v1/archive/customers?q=${encodeURIComponent(q)}`)
 export const updateArchiveCustomer = (id: string, data: Record<string, unknown>) => patch<ApiResponse<ArchiveCustomer>>(`/api/v1/archive/customers/${id}`, data)
-export const searchArchive = (data: Record<string, unknown>) => post<ApiResponse<ArchiveSearchResponse>>('/api/v1/archive/search', data)
+export const searchArchive = (data: ArchiveSearchRequest) => post<ApiResponse<ArchiveSearchResponse>>('/api/v1/archive/search', data)
 export const listArchiveReminders = (status = '') => get<ApiResponse<ArchiveReminder[]>>(`/api/v1/archive/reminders${status ? `?status=${encodeURIComponent(status)}` : ''}`)
 export const listArchiveReminderCandidates = (status = 'pending') => get<ApiResponse<ArchiveReminderCandidate[]>>(`/api/v1/archive/reminder-candidates${status ? `?status=${encodeURIComponent(status)}` : ''}`)
 export const bulkIgnoreArchiveReminderCandidates = (ids: string[]) => post<ApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/reminder-candidates/bulk/ignore', { ids })

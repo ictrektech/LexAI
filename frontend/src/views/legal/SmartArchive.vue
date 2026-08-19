@@ -17,17 +17,30 @@
       <nav class="archive-tabs">
         <button v-for="item in tabs" :key="item.id" :data-testid="`archive-tab-${item.id}`" type="button" :class="{ active: tab === item.id }" @click="selectTab(item.id)"><t-icon :name="item.icon" /> {{ item.label }}</button>
       </nav>
-      <div class="toolbar-filters"><select data-testid="archive-type-filter" v-model="documentTypeFilter" @change="runSearch"><option value="">{{ t('smartArchive.allTypes') }}</option><option v-for="type in documentTypes" :key="type" :value="type">{{ documentTypeLabel(type) }}</option></select><div class="search-box"><t-icon name="search" /><input data-testid="archive-search" v-model="query" :placeholder="t('smartArchive.searchPlaceholder')" @keydown.enter="runSearch" /><button v-if="query" type="button" @click="query = ''; runSearch()"><t-icon name="close" /></button></div></div>
     </div>
 
     <div v-if="uploading" class="import-progress"><t-loading size="small" /> {{ t('smartArchive.importing') }} {{ store.importProgress }}%<i><b :style="{ width: `${store.importProgress}%` }" /></i></div>
 
     <main class="archive-content">
       <template v-if="tab === 'documents'">
-        <div class="content-heading"><div><h2>{{ t('smartArchive.documents') }}</h2><span>{{ t('smartArchive.documentsDescription') }}</span></div><div class="content-heading-actions"><div v-if="selectedCount" class="bulk-toolbar"><span>{{ t('smartArchive.selectedCount', { count: selectedCount }) }}</span><button v-if="!showArchived && canContribute" data-testid="archive-bulk-archive" class="secondary-button bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('archive')"><t-icon name="archive" /><span>{{ t('smartArchive.bulkArchive') }}</span></button><template v-else-if="showArchived && canAdmin"><button data-testid="archive-bulk-restore" class="secondary-button bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('restore')"><t-icon name="rollback" /><span>{{ t('smartArchive.bulkRestore') }}</span></button><button data-testid="archive-bulk-purge" class="secondary-button secondary-button--danger bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('purge')"><t-icon name="delete" /><span>{{ t('smartArchive.bulkDelete') }}</span></button></template></div><label class="archive-switch"><input data-testid="archive-show-archived" v-model="showArchived" type="checkbox" @change="onArchiveViewChanged" /> {{ t('smartArchive.showArchived') }}</label></div></div>
-        <div v-if="store.loading" class="archive-empty"><t-loading /> {{ t('smartArchive.loading') }}</div>
-        <div v-else-if="!store.documents.length" class="archive-empty"><t-icon name="file-paste" size="32px" /><strong>{{ t('smartArchive.emptyDocuments') }}</strong><span>{{ t('smartArchive.emptyDocumentsDescription') }}</span><button v-if="canContribute" data-testid="archive-empty-import" class="primary-button" type="button" @click="fileInput?.click()">{{ t('smartArchive.importFiles') }}</button></div>
-        <div v-else class="archive-table-wrap"><table class="archive-table"><thead><tr><th class="selection-cell"><input data-testid="archive-select-all" type="checkbox" :checked="allDocumentsSelected" :indeterminate="someDocumentsSelected" :aria-label="t('smartArchive.selectAll')" @click.stop="toggleAllDocuments" /></th><th>{{ t('smartArchive.document') }}</th><th>{{ t('smartArchive.type') }}</th><th>{{ t('smartArchive.relatedParty') }}</th><th>{{ t('smartArchive.status') }}</th><th>{{ t('smartArchive.updated') }}</th><th /></tr></thead><tbody><tr v-for="document in store.documents" :key="document.id" :data-testid="`archive-row-${document.id}`" :class="{ selected: selected?.id === document.id, 'row-checked': selectedIds.includes(document.id) }" @click="openDocument(document)"><td class="selection-cell"><input type="checkbox" :checked="selectedIds.includes(document.id)" :aria-label="document.title" @click.stop @change="toggleDocument(document.id, $event)" /></td><td><div class="doc-cell"><span class="file-icon"><t-icon name="file-paste" /></span><span><b>{{ document.title }}</b><small>{{ document.file_name }} · {{ formatSize(document.file_size) }}</small></span></div></td><td>{{ documentTypeLabel(document.document_type) }}</td><td>{{ document.customer?.name || '—' }}</td><td><span class="status-pill" :class="`status-pill--${document.extraction_status}`">{{ extractionStatusLabel(document.extraction_status) }}</span></td><td class="muted">{{ formatDate(document.updated_at) }}</td><td><template v-if="document.archived_at && canAdmin"><button class="archive-action-button" type="button" @click.stop="restoreArchivedDocument(document)">{{ t('smartArchive.restore') }}</button><button class="archive-action-button archive-action-button--danger" type="button" @click.stop="deleteArchivedDocument(document)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="!document.archived_at && canContribute" class="icon-button" type="button" :title="t('smartArchive.archive')" @click.stop="archiveDocument(document)"><t-icon name="archive" /></button></td></tr></tbody></table></div>
+        <section class="document-panel">
+          <div class="document-panel__heading">
+            <div><h2>{{ t('smartArchive.documents') }}</h2><span>{{ t('smartArchive.documentCount', { count: store.searchTotal }) }}</span></div>
+            <div v-if="selectedCount" class="bulk-toolbar"><span>{{ t('smartArchive.selectedCount', { count: selectedCount }) }}</span><button v-if="!showArchived && canContribute" data-testid="archive-bulk-archive" class="secondary-button bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('archive')"><t-icon name="archive" /><span>{{ t('smartArchive.bulkArchive') }}</span></button><template v-else-if="showArchived && canAdmin"><button data-testid="archive-bulk-restore" class="secondary-button bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('restore')"><t-icon name="rollback" /><span>{{ t('smartArchive.bulkRestore') }}</span></button><button data-testid="archive-bulk-purge" class="secondary-button secondary-button--danger bulk-document-action" type="button" :disabled="bulkWorking" @click="runBulkAction('purge')"><t-icon name="delete" /><span>{{ t('smartArchive.bulkDelete') }}</span></button></template></div>
+          </div>
+          <div class="document-filters">
+            <div class="document-search"><t-icon name="search" /><input data-testid="archive-search" v-model="query" :placeholder="t('smartArchive.searchPlaceholder')" @keydown.enter="applyDocumentSearch" /><button type="button" :title="t('smartArchive.searchAction')" @click="applyDocumentSearch"><t-icon name="arrow-right" /></button></div>
+            <div class="archive-date-filter"><t-icon name="calendar" /><input v-model="dateFrom" type="date" :aria-label="t('smartArchive.dateFrom')" @change="onDocumentFiltersChanged" /><span>–</span><input v-model="dateTo" type="date" :aria-label="t('smartArchive.dateTo')" @change="onDocumentFiltersChanged" /></div>
+            <select data-testid="archive-type-filter" v-model="documentTypeFilter" :aria-label="t('smartArchive.typeFilter')" @change="onDocumentFiltersChanged"><option value="">{{ t('smartArchive.allTypes') }}</option><option v-for="type in documentTypes" :key="type" :value="type">{{ documentTypeLabel(type) }}</option></select>
+            <details class="archive-status-filter"><summary><span class="archive-status-dots"><i v-for="status in extractionStatuses" :key="status" :class="`archive-status-dot--${archiveDocumentStatusTone(status)}`" /></span>{{ statusFilterLabel }}<t-icon name="chevron-down" /></summary><div><label v-for="status in extractionStatuses" :key="status"><input type="checkbox" :checked="statusFilters.includes(status)" @change="toggleExtractionStatus(status)" /><i :class="`archive-status-dot--${archiveDocumentStatusTone(status)}`" />{{ extractionStatusLabel(status) }}</label></div></details>
+            <select data-testid="archive-show-archived" v-model="archiveView" :aria-label="t('smartArchive.archiveView')" @change="onArchiveViewChanged"><option value="active">{{ t('smartArchive.currentDocuments') }}</option><option value="archived">{{ t('smartArchive.archivedDocuments') }}</option></select>
+            <button v-if="hasDocumentFilters" type="button" class="clear-document-filters" @click="clearDocumentFilters">{{ t('smartArchive.clearFilters') }}</button>
+          </div>
+          <div v-if="documentLoading" class="archive-empty"><t-loading /> {{ t('smartArchive.loading') }}</div>
+          <div v-else-if="documentError" class="archive-empty archive-empty--error"><t-icon name="error-circle" size="28px" /><strong>{{ documentError }}</strong><button class="secondary-button" type="button" @click="refreshDocumentSearch">{{ t('smartArchive.refresh') }}</button></div>
+          <div v-else-if="!store.documents.length" class="archive-empty"><t-icon name="file-paste" size="32px" /><strong>{{ t('smartArchive.emptyDocuments') }}</strong><span>{{ hasDocumentFilters ? t('smartArchive.noMatchingDocuments') : t('smartArchive.emptyDocumentsDescription') }}</span><button v-if="canContribute && !hasDocumentFilters" data-testid="archive-empty-import" class="primary-button" type="button" @click="fileInput?.click()">{{ t('smartArchive.importFiles') }}</button><button v-else-if="hasDocumentFilters" class="secondary-button" type="button" @click="clearDocumentFilters">{{ t('smartArchive.clearFilters') }}</button></div>
+          <div v-else class="archive-table-wrap"><table class="archive-table"><thead><tr><th class="selection-cell"><input data-testid="archive-select-all" type="checkbox" :checked="allDocumentsSelected" :indeterminate="someDocumentsSelected" :aria-label="t('smartArchive.selectAll')" @click.stop="toggleAllDocuments" /></th><th>{{ t('smartArchive.document') }}</th><th>{{ t('smartArchive.type') }}</th><th>{{ t('smartArchive.relatedParty') }}</th><th>{{ t('smartArchive.status') }}</th><th>{{ t('smartArchive.updated') }}</th><th /></tr></thead><tbody><tr v-for="document in store.documents" :key="document.id" :data-testid="`archive-row-${document.id}`" :class="{ selected: selected?.id === document.id, 'row-checked': selectedIds.includes(document.id) }" @click="openDocument(document)"><td class="selection-cell"><input type="checkbox" :checked="selectedIds.includes(document.id)" :aria-label="document.title" @click.stop @change="toggleDocument(document.id, $event)" /></td><td><div class="doc-cell"><span class="file-icon"><t-icon name="file-paste" /></span><span><b>{{ document.title }}</b><small>{{ document.file_name }} · {{ formatSize(document.file_size) }}</small></span></div></td><td>{{ documentTypeLabel(document.document_type) }}</td><td>{{ document.customer?.name || '—' }}</td><td><span class="archive-document-status" :class="`archive-document-status--${archiveDocumentStatusTone(document.extraction_status)}`"><i />{{ extractionStatusLabel(document.extraction_status) }}</span></td><td class="muted">{{ formatDate(document.updated_at) }}</td><td><template v-if="document.archived_at && canAdmin"><button class="archive-action-button" type="button" @click.stop="restoreArchivedDocument(document)">{{ t('smartArchive.restore') }}</button><button class="archive-action-button archive-action-button--danger" type="button" @click.stop="deleteArchivedDocument(document)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="!document.archived_at && canContribute" class="icon-button" type="button" :title="t('smartArchive.archive')" @click.stop="archiveDocument(document)"><t-icon name="archive" /></button></td></tr></tbody></table><div v-if="hasMoreDocuments" class="archive-load-more"><button type="button" class="secondary-button" :disabled="loadingMore" @click="loadMoreDocuments">{{ loadingMore ? t('smartArchive.loading') : t('smartArchive.loadMore') }}</button><span>{{ t('smartArchive.loadedCount', { loaded: store.documents.length, total: store.searchTotal }) }}</span></div></div>
+        </section>
       </template>
 
       <template v-else-if="tab === 'reminders'">
@@ -44,7 +57,10 @@
 
     <div v-if="candidateDraft" class="modal-backdrop" @click.self="candidateDraft = null"><form class="candidate-modal" @submit.prevent="createCandidate"><header><div><span class="eyebrow">{{ t('smartArchive.candidateReview') }}</span><h2>{{ candidateDraft.title }}</h2></div><button class="icon-button" type="button" @click="candidateDraft = null"><t-icon name="close" /></button></header><div class="candidate-modal-body"><p>{{ candidateDraft.document_title }}</p><p class="candidate-dates">{{ t('smartArchive.eventDate') }}: {{ formatDate(candidateDraft.event_at, true) }} · {{ t('smartArchive.suggestedReminderDate') }}: {{ candidateDueDate(candidateDraft) }}</p><blockquote>{{ candidateDraft.quote }}</blockquote><button class="candidate-evidence-link" type="button" @click="openCandidateSource(candidateDraft)">{{ t('smartArchive.openOriginal') }}</button><label>{{ t('smartArchive.offsetDays') }}<input v-model.number="candidateOffset" type="number" min="0" max="3650" /></label><label>{{ t('smartArchive.reminderTime') }}<input v-model="candidateTime" type="time" /></label><label>{{ t('smartArchive.assignee') }}<select v-model="candidateAssignee"><option value="">{{ t('smartArchive.assigneeDefault') }}</option><option v-for="member in activeMembers" :key="member.user_id" :value="member.user_id">{{ member.username || member.email || member.user_id }}<template v-if="member.email && member.username"> · {{ member.email }}</template></option></select></label><div class="candidate-modal-actions"><button class="secondary-button" type="button" @click="candidateDraft = null">{{ t('smartArchive.cancel') }}</button><button class="primary-button" type="submit">{{ t('smartArchive.createReminder') }}</button></div></div></form></div>
 
-        <aside v-if="selected" class="archive-detail"><header><div><span class="eyebrow">{{ t('smartArchive.documentDetail') }}</span><h2>{{ selected.title }}</h2></div><button class="icon-button" type="button" @click="selected = null"><t-icon name="close" /></button></header><div class="detail-scroll"><div class="detail-actions"><button data-testid="archive-preview" class="secondary-button" type="button" @click="previewDocument"><t-icon name="browse" /> {{ t('smartArchive.openOriginal') }}</button><button v-if="canContribute && (selected.extraction_status === 'failed' || selected.extraction_status === 'needs_review')" class="secondary-button" type="button" @click="retryExtraction(selected)">{{ t('smartArchive.reidentify') }}</button><template v-if="selected.archived_at && canAdmin"><button data-testid="archive-restore" class="secondary-button" type="button" @click="restoreArchivedDocument(selected)">{{ t('smartArchive.restore') }}</button><button data-testid="archive-delete" class="secondary-button secondary-button--danger" type="button" @click="deleteArchivedDocument(selected)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="canContribute" data-testid="archive-archive" class="secondary-button" type="button" @click="archiveDocument(selected)">{{ t('smartArchive.archive') }}</button></div><dl class="field-list"><div><dt>{{ t('smartArchive.type') }}</dt><dd>{{ documentTypeLabel(selected.document_type) }}</dd></div><div v-if="selected.customer?.name"><dt>{{ t('smartArchive.relatedParty') }}</dt><dd>{{ selected.customer.name }}</dd></div><div><dt>{{ t('smartArchive.agreementNumber') }}</dt><dd class="mono">{{ selected.agreement_number || '—' }}</dd></div><div><dt>{{ t('smartArchive.expiry') }}</dt><dd>{{ selected.expires_at ? formatDate(selected.expires_at, true) : '—' }}</dd></div><div v-if="selected.return_due_at"><dt>{{ t('smartArchive.returnDue') }}</dt><dd>{{ formatDate(selected.return_due_at, true) }}</dd></div><div><dt>{{ t('smartArchive.amount') }}</dt><dd>{{ selected.amount ? `${selected.currency || ''} ${selected.amount}` : '—' }}</dd></div></dl><h3 class="detail-section-title">{{ t('smartArchive.evidence') }}</h3><article v-for="evidence in selected.evidence" :key="evidence.id" class="evidence-row"><div><b>{{ evidence.field_name }}</b><span>{{ evidence.value }}</span><small>{{ evidence.quote }}</small></div><em>{{ Math.round(evidence.confidence * 100) }}%</em></article><p v-if="!selected.evidence?.length" class="muted">{{ t('smartArchive.noEvidence') }}</p></div></aside>
+    <t-drawer :visible="selected !== null" :size="drawerSize" :footer="false" :close-btn="true" class="archive-detail-drawer" @close="selected = null">
+      <template #header><div v-if="selected" class="archive-drawer-header"><span class="file-icon"><t-icon name="file-paste" /></span><div><strong>{{ selected.title }}</strong><small>{{ t('smartArchive.documentDetail') }}</small></div></div></template>
+      <div v-if="selected" class="detail-scroll"><div class="detail-status"><span class="archive-document-status" :class="`archive-document-status--${archiveDocumentStatusTone(selected.extraction_status)}`"><i />{{ extractionStatusLabel(selected.extraction_status) }}</span><span>{{ documentTypeLabel(selected.document_type) }}</span><time>{{ formatDate(selected.updated_at) }}</time></div><div class="detail-actions"><button data-testid="archive-preview" class="secondary-button" type="button" @click="previewDocument"><t-icon name="browse" /> {{ t('smartArchive.openOriginal') }}</button><button v-if="canContribute && (selected.extraction_status === 'failed' || selected.extraction_status === 'needs_review')" class="secondary-button" type="button" @click="retryExtraction(selected)">{{ t('smartArchive.reidentify') }}</button><template v-if="selected.archived_at && canAdmin"><button data-testid="archive-restore" class="secondary-button" type="button" @click="restoreArchivedDocument(selected)">{{ t('smartArchive.restore') }}</button><button data-testid="archive-delete" class="secondary-button secondary-button--danger" type="button" @click="deleteArchivedDocument(selected)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="canContribute" data-testid="archive-archive" class="secondary-button" type="button" @click="archiveDocument(selected)">{{ t('smartArchive.archive') }}</button></div><dl class="field-list"><div><dt>{{ t('smartArchive.fileName') }}</dt><dd>{{ selected.file_name }}</dd></div><div><dt>{{ t('smartArchive.fileSize') }}</dt><dd>{{ formatSize(selected.file_size) }}</dd></div><div><dt>{{ t('smartArchive.importedAt') }}</dt><dd>{{ formatDate(selected.created_at) }}</dd></div><div><dt>{{ t('smartArchive.type') }}</dt><dd>{{ documentTypeLabel(selected.document_type) }}</dd></div><div v-if="selected.customer?.name"><dt>{{ t('smartArchive.relatedParty') }}</dt><dd>{{ selected.customer.name }}</dd></div><div><dt>{{ t('smartArchive.agreementNumber') }}</dt><dd class="mono">{{ selected.agreement_number || '—' }}</dd></div><div><dt>{{ t('smartArchive.expiry') }}</dt><dd>{{ selected.expires_at ? formatDate(selected.expires_at, true) : '—' }}</dd></div><div v-if="selected.return_due_at"><dt>{{ t('smartArchive.returnDue') }}</dt><dd>{{ formatDate(selected.return_due_at, true) }}</dd></div><div><dt>{{ t('smartArchive.amount') }}</dt><dd>{{ selected.amount ? `${selected.currency || ''} ${selected.amount}` : '—' }}</dd></div></dl><div v-if="selected.error_message" class="archive-detail-error"><strong>{{ t('smartArchive.errorDetails') }}</strong><p>{{ selected.error_message }}</p></div><h3 class="detail-section-title">{{ t('smartArchive.evidence') }}</h3><article v-for="evidence in selected.evidence" :key="evidence.id" class="evidence-row"><div><b>{{ evidence.field_name }}</b><span>{{ evidence.value }}</span><small>{{ evidence.quote }}</small></div><em>{{ Math.round(evidence.confidence * 100) }}%</em></article><p v-if="!selected.evidence?.length" class="muted">{{ t('smartArchive.noEvidence') }}</p></div>
+    </t-drawer>
   </section>
 </template>
 
@@ -57,15 +73,23 @@ import { getArchiveDocumentPreview } from '@/api/smart-archive'
 import { listMembers, type TenantMember } from '@/api/tenant/members'
 import { useAuthStore } from '@/stores/auth'
 import type { ArchiveDocument, ArchiveExtractionStatus, ArchiveNotification, ArchiveReminder, ArchiveReminderCandidate, ArchiveReminderStatus } from '@/api/smart-archive'
+import { archiveDocumentStatusTone, buildArchiveSearchFilters, hasMoreArchiveDocuments } from './smartArchiveDocuments'
 
-const { t, locale } = useI18n(); const store = useSmartArchiveStore(); const authStore = useAuthStore(); const tab = ref('documents'); const query = ref(''); const documentTypeFilter = ref(''); const showArchived = ref(false); const selected = ref<ArchiveDocument | null>(null); const selectedIds = ref<string[]>([]); const reminderSelectedIds = ref<string[]>([]); const candidateSelectedIds = ref<string[]>([]); const bulkWorking = ref(false); const reminderBulkWorking = ref(false); const candidateBulkWorking = ref(false); const fileInput = ref<HTMLInputElement | null>(null); const uploading = ref(false); const candidateDraft = ref<ArchiveReminderCandidate | null>(null); const candidateOffset = ref(0); const candidateTime = ref('09:00'); const candidateAssignee = ref(''); const members = ref<TenantMember[]>([])
+const { t, locale } = useI18n(); const store = useSmartArchiveStore(); const authStore = useAuthStore(); const tab = ref('documents'); const query = ref(''); const appliedQuery = ref(''); const dateFrom = ref(''); const dateTo = ref(''); const documentTypeFilter = ref(''); const statusFilters = ref<ArchiveExtractionStatus[]>([]); const archiveView = ref<'active' | 'archived'>('active'); const selected = ref<ArchiveDocument | null>(null); const selectedIds = ref<string[]>([]); const reminderSelectedIds = ref<string[]>([]); const candidateSelectedIds = ref<string[]>([]); const bulkWorking = ref(false); const reminderBulkWorking = ref(false); const candidateBulkWorking = ref(false); const fileInput = ref<HTMLInputElement | null>(null); const uploading = ref(false); const documentLoading = ref(false); const loadingMore = ref(false); const documentError = ref(''); const viewportWidth = ref(typeof window === 'undefined' ? 1200 : window.innerWidth); const candidateDraft = ref<ArchiveReminderCandidate | null>(null); const candidateOffset = ref(0); const candidateTime = ref('09:00'); const candidateAssignee = ref(''); const members = ref<TenantMember[]>([])
 const canContribute = computed(() => authStore.hasRole('contributor'))
 const canAdmin = computed(() => authStore.hasRole('admin'))
 const documentTypes = ['contract', 'loan_agreement', 'outbound_order', 'return_order', 'renewal', 'payment', 'delivery', 'other']
+const extractionStatuses: ArchiveExtractionStatus[] = ['uploading', 'parsing', 'extracting', 'linking', 'needs_review', 'completed', 'failed']
 const tabs = computed(() => [{ id: 'documents', label: t('smartArchive.documents'), icon: 'file-paste' }, { id: 'reminders', label: t('smartArchive.reminders'), icon: 'task-checked' }, { id: 'queue', label: t('smartArchive.reviewQueue'), icon: 'error-circle' }])
 const unreadCount = computed(() => store.notifications.filter((item) => !item.read_at).length)
 const activeMembers = computed(() => members.value.filter((member) => member.status === 'active'))
 const queueDocuments = computed(() => store.documents.filter((item) => item.extraction_status === 'needs_review' || item.extraction_status === 'failed'))
+const showArchived = computed(() => archiveView.value === 'archived')
+const documentSearchFilters = computed(() => buildArchiveSearchFilters({ dateFrom: dateFrom.value, dateTo: dateTo.value, documentType: documentTypeFilter.value, statuses: statusFilters.value, archived: showArchived.value }))
+const hasDocumentFilters = computed(() => Boolean(appliedQuery.value || dateFrom.value || dateTo.value || documentTypeFilter.value || statusFilters.value.length || showArchived.value))
+const hasMoreDocuments = computed(() => hasMoreArchiveDocuments(store.documents, store.searchTotal))
+const statusFilterLabel = computed(() => statusFilters.value.length ? t('smartArchive.selectedStatuses', { count: statusFilters.value.length }) : t('smartArchive.allStatuses'))
+const drawerSize = computed(() => viewportWidth.value <= 700 ? '100%' : '560px')
 const visibleDocumentIds = computed(() => store.documents.map((document) => document.id))
 const selectedCount = computed(() => selectedIds.value.length)
 const allDocumentsSelected = computed(() => visibleDocumentIds.value.length > 0 && visibleDocumentIds.value.every((id) => selectedIds.value.includes(id)))
@@ -81,11 +105,17 @@ const someCandidatesSelected = computed(() => candidateSelectedCount.value > 0 &
 const selectedActiveReminderCount = computed(() => store.reminders.filter((reminder) => reminderSelectedIds.value.includes(reminder.id) && (reminder.status === 'active' || reminder.status === 'snoozed')).length)
 const hasProcessingDocuments = computed(() => store.documents.some((document) => ['uploading', 'parsing', 'extracting', 'linking'].includes(document.extraction_status)))
 let statusPollTimer: ReturnType<typeof setInterval> | null = null
-const loadDocuments = () => store.loadDocuments(query.value, showArchived.value).catch((e: any) => MessagePlugin.error(e?.message || t('smartArchive.loadFailed')))
+async function refreshDocumentSearch() {
+  documentLoading.value = true; documentError.value = ''
+  try { await store.search(appliedQuery.value, documentSearchFilters.value, 1, false) } catch (e: any) { documentError.value = e?.message || t('smartArchive.searchFailed') } finally { documentLoading.value = false }
+}
+async function refreshLoadedDocumentPages() {
+  try { await store.refreshSearch(appliedQuery.value, documentSearchFilters.value, store.searchPage || 1) } catch { /* The next poll retries transient failures. */ }
+}
 function stopStatusPolling() { if (statusPollTimer !== null) { clearInterval(statusPollTimer); statusPollTimer = null } }
 function syncStatusPolling(active: boolean) {
   if (active && statusPollTimer === null) {
-    statusPollTimer = setInterval(() => { void store.loadDocuments(query.value, showArchived.value, true).catch(() => undefined) }, 2000)
+    statusPollTimer = setInterval(() => { if (tab.value === 'documents') void refreshLoadedDocumentPages() }, 2000)
   } else if (!active) {
     stopStatusPolling()
   }
@@ -93,7 +123,14 @@ function syncStatusPolling(active: boolean) {
 watch(hasProcessingDocuments, syncStatusPolling, { immediate: true })
 function toggleDocument(id: string, event: Event) { const checked = (event.target as HTMLInputElement).checked; selectedIds.value = checked ? [...new Set([...selectedIds.value, id])] : selectedIds.value.filter((item) => item !== id) }
 function toggleAllDocuments(event: Event) { const checked = (event.target as HTMLInputElement).checked; selectedIds.value = checked ? [...new Set([...selectedIds.value, ...visibleDocumentIds.value])] : selectedIds.value.filter((id) => !visibleDocumentIds.value.includes(id)) }
-function onArchiveViewChanged() { selectedIds.value = []; void loadDocuments() }
+function applyDocumentSearch() { appliedQuery.value = query.value.trim(); selectedIds.value = []; void refreshDocumentSearch() }
+function onDocumentFiltersChanged() { selectedIds.value = []; void refreshDocumentSearch() }
+function onArchiveViewChanged() { selectedIds.value = []; void refreshDocumentSearch() }
+function toggleExtractionStatus(status: ArchiveExtractionStatus) { statusFilters.value = statusFilters.value.includes(status) ? statusFilters.value.filter(item => item !== status) : [...statusFilters.value, status]; onDocumentFiltersChanged() }
+function clearDocumentFilters() { query.value = ''; appliedQuery.value = ''; dateFrom.value = ''; dateTo.value = ''; documentTypeFilter.value = ''; statusFilters.value = []; archiveView.value = 'active'; selectedIds.value = []; void refreshDocumentSearch() }
+async function loadMoreDocuments() { if (loadingMore.value || !hasMoreDocuments.value) return; loadingMore.value = true; try { await store.search(appliedQuery.value, documentSearchFilters.value, store.searchPage + 1, true) } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.searchFailed')) } finally { loadingMore.value = false } }
+async function reloadDocumentContext() { if (tab.value === 'documents') await refreshDocumentSearch(); else await store.loadDocuments('', false) }
+function onResize() { viewportWidth.value = window.innerWidth }
 function toggleReminder(id: string, event: Event) { const checked = (event.target as HTMLInputElement).checked; reminderSelectedIds.value = checked ? [...new Set([...reminderSelectedIds.value, id])] : reminderSelectedIds.value.filter((item) => item !== id) }
 function toggleAllReminders(event: Event) { const checked = (event.target as HTMLInputElement).checked; reminderSelectedIds.value = checked ? [...new Set([...reminderSelectedIds.value, ...visibleReminderIds.value])] : reminderSelectedIds.value.filter((id) => !visibleReminderIds.value.includes(id)) }
 function toggleCandidate(id: string, event: Event) { const checked = (event.target as HTMLInputElement).checked; candidateSelectedIds.value = checked ? [...new Set([...candidateSelectedIds.value, id])] : candidateSelectedIds.value.filter((item) => item !== id) }
@@ -107,7 +144,7 @@ async function runBulkAction(action: 'archive' | 'restore' | 'delete' | 'purge')
   try {
     const result = await store.bulkAction(action, ids)
     selectedIds.value = []
-    await loadDocuments()
+    await reloadDocumentContext()
     if (result.failed > 0) MessagePlugin.warning(t('smartArchive.bulkActionPartial', { succeeded: result.succeeded, failed: result.failed }))
     else MessagePlugin.success(t('smartArchive.bulkActionSuccess', { count: result.succeeded }))
   } catch (e: any) {
@@ -153,14 +190,13 @@ async function runBulkIgnoreCandidates() {
   }
 }
 const loadReminders = () => Promise.all([store.loadReminders(), store.loadReminderCandidates(), store.loadNotifications()]).catch((e: any) => MessagePlugin.error(e?.message || t('smartArchive.loadFailed')))
-async function selectTab(value: string) { selectedIds.value = []; reminderSelectedIds.value = []; candidateSelectedIds.value = []; tab.value = value; if (value === 'documents' || value === 'queue') await loadDocuments(); if (value === 'reminders') await loadReminders() }
-async function runSearch() { selectedIds.value = []; if (!query.value.trim() && !documentTypeFilter.value) { await loadDocuments(); return }; try { const result = await store.search(query.value, documentTypeFilter.value ? { document_type: documentTypeFilter.value } : {}); store.documents = result?.documents || []; store.customers = result?.customers || [] } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.searchFailed')) } }
-async function onFileInput(event: Event) { const files = Array.from((event.target as HTMLInputElement).files || []); (event.target as HTMLInputElement).value = ''; if (!files.length) return; const valid = files.filter((file) => /\.(pdf|doc|docx|xls|xlsx|jpg|jpeg|png|webp)$/i.test(file.name)); if (valid.length !== files.length) MessagePlugin.warning(t('smartArchive.invalidFiles')); if (!valid.length) return; uploading.value = true; try { await store.upload(valid); MessagePlugin.success(t('smartArchive.importStarted')); await loadDocuments() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.importFailed')) } finally { uploading.value = false } }
+async function selectTab(value: string) { selectedIds.value = []; reminderSelectedIds.value = []; candidateSelectedIds.value = []; selected.value = null; tab.value = value; if (value === 'documents') await refreshDocumentSearch(); if (value === 'queue') await store.loadDocuments('', false); if (value === 'reminders') await loadReminders() }
+async function onFileInput(event: Event) { const files = Array.from((event.target as HTMLInputElement).files || []); (event.target as HTMLInputElement).value = ''; if (!files.length) return; const valid = files.filter((file) => /\.(pdf|doc|docx|xls|xlsx|jpg|jpeg|png|webp)$/i.test(file.name)); if (valid.length !== files.length) MessagePlugin.warning(t('smartArchive.invalidFiles')); if (!valid.length) return; uploading.value = true; try { await store.upload(valid); MessagePlugin.success(t('smartArchive.importStarted')); await reloadDocumentContext() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.importFailed')) } finally { uploading.value = false } }
 async function openDocument(document: ArchiveDocument) { selected.value = document; try { selected.value = (await store.loadDocument(document.id)) || document } catch { selected.value = document } }
-async function archiveDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.archiveConfirm', { name: document.title }))) return; try { await store.archive(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await loadDocuments() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.archiveFailed')) } }
-async function restoreArchivedDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.restoreConfirm', { name: document.title }))) return; try { await store.restore(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await loadDocuments() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.restoreFailed')) } }
-async function deleteArchivedDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.deleteConfirm', { name: document.title }))) return; try { await store.deleteDocument(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await loadDocuments() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.deleteFailed')) } }
-async function retryExtraction(document: ArchiveDocument) { try { await store.retryExtraction(document.id); MessagePlugin.success(t('smartArchive.importStarted')); await loadDocuments(); const refreshed = await store.loadDocument(document.id); if (refreshed) selected.value = refreshed } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.importFailed')) } }
+async function archiveDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.archiveConfirm', { name: document.title }))) return; try { await store.archive(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await reloadDocumentContext() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.archiveFailed')) } }
+async function restoreArchivedDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.restoreConfirm', { name: document.title }))) return; try { await store.restore(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await reloadDocumentContext() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.restoreFailed')) } }
+async function deleteArchivedDocument(document: ArchiveDocument | null) { if (!document || !window.confirm(t('smartArchive.deleteConfirm', { name: document.title }))) return; try { await store.deleteDocument(document.id); selectedIds.value = selectedIds.value.filter((id) => id !== document.id); selected.value = null; await reloadDocumentContext() } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.deleteFailed')) } }
+async function retryExtraction(document: ArchiveDocument) { try { await store.retryExtraction(document.id); MessagePlugin.success(t('smartArchive.importStarted')); await reloadDocumentContext(); const refreshed = await store.loadDocument(document.id); if (refreshed) selected.value = refreshed } catch (e: any) { MessagePlugin.error(e?.message || t('smartArchive.importFailed')) } }
 function documentMimeType(fileType: string) {
   switch (fileType.toLowerCase().replace(/^\./, '')) {
     case 'pdf': return 'application/pdf'
@@ -188,7 +224,7 @@ const formatDate = (value: string, dateOnly = false) => new Intl.DateTimeFormat(
 const formatTime = (value: string) => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)); const formatSize = (value: number) => value > 1024 * 1024 ? `${(value / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`
 const candidateDueDate = (candidate: ArchiveReminderCandidate) => { const date = new Date(candidate.event_at); date.setUTCDate(date.getUTCDate() - candidate.suggested_offset_days); return formatDate(date.toISOString(), true) }
 const documentTypeLabel = (value: string) => t(`smartArchive.documentTypes.${value}`, value); const extractionStatusLabel = (value: ArchiveExtractionStatus) => t(`smartArchive.extractionStatuses.${value}`, value); const reminderStatusLabel = (value: ArchiveReminderStatus) => t(`smartArchive.reminderStatuses.${value}`, value)
-onMounted(async () => { await store.loadSettings(); await loadMembers(); await loadDocuments(); await loadReminders(); syncStatusPolling(hasProcessingDocuments.value) }); onBeforeUnmount(() => { stopStatusPolling(); store.disconnect() })
+onMounted(async () => { window.addEventListener('resize', onResize); await store.loadSettings(); await loadMembers(); await refreshDocumentSearch(); await loadReminders(); syncStatusPolling(hasProcessingDocuments.value) }); onBeforeUnmount(() => { window.removeEventListener('resize', onResize); stopStatusPolling(); store.disconnect() })
 </script>
 
 <style scoped lang="less">
@@ -345,9 +381,90 @@ onMounted(async () => { await store.loadSettings(); await loadMembers(); await l
 .candidate-modal label { color: var(--legal-text-secondary); }
 .candidate-modal blockquote { border-left-color: var(--legal-warning); }
 .candidate-source:hover { color: var(--legal-ai-strong); }
+.document-panel { overflow: visible; border: 1px solid var(--legal-border); border-radius: 6px; background: var(--legal-bg-surface); }
+.document-panel__heading { min-height: 62px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--legal-border); }
+.document-panel__heading h2 { display: inline; margin-right: 8px; font-size: 15px; }
+.document-panel__heading > div > span { color: var(--legal-text-secondary); font-size: 11px; }
+.document-filters { padding: 12px; display: grid; grid-template-columns: minmax(230px, 1fr) minmax(270px, auto) 145px 175px 135px auto; gap: 8px; border-bottom: 1px solid var(--legal-border); }
+.document-search,
+.archive-date-filter,
+.document-filters > select,
+.archive-status-filter summary { height: 38px; box-sizing: border-box; border: 1px solid var(--legal-border); border-radius: 5px; color: var(--legal-text-secondary); background: var(--legal-bg-page); }
+.document-search { min-width: 0; padding: 0 9px; display: flex; align-items: center; gap: 7px; }
+.document-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--legal-text-primary); background: transparent; font-size: 11px; }
+.document-search button { width: 25px; height: 25px; padding: 0; border: 0; border-radius: 4px; color: var(--legal-text-secondary); background: transparent; cursor: pointer; }
+.document-search button:hover { color: var(--legal-text-primary); background: var(--legal-bg-hover); }
+.archive-date-filter { padding: 0 9px; display: flex; align-items: center; gap: 7px; }
+.archive-date-filter input { width: 112px; padding: 0; border: 0; outline: 0; color: var(--legal-text-primary); background: transparent; font-size: 10px; }
+.document-filters > select { width: 100%; padding: 0 8px; font-size: 11px; }
+.archive-status-filter { position: relative; }
+.archive-status-filter summary { padding: 0 10px; display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: 11px; }
+.archive-status-filter summary::-webkit-details-marker { display: none; }
+.archive-status-filter summary > :last-child { margin-left: auto; }
+.archive-status-filter > div { position: absolute; z-index: 20; top: 43px; right: 0; width: 195px; padding: 6px; border: 1px solid var(--legal-border); border-radius: 6px; background: var(--legal-bg-surface); box-shadow: var(--legal-shadow-soft); }
+.archive-status-filter label { padding: 7px 8px; display: flex; align-items: center; gap: 8px; border-radius: 4px; cursor: pointer; color: var(--legal-text-primary); font-size: 11px; }
+.archive-status-filter label:hover { background: var(--legal-bg-hover); }
+.archive-status-filter input { width: 14px; height: 14px; margin: 0; accent-color: var(--legal-brand); }
+.archive-status-dots { display: flex; }
+.archive-status-dots i { margin-left: -2px; border: 2px solid var(--legal-bg-page); }
+.archive-status-filter i,
+.archive-status-dots i { width: 9px; height: 9px; flex: none; border-radius: 50%; }
+.archive-status-dot--queued { background: var(--legal-status-queued); }
+.archive-status-dot--running { background: var(--legal-status-running); }
+.archive-status-dot--completed { background: var(--legal-status-completed); }
+.archive-status-dot--failed { background: var(--legal-status-failed); }
+.archive-status-dot--review { background: var(--legal-status-review); }
+.clear-document-filters { align-self: center; border: 0; color: var(--legal-brand); background: transparent; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.document-panel .archive-table-wrap { border: 0; border-radius: 0 0 6px 6px; }
+.document-panel .archive-table td { height: 66px; }
+.archive-document-status { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.archive-document-status i { width: 9px; height: 9px; flex: none; border-radius: 50%; }
+.archive-document-status--queued { color: var(--legal-status-queued-strong); }
+.archive-document-status--queued i { background: var(--legal-status-queued); box-shadow: 0 0 0 3px var(--legal-status-queued-soft); }
+.archive-document-status--running { color: var(--legal-status-running-strong); }
+.archive-document-status--running i { background: var(--legal-status-running); box-shadow: 0 0 0 3px var(--legal-status-running-soft); animation: archive-status-pulse 1.8s ease-out infinite; }
+.archive-document-status--completed { color: var(--legal-status-completed-strong); }
+.archive-document-status--completed i { background: var(--legal-status-completed); box-shadow: 0 0 0 3px var(--legal-status-completed-soft); }
+.archive-document-status--failed { color: var(--legal-status-failed-strong); }
+.archive-document-status--failed i { background: var(--legal-status-failed); box-shadow: 0 0 0 3px var(--legal-status-failed-soft); }
+.archive-document-status--review { color: var(--legal-status-review-strong); }
+.archive-document-status--review i { background: var(--legal-status-review); box-shadow: 0 0 0 3px var(--legal-status-review-soft); }
+@keyframes archive-status-pulse { 0%, 100% { box-shadow: 0 0 0 3px var(--legal-status-running-soft); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.archive-load-more { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; border-top: 1px solid var(--legal-border); }
+.archive-load-more span { color: var(--legal-text-secondary); font-size: 10px; }
+.archive-empty--error { color: var(--legal-status-failed-strong); }
+.archive-drawer-header { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.archive-drawer-header > div { min-width: 0; }
+.archive-drawer-header strong,
+.archive-drawer-header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archive-drawer-header strong { font-size: 14px; }
+.archive-drawer-header small { margin-top: 3px; color: var(--legal-text-secondary); font-size: 10px; }
+.detail-status { margin-bottom: 14px; padding: 13px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--legal-border); border-radius: 6px; background: var(--legal-bg-hover); }
+.detail-status > span:nth-child(2),
+.detail-status time { color: var(--legal-text-secondary); font-size: 10px; }
+.detail-status time { margin-left: auto; }
+.archive-detail-drawer .detail-actions { flex-wrap: wrap; }
+.archive-detail-error { margin-top: 18px; padding: 13px; border: 1px solid var(--legal-status-failed); border-radius: 6px; background: var(--legal-status-failed-soft); }
+.archive-detail-error strong,
+.archive-detail-error p { color: var(--legal-status-failed-strong); }
+.archive-detail-error strong { font-size: 11px; }
+.archive-detail-error p { margin-top: 6px; line-height: 1.5; }
 @media (max-width: 900px) {
   .content-heading-actions { align-items: flex-end; flex-direction: column; gap: 8px; }
   .bulk-toolbar { flex-wrap: wrap; justify-content: flex-end; }
+  .document-filters { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
+  .document-panel__heading { padding: 12px; align-items: flex-start; flex-direction: column; gap: 10px; }
+  .document-filters { grid-template-columns: 1fr; }
+  .archive-date-filter input { width: 100%; }
+  .archive-table th:nth-child(3), .archive-table td:nth-child(3),
+  .archive-table th:nth-child(4), .archive-table td:nth-child(4),
+  .archive-table th:nth-child(6), .archive-table td:nth-child(6) { display: none; }
+  .doc-cell { min-width: 210px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .archive-document-status--running i { animation: none; }
 }
 </style>
 
@@ -356,9 +473,10 @@ onMounted(async () => { await store.loadSettings(); await loadMembers(); await l
    This is intentionally non-scoped so it can override the legal shell's
    teleported/global focus rule. Native caret, typing, and form behavior stay
    unchanged. */
-:root[data-workspace-theme='legal'] .archive-page .toolbar-filters select:focus,
-:root[data-workspace-theme='legal'] .archive-page .toolbar-filters select:focus-visible,
-:root[data-workspace-theme='legal'] .archive-page .search-box:focus-within,
+:root[data-workspace-theme='legal'] .archive-page .document-filters select:focus,
+:root[data-workspace-theme='legal'] .archive-page .document-filters select:focus-visible,
+:root[data-workspace-theme='legal'] .archive-page .document-search:focus-within,
+:root[data-workspace-theme='legal'] .archive-page .archive-date-filter:focus-within,
 :root[data-workspace-theme='legal'] .archive-page .candidate-modal input:focus,
 :root[data-workspace-theme='legal'] .archive-page .candidate-modal input:focus-visible,
 :root[data-workspace-theme='legal'] .archive-page .candidate-modal select:focus,
@@ -368,8 +486,10 @@ onMounted(async () => { await store.loadSettings(); await loadMembers(); await l
   box-shadow: none !important;
 }
 
-:root[data-workspace-theme='legal'] .archive-page .search-box input:focus,
-:root[data-workspace-theme='legal'] .archive-page .search-box input:focus-visible {
+:root[data-workspace-theme='legal'] .archive-page .document-search input:focus,
+:root[data-workspace-theme='legal'] .archive-page .document-search input:focus-visible,
+:root[data-workspace-theme='legal'] .archive-page .archive-date-filter input:focus,
+:root[data-workspace-theme='legal'] .archive-page .archive-date-filter input:focus-visible {
   border-color: transparent;
   outline: none !important;
   box-shadow: none !important;

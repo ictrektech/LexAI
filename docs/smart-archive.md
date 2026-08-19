@@ -15,6 +15,11 @@
 
 以上路径均位于 `/api/v1` 下。批量请求使用 `{ "ids": [...] }`，并返回逐项处理结果。
 
+`POST /archive/search` 使用 `page` / `page_size` 分页。`filters` 支持原有的
+`document_type`、业务日期 `from` / `to` 等字段，也支持文档列表使用的
+`imported_from` / `imported_to`（按导入时间）、`extraction_statuses`（多状态）
+和 `archived`（当前或已归档）筛选。未提供这些新增字段时保持旧客户端行为。
+
 Viewer（查看者）可以读取、搜索、预览文档，并将通知标记为已读。Contributor（协作者）可以导入文档、修正字段、重试提取、归档文档和管理提醒。恢复已归档文档需要 Admin 或 Owner 权限。所有操作均限定在当前租户范围内。
 
 ## 提取与证据

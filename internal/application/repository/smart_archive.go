@@ -504,6 +504,22 @@ func (r *smartArchiveRepository) Search(ctx context.Context, tenantID uint64, re
 	if req.Filters.To != nil {
 		q = q.Where("COALESCE(effective_at, created_at) <= ?", req.Filters.To)
 	}
+	if req.Filters.ImportedFrom != nil {
+		q = q.Where("archive_documents.created_at >= ?", req.Filters.ImportedFrom)
+	}
+	if req.Filters.ImportedTo != nil {
+		q = q.Where("archive_documents.created_at <= ?", req.Filters.ImportedTo)
+	}
+	if len(req.Filters.ExtractionStatuses) > 0 {
+		q = q.Where("archive_documents.extraction_status IN ?", req.Filters.ExtractionStatuses)
+	}
+	if req.Filters.Archived != nil {
+		if *req.Filters.Archived {
+			q = q.Where("archive_documents.archived_at IS NOT NULL")
+		} else {
+			q = q.Where("archive_documents.archived_at IS NULL")
+		}
+	}
 	if req.Filters.Model != "" || req.Filters.SerialNumber != "" || req.Filters.AssetStatus != "" {
 		// Use a correlated EXISTS instead of joining the asset tables directly.
 		// A document can be linked to more than one asset; a join would duplicate
