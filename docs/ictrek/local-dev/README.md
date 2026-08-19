@@ -14,6 +14,12 @@ make dev-start DEV_ARGS="--no-langfuse --neo4j"
 make dev-frontend
 ```
 
+common local-dev 使用两个 OpenAI-compatible vLLM：QA vLLM 默认是
+`http://localhost:38118/v1`，bge-m3 Embedding vLLM 默认是
+`http://localhost:32223/v1`。`start-vllm` 只负责启动 QA 模型；Embedding
+vLLM 需要由现有部署或其他 vLLM 启动，并可通过
+`ICTREK_DEV_BGE_VLLM_BASE_URL` 覆盖地址。
+
 贴近 tc232 部署目录，复用 `/data/jhu/lexai-tc232-deploy/data`：
 
 首次在当前机器准备部署目录：
@@ -70,6 +76,8 @@ cd /data/jhu/lexai-tc232-deploy
 ./docs/ictrek/local-dev/ictrek-dev.sh deploy-check
 ```
 
+`deploy-check` 使用临时配置检查部署依赖，不会改写项目根目录的 `.env`；需要生成或更新本地部署覆盖配置时，再执行 `deploy-setup`。
+
 ## 关键配置
 
 `setup` 会写入/更新根目录 `.env`：
@@ -87,7 +95,7 @@ cd /data/jhu/lexai-tc232-deploy
 - `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=20`
 - `WEKNORA_MODEL_MAX_CONCURRENCY=14`
 - `WEKNORA_CHAT_RESERVED_CONCURRENCY=6`
-- `OLLAMA_BASE_URL=http://localhost:21436`
+- `ICTREK_DEV_BGE_VLLM_BASE_URL=http://localhost:32223/v1`
 - `ENABLE_GRAPH_RAG=true`
 - `NEO4J_ENABLE=true`
 
@@ -108,8 +116,9 @@ cd /data/jhu/lexai-tc232-deploy
 - `ICTREK_DEV_OLLAMA_BASE_URL` / `OLLAMA_BASE_URL` 指向 `.env.tc232` 的 `OLLAMA_API_HOST_PORT`
 - `NEO4J_URI` 改成宿主机可访问的 `bolt://localhost:${NEO4J_BOLT_PORT}`
 - `LOCAL_STORAGE_BASE_DIR=/data/jhu/lexai-tc232-deploy/data/files`
+- local-dev 默认关闭启动时和部署后的自动重解析：`WEKNORA_REPARSE_INCOMPLETE_ON_START=false`、`WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false`；如果要启用恢复流程，需要显式打开并配置模型就绪等待地址。
 
-这样 `.env` 默认继承部署配置，只有容器内地址、模型地址和开发端口被改成源码进程可访问的 localhost 地址。deploy-parity 的默认 Embedding 是 `lexai-vllm-bge-m3-embedding`，模型名为 `bge-m3`，由 `deploy-start` 启动的 `bge-m3-vllm` 提供；Ollama 版 `bge-m3` 只作为备用模型保留。
+这样 `.env` 默认继承部署配置，只有容器内地址、模型地址和开发端口被改成源码进程可访问的 localhost 地址。common local-dev 流程的默认 Embedding 是 `lexai-vllm-bge-m3-embedding`，由 `localhost:32223/v1` 的 bge-m3 vLLM 提供；`docker-compose.dev.yml` 不负责启动模型服务。deploy-parity 仍由 `deploy-start` 启动 `bge-m3-vllm`，Ollama 版 `bge-m3` 只作为备用模型保留。
 
 系统管理入口要求当前用户返回 `is_system_admin=true`。如果首次启动时日志提示 `WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL=admin@lexai.local: user lookup failed`，说明后端启动提权时默认账号还没被自动创建；先让前端自动登录一次创建 `admin@lexai.local`，再重启 `deploy-app` / 后端，并刷新或重新登录即可。
 
@@ -162,7 +171,7 @@ ICTREK_DEV_VLLM_MAX_NUM_SEQS=8 ./docs/ictrek/local-dev/ictrek-dev.sh start-vllm
 首次创建 `.env` 后，可以用下面命令把本地开发用的密码和密钥替换成 32 位随机字母数字：
 
 ```bash
-for key in DB_PASSWORD REDIS_PASSWORD TENANT_AES_KEY SYSTEM_AES_KEY JWT_SECRET; do val=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32); if grep -q "^${key}=" .env; then sed -i "s|^${key}=.*|${key}=${val}|" .env; else printf '\n%s=%s\n' "$key" "$val" >> .env; fi; done
+for key in DB_PASSWORD REDIS_PASSWORD TENANT_AES_KEY SYSTEM_AES_KEY JWT_SECRET NEO4J_PASSWORD; do val=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32); if grep -q "^${key}=" .env; then sed -i "s|^${key}=.*|${key}=${val}|" .env; else printf '\n%s=%s\n' "$key" "$val" >> .env; fi; done
 ```
 
 检查长度：

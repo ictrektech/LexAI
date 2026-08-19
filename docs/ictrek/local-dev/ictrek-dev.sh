@@ -40,8 +40,6 @@ VLLM_MOE_BACKEND="${ICTREK_DEV_VLLM_MOE_BACKEND:-}"
 VLLM_LOAD_FORMAT="${ICTREK_DEV_VLLM_LOAD_FORMAT:-}"
 BGE_VLLM_HOST_PORT="${BGE_VLLM_HOST_PORT:-32223}"
 BGE_VLLM_BASE_URL="${ICTREK_DEV_BGE_VLLM_BASE_URL:-http://localhost:${BGE_VLLM_HOST_PORT}/v1}"
-OLLAMA_PORT="${ICTREK_DEV_OLLAMA_PORT:-21436}"
-OLLAMA_BASE_URL_VALUE="${ICTREK_DEV_OLLAMA_BASE_URL:-http://localhost:${OLLAMA_PORT}}"
 
 log_info() {
     printf "%b\n" "${BLUE}[INFO]${NC} $1"
@@ -79,6 +77,7 @@ Common flow:
   ./docs/ictrek/local-dev/ictrek-dev.sh setup
   make dev-start DEV_ARGS="--no-langfuse --neo4j"
   ./docs/ictrek/local-dev/ictrek-dev.sh start-vllm
+  # Ensure bge-m3 vLLM is running at ${BGE_VLLM_BASE_URL}
   ./docs/ictrek/local-dev/ictrek-dev.sh app
   make dev-frontend
 
@@ -121,8 +120,6 @@ refresh_runtime_config() {
     VLLM_LOAD_FORMAT="${ICTREK_DEV_VLLM_LOAD_FORMAT:-}"
     BGE_VLLM_HOST_PORT="${BGE_VLLM_HOST_PORT:-32223}"
     BGE_VLLM_BASE_URL="${ICTREK_DEV_BGE_VLLM_BASE_URL:-http://localhost:${BGE_VLLM_HOST_PORT}/v1}"
-    OLLAMA_PORT="${ICTREK_DEV_OLLAMA_PORT:-21436}"
-    OLLAMA_BASE_URL_VALUE="${ICTREK_DEV_OLLAMA_BASE_URL:-http://localhost:${OLLAMA_PORT}}"
 }
 
 is_enabled() {
@@ -397,6 +394,7 @@ setup_env() {
     set_env_value "ICTREK_DEV_VLLM_MAX_NUM_SEQS" "$VLLM_MAX_NUM_SEQS"
     set_env_value "ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION" "$VLLM_GPU_MEMORY_UTILIZATION"
     set_env_value "ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS" "$VLLM_MAX_NUM_BATCHED_TOKENS"
+    set_env_value "ICTREK_DEV_BGE_VLLM_BASE_URL" "$BGE_VLLM_BASE_URL"
     set_env_value "WEKNORA_CHAT_MODEL_CONTEXT_TOKENS" "$VLLM_MAX_MODEL_LEN"
     set_env_value "WEKNORA_MAIN_QA_MODEL_CONCURRENCY" "$VLLM_MAX_NUM_SEQS"
     set_env_value "WEKNORA_MODEL_MAX_CONCURRENCY" "${WEKNORA_MODEL_MAX_CONCURRENCY:-14}"
@@ -415,8 +413,6 @@ setup_env() {
     set_env_value "WEKNORA_WIKI_INGEST_REDUCE_PARALLEL" "${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-4}"
     set_env_value "BATCH_EMBED_SIZE" "${BATCH_EMBED_SIZE:-8}"
     set_env_value "CONCURRENCY_POOL_SIZE" "${CONCURRENCY_POOL_SIZE:-8}"
-    set_env_value "ICTREK_DEV_OLLAMA_BASE_URL" "$OLLAMA_BASE_URL_VALUE"
-    set_env_value "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL_VALUE"
     ensure_csv_env_values "SSRF_WHITELIST" "localhost" "127.0.0.1"
 
     set_env_value "ENABLE_GRAPH_RAG" "true"
@@ -434,6 +430,7 @@ setup_env() {
     log_info "Next:"
     echo "  make dev-start DEV_ARGS=\"--no-langfuse --neo4j\""
     echo "  ./docs/ictrek/local-dev/ictrek-dev.sh start-vllm"
+    echo "  Ensure bge-m3 vLLM is running at ${BGE_VLLM_BASE_URL}"
     echo "  ./docs/ictrek/local-dev/ictrek-dev.sh app"
     echo "  make dev-frontend"
 }
@@ -453,7 +450,7 @@ setup_deploy_env() {
         log_info "Backed up existing .env to ${ENV_FILE}.deploy-setup.bak"
     fi
     cp "$DEPLOY_ENV_FILE" "$ENV_FILE"
-    log_info "Copied $DEPLOY_ENV_FILE to root .env"
+    log_info "Copied $DEPLOY_ENV_FILE to $ENV_FILE"
     ssrf_whitelist="$(get_env_value SSRF_WHITELIST)"
     for item in localhost 127.0.0.1; do
         if [ -z "$ssrf_whitelist" ]; then
@@ -515,6 +512,8 @@ setup_deploy_env() {
         OLLAMA_BASE_URL \
         NEO4J_URI \
         LOCAL_STORAGE_BASE_DIR \
+        WEKNORA_REPARSE_INCOMPLETE_ON_START \
+        WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY \
         SSRF_WHITELIST
 
     {
@@ -578,9 +577,15 @@ setup_deploy_env() {
     append_env_value "OLLAMA_BASE_URL" "${ICTREK_DEV_OLLAMA_BASE_URL:-http://localhost:$(get_deploy_env_value OLLAMA_API_HOST_PORT 31434)}"
     append_env_value "NEO4J_URI" "bolt://localhost:$(get_deploy_env_value NEO4J_BOLT_PORT 30087)"
     append_env_value "LOCAL_STORAGE_BASE_DIR" "${ICTREK_DEV_DEPLOY_FILES_DIR:-${DEPLOY_DIR}/data/files}"
+    append_env_value "WEKNORA_REPARSE_INCOMPLETE_ON_START" "false"
+    append_env_value "WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY" "false"
     append_env_value "SSRF_WHITELIST" "$ssrf_whitelist"
 
-    log_success "Root .env now mirrors $DEPLOY_ENV_FILE with local-dev overrides"
+    if [ "$ENV_FILE" = "$PROJECT_ROOT/.env" ]; then
+        log_success "Root .env now mirrors $DEPLOY_ENV_FILE with local-dev overrides"
+    else
+        log_info "Prepared temporary deploy-parity environment at $ENV_FILE"
+    fi
     log_info "Deploy data files: ${ICTREK_DEV_DEPLOY_FILES_DIR:-${DEPLOY_DIR}/data/files}"
     log_info "Next: $0 deploy-start, then $0 deploy-app and make dev-frontend"
 }
@@ -610,7 +615,15 @@ stop_deploy_services() {
         stop postgres redis docreader neo4j bge-m3-vllm
 }
 
-check_deploy_setup() {
+check_deploy_setup() (
+    local check_tmp_dir
+    local check_env_file
+
+    check_tmp_dir="$(mktemp -d)"
+    check_env_file="${check_tmp_dir}/.env"
+    trap 'rm -rf "$check_tmp_dir"' EXIT
+    ENV_FILE="$check_env_file"
+
     require_deploy_files
     setup_deploy_env
     load_env_if_exists
@@ -630,7 +643,7 @@ check_deploy_setup() {
     check_url "vLLM models" "${ICTREK_DEV_VLLM_BASE_URL%/}/models"
     check_url "bge-m3 vLLM models" "${ICTREK_DEV_BGE_VLLM_BASE_URL%/}/models"
     check_url "Ollama tags" "${ICTREK_DEV_OLLAMA_BASE_URL%/}/api/tags"
-}
+)
 
 check_docker() {
     if ! command -v docker >/dev/null 2>&1; then
@@ -885,7 +898,7 @@ check_url() {
 check_setup() {
     cd "$PROJECT_ROOT"
     local vllm_check_base
-    local ollama_check_base
+    local bge_check_base
 
     if [ ! -f "$ENV_FILE" ]; then
         log_error ".env is missing; run: $0 setup"
@@ -905,8 +918,7 @@ check_setup() {
     echo "  DOCREADER_PORT=${DOCREADER_PORT:-}"
     echo "  BUILTIN_MODELS_CONFIG=${BUILTIN_MODELS_CONFIG:-}"
     echo "  ICTREK_DEV_VLLM_BASE_URL=${ICTREK_DEV_VLLM_BASE_URL:-}"
-    echo "  ICTREK_DEV_OLLAMA_BASE_URL=${ICTREK_DEV_OLLAMA_BASE_URL:-}"
-    echo "  OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}"
+    echo "  ICTREK_DEV_BGE_VLLM_BASE_URL=${ICTREK_DEV_BGE_VLLM_BASE_URL:-}"
     echo "  NEO4J_ENABLE=${NEO4J_ENABLE:-}"
     echo "  NEO4J_URI=${NEO4J_URI:-}"
     echo ""
@@ -926,9 +938,9 @@ check_setup() {
     fi
 
     vllm_check_base="${ICTREK_DEV_VLLM_BASE_URL:-$VLLM_BASE_URL}"
-    ollama_check_base="${ICTREK_DEV_OLLAMA_BASE_URL:-$OLLAMA_BASE_URL_VALUE}"
+    bge_check_base="${ICTREK_DEV_BGE_VLLM_BASE_URL:-$BGE_VLLM_BASE_URL}"
     check_url "vLLM models" "${vllm_check_base%/}/models"
-    check_url "Ollama tags" "${ollama_check_base%/}/api/tags"
+    check_url "bge-m3 vLLM models" "${bge_check_base%/}/models"
 }
 
 case "${1:-help}" in
