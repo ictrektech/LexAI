@@ -52,6 +52,22 @@ Completed reviews can enter reconfiguration mode: update the playbook or represe
 
 Add future playbooks to the backend playbook registry and preserve their version on each review. The typed frontend API and viewer adapter live under `src/views/legal/contract-review`.
 
+## Contract Drafting
+
+`/legal/drafting` creates DOCX edit jobs and keeps active rows current through an
+authenticated SSE snapshot stream. The task history supports client-side date,
+text, engine-mode, and multi-status filters; queued and running jobs remain at
+the top, followed by the most recently updated terminal jobs. Opening a row
+navigates to `/legal/drafting/:jobId`, where its request, timing, operations,
+errors, and downloadable artifacts are shown in a responsive detail workspace.
+Each row shows a compact task ID, while the detail route uses the full UUID and
+provides a copy action, so repeated uploads with the same filename remain easy
+to distinguish. Browser back/forward and direct links are supported; filters,
+the in-memory task snapshot, and list scroll position are restored when the
+user returns during the same SPA session. Render previews are fetched only on
+demand and their temporary browser URLs are released when the task changes or
+the detail page is left.
+
 ## Smart Archive MVP
 
 Smart Archive imports PDF, Word, Excel, JPG/JPEG, PNG and WEBP files. It stores

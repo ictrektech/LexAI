@@ -25,7 +25,7 @@ vLLM 需要由现有部署或其他 vLLM 启动，并可通过
 首次在当前机器准备部署目录：
 
 ```bash
-cd ~/p/LexAI/docs/ictrek/deploy-template
+cd ./docs/ictrek/deploy-template
 
 sudo mkdir -p /data/jhu/lexai-tc232-deploy/config
 sudo mkdir -p /data/jhu/lexai-tc232-deploy/data/files

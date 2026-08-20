@@ -47,6 +47,15 @@ LexAI 是面向企业法务、采购和业务团队的法律 AI 工作台，集�
 
 详细说明：[Smart Archive](./docs/smart-archive.md)
 
+### 合同起草
+
+- 在法律工作台上传 DOCX，并使用自然语言生成结构化修改计划。
+- 支持 Adeu、OfficeCLI 和 Hybrid 三种模式；Hybrid 由 Adeu 负责唯一一次修改，OfficeCLI 只负责验证和预览。
+- Adeu 模式可输出 Word 原生修订和 clean 版本；OfficeCLI 明确只输出 clean 版本，不支持评论和 Track Changes。
+- Worker 作为独立进程通过 `office.engine.v1` gRPC 流式协议接入；本阶段不构建镜像、不修改 Compose/Helm。
+
+详细说明：[Office Engine](./docs/office-engine.md)
+
 ## 主要路由
 
 | 路由 | 用途 |
@@ -56,6 +65,7 @@ LexAI 是面向企业法务、采购和业务团队的法律 AI 工作台，集�
 | `/legal/contract-review` | 合同审查任务 |
 | `/legal/contract-review/:reviewId` | 合同审查工作区 |
 | `/legal/smart-archive` | 合同智能档案 |
+| `/legal/drafting` | 合同起草 |
 | `/platform/knowledge-bases` | 知识库管理 |
 | `/platform/agents` | Agent 管理 |
 | `/platform/settings` | 系统设置 |
@@ -66,6 +76,7 @@ LexAI 是面向企业法务、采购和业务团队的法律 AI 工作台，集�
 - [前端工作台与扩展](./frontend/README.md)
 - [合同审查 API 与状态机](./docs/contract-review.md)
 - [智能档案 API、证据与提醒](./docs/smart-archive.md)
+- [合同起草与 Office Engine](./docs/office-engine.md)
 
 ## 许可证
 
