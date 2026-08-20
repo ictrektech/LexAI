@@ -153,6 +153,19 @@ cd /data/jhu/lexai-tc232-deploy
 ./deploy-tc232.sh
 ```
 
+每次真实部署在写入已有 `.env.tc232` 前，都会生成
+`.env.tc232.bak.YYYYMMDDHHMMSS` 备份。使用指定备份回滚时，脚本不会查询
+飞书：
+
+```bash
+./deploy-tc232.sh --rollback .env.tc232.bak.20260819094530
+```
+
+回滚会先备份当前 env，再恢复指定文件、拉取旧镜像并重建 app、frontend、
+docreader、deploy-updater 和 Model Hub/Ollama 托管服务；不会恢复 Compose
+文件、数据库或业务数据。若部署文件也发生过变化，应先恢复匹配的部署模板
+版本。备份文件使用 `.env*.bak.*` 命名，`update-and-deploy.sh` 同步时会保留它们。
+
 Thor 专用部署：
 
 ```bash
@@ -218,7 +231,7 @@ Thor：
 docker compose --env-file .env.thor -f docker-compose.thor.yml up -d
 ```
 
-注意：再次运行 `deploy.sh`、`deploy-tc232.sh` 或 `deploy-thor.sh` 会重新从飞书表格检测镜像并覆盖 env 中的镜像变量。需要完全手动固定版本时，只运行 `docker compose ... up -d`。
+注意：再次运行普通的 `deploy.sh`、`deploy-tc232.sh` 或 `deploy-thor.sh` 会重新从飞书表格检测镜像并覆盖 env 中的镜像变量。需要完全手动固定版本时，只运行 `docker compose ... up -d`；需要恢复自动备份时，使用对应脚本的 `--rollback <env-backup>`，该模式不会查询飞书。
 
 ## 已部署环境更新
 

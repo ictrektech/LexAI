@@ -95,6 +95,22 @@ docker logs --since 5m lexai-thor-app-1 2>&1 | grep 'skills_available'
 
 `deploy.sh` reads the latest image tag from each component's own Feishu column and writes image variables into `.env` before running `docker compose up -d`. The LexAI app, UI, and docreader tags are resolved independently and may be different.
 
+Before a real deployment writes an existing env file, it creates a timestamped
+backup beside it, for example `.env.tc232.bak.20260819094530`. `--check-only`
+and `--dry-run` do not create backups. To roll back a tc232 deployment without
+querying Feishu again, pass the backup explicitly:
+
+```bash
+./deploy-tc232.sh --rollback .env.tc232.bak.20260819094530
+```
+
+The rollback mode first saves the current env, restores the selected backup,
+pulls the image references from that backup, recreates only managed services,
+and waits for the health-checked services. It does not restore Compose files,
+application data, or database contents; if the deployment files also changed,
+restore the matching deployment-template revision before rolling back. Backup
+files use the `.env*.bak.*` pattern so `update-and-deploy.sh` preserves them.
+
 All services join the `lexai` Docker network. Host ports start at 30000; service-to-service traffic uses container names inside the network.
 
 `./deploy.sh --platform l4t` resolves component tags from the Feishu `l4t` sheet. The Ollama service is GPU-backed in these templates: `model-hub-ollama` sets `runtime: nvidia`, `NVIDIA_VISIBLE_DEVICES=all`, and `NVIDIA_DRIVER_CAPABILITIES=compute,utility`. On Jetson/Orin hosts, verify a deployment with:

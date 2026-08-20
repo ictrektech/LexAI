@@ -13,15 +13,22 @@ PLATFORM=""
 SHEET_TITLE=""
 DRY_RUN=0
 CHECK_ONLY=0
+ROLLBACK_FILE=""
 CONFIG_CHANGED="${LEXAI_DEPLOY_CONFIG_CHANGED:-0}"
 
 usage() {
   cat <<'EOF'
 Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--check-only] [--dry-run]
+       ./deploy.sh --platform amd|l4t|thor --rollback ENV_BACKUP
 
 Looks up the latest LexAI, model_hub, and ollama_server image tags in Feishu,
 writes them to .env, pulls the images, and recreates only managed services whose
 running image digest or deployment config changed.
+
+Normal deployments back up the existing env file as ENV_FILE.bak.TIMESTAMP
+before writing image variables. --rollback restores one of those backups,
+skips Feishu lookup, pulls the restored image references, and recreates managed
+services.
 
 Environment:
   FEISHU_READ_CONFIG_FILE  Defaults to ~/.feishu.components.json for read-only lookup
@@ -35,6 +42,54 @@ EOF
 
 log() { echo "[INFO] $*"; }
 die() { echo "[ERROR] $*" >&2; exit 1; }
+
+resolve_deploy_path() {
+  local path="$1"
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '%s/%s\n' "$ROOT_DIR" "$path"
+  fi
+}
+
+backup_env_file() {
+  local file="$1"
+  local timestamp backup index
+
+  [[ -f "$file" ]] || return 0
+
+  timestamp="$(date +%Y%m%d%H%M%S)"
+  backup="${file}.bak.${timestamp}"
+  index=1
+  while [[ -e "$backup" || -L "$backup" ]]; do
+    backup="${file}.bak.${timestamp}.${index}"
+    index=$((index + 1))
+  done
+
+  cp -p -- "$file" "$backup"
+  chmod 600 "$backup"
+  log "backed up env: ${backup}"
+}
+
+restore_env_file() {
+  local source="$1"
+  local target="$2"
+  local target_dir temp
+
+  target_dir="$(dirname "$target")"
+  [[ -d "$target_dir" ]] || die "env directory does not exist: ${target_dir}"
+
+  temp="$(mktemp "${target}.rollback.XXXXXX")"
+  if ! cp -p -- "$source" "$temp"; then
+    rm -f -- "$temp"
+    die "failed to stage rollback env: ${source}"
+  fi
+  chmod 600 "$temp"
+  if ! mv -f -- "$temp" "$target"; then
+    rm -f -- "$temp"
+    die "failed to install rollback env: ${target}"
+  fi
+}
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
@@ -289,6 +344,62 @@ ensure_compose_services_running() {
   [[ "${#services[@]}" -gt 0 ]] || return 0
   log "ensure dependency services are running: ${services[*]}"
   docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "${services[@]}"
+}
+
+rollback_deployment() {
+  local source="$1"
+  local target compose_file service
+  local services=()
+
+  source="$(resolve_deploy_path "$source")"
+  target="$(resolve_deploy_path "$ENV_FILE")"
+  compose_file="$(resolve_deploy_path "$COMPOSE_FILE")"
+
+  [[ -f "$source" ]] || die "rollback env backup not found: ${source}"
+  [[ "$source" != "$target" ]] || die "rollback backup must differ from active env: ${target}"
+
+  require_cmd docker
+  require_cmd python3
+
+  ENV_FILE="$target"
+  COMPOSE_FILE="$compose_file"
+  backup_env_file "$ENV_FILE"
+  restore_env_file "$source" "$ENV_FILE"
+  log "restored env backup: ${source} -> ${ENV_FILE}"
+
+  cd "$ROOT_DIR"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config >/dev/null
+
+  if compose_has_service app; then
+    ensure_sandbox_image
+  fi
+
+  for service in frontend app docreader deploy-updater model-hub-frontend model-hub-backend model-hub-ollama; do
+    if compose_has_service "$service"; then
+      services+=("$service")
+    fi
+  done
+  [[ "${#services[@]}" -gt 0 ]] || die "no managed services found in compose file: ${COMPOSE_FILE}"
+
+  ensure_compose_services_running postgres redis neo4j model-hub-ollama model-hub-backend
+  for service in postgres redis neo4j model-hub-backend model-hub-ollama; do
+    if compose_has_service "$service"; then
+      wait_service_healthy "$service" 180
+    fi
+  done
+
+  log "pull rollback images: ${services[*]}"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull "${services[@]}"
+  log "recreate rollback services: ${services[*]}"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "${services[@]}"
+
+  for service in docreader model-hub-backend model-hub-ollama app; do
+    if compose_has_service "$service"; then
+      wait_service_healthy "$service" 180
+    fi
+  done
+
+  log "rollback completed: ${source}"
 }
 
 read_feishu_field() {
@@ -560,6 +671,11 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=1
       shift
       ;;
+    --rollback)
+      [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || die "--rollback requires an env backup file"
+      ROLLBACK_FILE="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -571,6 +687,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$PLATFORM" ]] || die "--platform amd|l4t|thor is required"
+
+if [[ -n "$ROLLBACK_FILE" ]]; then
+  [[ "$CHECK_ONLY" != "1" ]] || die "--rollback cannot be combined with --check-only"
+  [[ "$DRY_RUN" != "1" ]] || die "--rollback cannot be combined with --dry-run"
+  rollback_deployment "$ROLLBACK_FILE"
+  exit 0
+fi
+
 SHEET_TITLE="${SHEET_TITLE:-$(platform_sheet "$PLATFORM")}"
 require_cmd curl
 require_cmd python3
@@ -615,6 +739,10 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 require_cmd docker
+
+if [[ "$CHECK_ONLY" != "1" ]]; then
+  backup_env_file "$ENV_FILE"
+fi
 
 PREVIOUS_SANDBOX_IMAGE="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
 
