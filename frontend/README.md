@@ -18,7 +18,7 @@ The shared ChatSwitch wordmark is `src/assets/img/ChatSwitch_logo.svg`. The logi
 
 Legal-tool navigation is registered in `src/config/legalWorkspace.ts`. To add a tool, define its route constant in `src/router/paths.ts`, add a typed navigation item with its `labelKey`, destination, icon, and `activeRouteNames`, register the child route under `/legal` in `src/router/index.ts`, add the corresponding lazy-loaded workspace component, and add the label to each locale file. Disabled future tools can remain in the registry without a destination.
 
-The ChatSwitch sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. Resource links intentionally leave the ChatSwitch shell and open their existing `/platform/*` pages.
+The ChatSwitch sidebar uses its own `lexai_legal_sidebar_collapsed` preference so it does not change the legacy platform sidebar state. It starts with the legal tool navigation and does not render a separate new-chat button; the Legal Assistant entry remains the route into conversations. Resource links intentionally leave the ChatSwitch shell and open their existing `/platform/*` pages.
 
 ## Agent selection recovery
 

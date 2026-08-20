@@ -14,6 +14,8 @@ import {
 } from '../router/paths.ts'
 
 test('legal workspace navigation keeps enabled tools and future placeholders distinct', () => {
+  assert.deepEqual(legalWorkspaceItemsFor('primary'), [])
+
   const tools = legalWorkspaceItemsFor('tools')
 
   assert.deepEqual(tools.map((item) => item.id), [

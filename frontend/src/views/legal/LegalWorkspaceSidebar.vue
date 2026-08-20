@@ -23,7 +23,7 @@
     </div>
 
     <nav class="legal-sidebar__navigation" :aria-label="t('legalWorkspace.navigationLabel')">
-      <div class="legal-sidebar__primary">
+      <div v-if="primaryItems.length" class="legal-sidebar__primary">
         <NavButton v-for="item in primaryItems" :key="item.id" :item="item" primary />
       </div>
 

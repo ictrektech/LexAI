@@ -23,13 +23,6 @@ export interface LegalWorkspaceNavItem {
 
 export const LEGAL_WORKSPACE_NAV_ITEMS: readonly LegalWorkspaceNavItem[] = [
   {
-    id: 'new-chat',
-    labelKey: 'legalWorkspace.newChat',
-    icon: 'add',
-    section: 'primary',
-    destination: { name: LEGAL_ASSISTANT_HOME_ROUTE },
-  },
-  {
     id: 'ai-assistant',
     labelKey: 'legalWorkspace.aiAssistant',
     icon: 'chat',
