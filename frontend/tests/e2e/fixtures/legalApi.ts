@@ -83,6 +83,36 @@ function archiveDocument(id: string, overrides: Record<string, unknown> = {}) {
   }
 }
 
+function documentEditJob(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    format: 'DOCX',
+    mode: 'hybrid',
+    status: 'completed',
+    file_name: '同名采购合同.docx',
+    file_size: 4096,
+    source_sha256: `sha256-${id}`,
+    instruction: '将付款期限调整为三十日',
+    model_id: 'e2e-model',
+    plan: { schema_version: '1.0', format: 'DOCX', base_sha256: `sha256-${id}`, apply_mode: 'atomic', operations: [{ operation_id: 'replace-payment-term', kind: 'replace_text', target: { quote: '付款期限为三日', expected_matches: 1 }, payload: { text: '付款期限为三十日' } }] },
+    capabilities: { adeu: { engine_name: 'adeu', engine_version: '2.4.1', protocol_version: 'office.engine.v1' }, officecli: { engine_name: 'officecli', engine_version: '0.1.0', protocol_version: 'office.engine.v1' } },
+    started_at: '2026-08-17T08:00:02.000Z',
+    created_at: now,
+    updated_at: '2026-08-17T08:00:08.000Z',
+    completed_at: '2026-08-17T08:00:08.000Z',
+    operations: [{
+      id: `${id}-operation`, operation_id: 'replace-payment-term', kind: 'replace_text', part: 'word/document.xml',
+      anchor_sha256: 'anchor-sha256', expected_matches: 1, actual_matches: 1, engine_name: 'adeu', engine_message: 'operation applied', status: 'applied', error_message: '', created_at: now,
+      applied_at: '2026-08-17T08:00:07.000Z',
+    }],
+    artifacts: [
+      { id: `${id}-render`, kind: 'render', file_name: 'preview.html', mime_type: 'text/html', sha256: 'render-sha256', size: 128, created_at: now },
+      { id: `${id}-redline`, kind: 'redline', file_name: '同名采购合同-修订.docx', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', sha256: 'redline-sha256', size: 4096, created_at: now },
+    ],
+    ...overrides,
+  }
+}
+
 async function json(route: Route, data: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -112,6 +142,28 @@ export async function installLegalApi(page: Page, role: LegalRole = 'admin') {
   let reviews = [
     review('review-ready', 'ready'),
     review('review-running', 'analyzing', { title: '分析中的合同', file_name: 'running.pdf' }),
+  ]
+  const documentEditJobs = [
+    documentEditJob('11111111-1111-4111-8111-111111111111'),
+    documentEditJob('22222222-2222-4222-8222-222222222222', {
+      status: 'failed',
+      instruction: '删除自动续约条款',
+      error_code: 'ENGINE_FAILED',
+      error_message: '文档引擎未能应用修改。',
+      artifacts: [],
+      operations: [],
+      updated_at: '2026-08-17T08:00:09.000Z',
+      completed_at: '2026-08-17T08:00:09.000Z',
+    }),
+    documentEditJob('33333333-3333-4333-8333-333333333333', {
+      status: 'running',
+      file_name: '执行中的采购合同.docx',
+      instruction: '增加验收条款',
+      artifacts: [],
+      operations: [],
+      updated_at: '2026-08-17T08:00:05.000Z',
+      completed_at: undefined,
+    }),
   ]
   let documents = [archiveDocument('doc-1'), archiveDocument('doc-2')]
   let reminders = [{
@@ -152,6 +204,97 @@ export async function installLegalApi(page: Page, role: LegalRole = 'admin') {
     if (path === '/api/v1/tenants/7/members' && method === 'GET') {
       await json(route, { success: true, data: { members: [{ user_id: 'user-1', username: 'E2E User', email: 'e2e@example.com', role, status: 'active', joined_at: now }], total: 1 } })
       return
+    }
+
+    if (path === '/api/v1/document-edits/capabilities' && method === 'GET') {
+      await json(route, {
+        success: true,
+        data: {
+          capabilities: {
+            adeu: { engine_name: 'adeu', engine_version: 'e2e', protocol_version: 'office.engine.v1', tracked_changes: true, comments: true, rendering: true, validation: true },
+            officecli: { engine_name: 'officecli', engine_version: 'e2e', protocol_version: 'office.engine.v1', tracked_changes: false, comments: false, rendering: true, validation: true },
+          },
+          health: { adeu: { status: 'ok', message: '' }, officecli: { status: 'ok', message: '' } },
+        },
+      })
+      return
+    }
+    if (path === '/api/v1/document-edits' && method === 'GET') {
+      await json(route, { success: true, data: documentEditJobs })
+      return
+    }
+    const documentEditMatch = path.match(/^\/api\/v1\/document-edits\/([^/]+)(?:\/(.*))?$/)
+    if (documentEditMatch) {
+      const id = documentEditMatch[1]
+      const action = documentEditMatch[2] || ''
+      const item: any = documentEditJobs.find((candidate: any) => candidate.id === id)
+      if (!item) {
+        await json(route, { success: false, message: '任务不存在或无权访问' }, 404)
+        return
+      }
+      if (!action && method === 'GET') {
+        await json(route, { success: true, data: item })
+        return
+      }
+      if (action === 'debug' && method === 'GET') {
+        const traceRecorded = !id.startsWith('22222222')
+        await json(route, { success: true, data: {
+          job: item,
+          model: { id: 'e2e-model', name: 'e2e-planner', display_name: 'E2E Planner' },
+          trace_recorded: traceRecorded,
+          stages: traceRecorded ? [
+            { id: `${id}-inspect`, job_id: id, stage: 'Inspect', attempt: 1, engine_name: 'adeu', engine_version: '2.4.1', status: 'completed', started_at: now, completed_at: now, duration_ms: 120, input_summary: {}, output_summary: { characters: 128 } },
+            { id: `${id}-plan`, job_id: id, stage: 'Plan', attempt: 1, engine_name: 'model', status: 'completed', started_at: now, completed_at: now, duration_ms: 350, input_summary: { prompt_version: 'document-edit-plan-v1', temperature: 0.1, max_completion_tokens: 4096, truncated: false }, output_summary: { repair_count: 0, finish_reason: 'stop', usage: { total_tokens: 321 } } },
+            { id: `${id}-apply`, job_id: id, stage: 'Apply', attempt: 1, engine_name: 'adeu', status: 'completed', started_at: now, completed_at: now, duration_ms: 440, input_summary: {}, output_summary: {} },
+            { id: `${id}-validate`, job_id: id, stage: 'Validate', attempt: 1, engine_name: 'officecli', status: 'completed', started_at: now, completed_at: now, duration_ms: 90, input_summary: {}, output_summary: { warnings: 0 } },
+          ] : [],
+          blobs: traceRecorded ? [
+            { id: `${id}-inspect-blob`, job_id: id, stage_run_id: `${id}-inspect`, kind: 'inspect_text', content_type: 'text/plain', sha256: 'inspect-sha', size: 128, created_at: now },
+            { id: `${id}-planner-blob`, job_id: id, stage_run_id: `${id}-plan`, kind: 'planner_response_initial', content_type: 'application/json', sha256: 'planner-sha', size: 80, created_at: now },
+            { id: `${id}-clean-blob`, job_id: id, stage_run_id: `${id}-validate`, kind: 'clean_text', content_type: 'text/plain', sha256: 'clean-sha', size: 128, created_at: now },
+          ] : [],
+        } })
+        return
+      }
+      if (action.startsWith('debug/stages/') && action.includes('/blobs/') && method === 'GET') {
+        const kind = decodeURIComponent(action.slice(action.lastIndexOf('/blobs/') + '/blobs/'.length))
+        const body = kind === 'inspect_text' ? '付款期限为三日' : kind === 'clean_text' ? '付款期限为三十日' : '{"operations":[]}'
+        await route.fulfill({ status: 200, contentType: kind.includes('text') ? 'text/plain' : 'application/json', body })
+        return
+      }
+      if (action === 'comparison' && method === 'GET') {
+        const jobs = documentEditJobs.filter((candidate: any) => candidate.id === id || (item.comparison_group_id && candidate.comparison_group_id === item.comparison_group_id))
+        await json(route, { success: true, data: { group_id: item.comparison_group_id || '', jobs } })
+        return
+      }
+      if (action === 'comparisons' && method === 'POST') {
+        const body = await requestBody(route)
+        item.comparison_group_id = item.comparison_group_id || 'e2e-comparison-group'
+        for (const mode of body.modes || []) {
+          const comparison = documentEditJob(`comparison-${mode}`, { mode, status: 'queued', comparison_group_id: item.comparison_group_id, comparison_parent_id: item.id, comparison_strategy: body.strategy, artifacts: [], operations: [], completed_at: undefined })
+          documentEditJobs.push(comparison)
+        }
+        await json(route, { success: true, data: { group_id: item.comparison_group_id, jobs: documentEditJobs.filter((candidate: any) => candidate.comparison_group_id === item.comparison_group_id) } }, 202)
+        return
+      }
+      if (action === 'cancel' && method === 'POST') {
+        Object.assign(item, { status: 'cancelled', completed_at: now, updated_at: now })
+        await json(route, { success: true })
+        return
+      }
+      if (action === 'events' && method === 'GET') {
+        await route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: `event: snapshot\ndata: ${JSON.stringify(item)}\n\n` })
+        return
+      }
+      if (action.startsWith('artifacts/') && method === 'GET') {
+        const kind = decodeURIComponent(action.slice('artifacts/'.length))
+        if (kind === 'render') {
+          await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body><p>合同修订预览</p></body></html>' })
+        } else {
+          await route.fulfill({ status: 200, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', body: Buffer.from('e2e-docx') })
+        }
+        return
+      }
     }
 
     if (path === '/api/v1/contract-review-playbooks' && method === 'GET') {

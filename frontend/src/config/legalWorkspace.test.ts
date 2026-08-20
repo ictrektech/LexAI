@@ -11,6 +11,9 @@ import {
   LEGAL_ASSISTANT_HOME_ROUTE,
   LEGAL_CONTRACT_REVIEW_ROUTE,
   LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_DEBUG_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_ROUTE,
 } from '../router/paths.ts'
 
 test('legal workspace navigation keeps enabled tools and future placeholders distinct', () => {
@@ -27,7 +30,7 @@ test('legal workspace navigation keeps enabled tools and future placeholders dis
   ])
   assert.deepEqual(
     tools.filter((item) => item.disabled).map((item) => item.id),
-    ['legal-research', 'drafting'],
+    ['legal-research'],
   )
   assert.ok(tools.filter((item) => !item.disabled).every((item) => item.destination))
 })
@@ -42,4 +45,13 @@ test('assistant and contract routes activate only their matching tool', () => {
   assert.equal(isLegalWorkspaceItemActive(contract, LEGAL_CONTRACT_REVIEW_ROUTE), true)
   assert.equal(isLegalWorkspaceItemActive(contract, LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE), true)
   assert.equal(isLegalWorkspaceItemActive(contract, LEGAL_ASSISTANT_CHAT_ROUTE), false)
+})
+
+test('drafting navigation remains active on list and detail routes', () => {
+  const drafting = LEGAL_WORKSPACE_NAV_ITEMS.find((item) => item.id === 'drafting')!
+
+  assert.equal(isLegalWorkspaceItemActive(drafting, LEGAL_DOCUMENT_DRAFTING_ROUTE), true)
+  assert.equal(isLegalWorkspaceItemActive(drafting, LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE), true)
+  assert.equal(isLegalWorkspaceItemActive(drafting, LEGAL_DOCUMENT_DRAFTING_DEBUG_ROUTE), true)
+  assert.equal(isLegalWorkspaceItemActive(drafting, LEGAL_CONTRACT_REVIEW_ROUTE), false)
 })

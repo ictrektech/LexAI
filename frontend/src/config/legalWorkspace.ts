@@ -5,6 +5,9 @@ import {
   LEGAL_ASSISTANT_HOME_ROUTE,
   LEGAL_CONTRACT_REVIEW_ROUTE,
   LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_DEBUG_ROUTE,
+  LEGAL_DOCUMENT_DRAFTING_ROUTE,
   LEGAL_SMART_ARCHIVE_ROUTE,
 } from '../router/paths'
 
@@ -59,8 +62,8 @@ export const LEGAL_WORKSPACE_NAV_ITEMS: readonly LegalWorkspaceNavItem[] = [
     labelKey: 'legalWorkspace.drafting',
     icon: 'edit-1',
     section: 'tools',
-    disabled: true,
-    badgeKey: 'legalWorkspace.comingSoon',
+    destination: { name: LEGAL_DOCUMENT_DRAFTING_ROUTE },
+    activeRouteNames: [LEGAL_DOCUMENT_DRAFTING_ROUTE, LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE, LEGAL_DOCUMENT_DRAFTING_DEBUG_ROUTE],
   },
   {
     id: 'platform-console',

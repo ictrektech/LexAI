@@ -15,6 +15,78 @@ test.describe('legal workspace', () => {
     await expect(page.getByTestId('archive-tab-documents')).toHaveClass(/active/)
   })
 
+  test('opens a drafting task route and restores list filters on return', async ({ page }) => {
+    await page.goto('/legal/drafting')
+    await page.getByTestId('drafting-search').fill('同名采购合同')
+    await expect(page.getByTestId('drafting-row-11111111-1111-4111-8111-111111111111')).toBeVisible()
+    await expect(page.getByTestId('drafting-row-22222222-2222-4222-8222-222222222222')).toBeVisible()
+
+    await page.getByTestId('drafting-row-11111111-1111-4111-8111-111111111111').click()
+    await expect(page).toHaveURL(/\/legal\/drafting\/11111111-1111-4111-8111-111111111111$/)
+    await expect(page.getByTestId('legal-nav-drafting')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByTestId('drafting-detail')).toContainText('11111111-1111-4111-8111-111111111111')
+    await expect(page.getByText('#11111111')).toBeVisible()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/legal\/drafting$/)
+    await expect(page.getByTestId('drafting-search')).toHaveValue('同名采购合同')
+    await expect(page.getByTestId('drafting-row-22222222-2222-4222-8222-222222222222')).toContainText('#22222222')
+  })
+
+  test('supports direct drafting detail links and lazy render previews', async ({ page }) => {
+    await page.goto('/legal/drafting/11111111-1111-4111-8111-111111111111')
+    await expect(page.getByTestId('drafting-detail')).toBeVisible()
+    const topbarBox = await page.locator('.detail-topbar').boundingBox()
+    const breadcrumbBox = await page.getByTestId('drafting-detail-breadcrumb').boundingBox()
+    if (!topbarBox || !breadcrumbBox) throw new Error('drafting detail topbar is not measurable')
+    expect(Math.abs((topbarBox.x + topbarBox.width / 2) - (breadcrumbBox.x + breadcrumbBox.width / 2))).toBeLessThanOrEqual(1)
+    await expect(page.getByTestId('drafting-preview')).toHaveCount(0)
+    await page.getByTestId('drafting-load-preview').click()
+    await expect(page.getByTestId('drafting-preview')).toBeVisible()
+  })
+
+  test('opens execution diagnostics, lazily loads blobs, and shows legacy trace state', async ({ page }) => {
+    await page.goto('/legal/drafting/11111111-1111-4111-8111-111111111111')
+    await page.getByTestId('drafting-debug').click()
+    await expect(page).toHaveURL(/\/legal\/drafting\/11111111-1111-4111-8111-111111111111\/debug$/)
+    await expect(page.getByTestId('legal-nav-drafting')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('heading', { name: 'EditPlan' })).toBeVisible()
+    await expect(page.locator('.table-wrap')).toContainText('付款期限为三日')
+
+    const blobResponse = page.waitForResponse(response => response.url().includes('/debug/stages/') && response.url().includes('/blobs/inspect_text'))
+    await page.getByRole('button', { name: /加载文本快照/ }).click()
+    await blobResponse
+    await expect(page.locator('.blob-area pre')).toContainText('付款期限为三日')
+
+    await page.getByRole('button', { name: '对比模式' }).click()
+    await expect(page.getByRole('heading', { name: '使用相同输入对比执行模式' })).toBeVisible()
+    const comparisonRequest = page.waitForRequest(request => request.url().endsWith('/comparisons') && request.method() === 'POST')
+    await page.getByRole('button', { name: '开始对比' }).click()
+    await comparisonRequest
+    await expect(page.locator('.comparison-grid')).toContainText('OfficeCLI')
+
+    await page.goto('/legal/drafting/22222222-2222-4222-8222-222222222222/debug')
+    await expect(page.locator('.legacy-notice')).toContainText('创建时未记录完整执行轨迹')
+  })
+
+  test('keeps a missing drafting task on an inline error page', async ({ page }) => {
+    await page.goto('/legal/drafting/00000000-0000-4000-8000-000000000000')
+    await expect(page).toHaveURL(/\/legal\/drafting\/00000000-0000-4000-8000-000000000000$/)
+    await expect(page.getByText('无法加载任务详情')).toBeVisible()
+    await expect(page.getByRole('button', { name: '返回任务记录' })).toBeVisible()
+  })
+
+  test('shows failed task errors expanded and refreshes after cancellation', async ({ page }) => {
+    await page.goto('/legal/drafting/22222222-2222-4222-8222-222222222222')
+    await expect(page.locator('.error-section')).toHaveJSProperty('open', true)
+    await expect(page.getByText('文档引擎未能应用修改。')).toBeVisible()
+
+    await page.goto('/legal/drafting/33333333-3333-4333-8333-333333333333')
+    await page.getByRole('button', { name: '取消任务' }).click()
+    await expect(page.getByText('已取消')).toBeVisible()
+    await expect(page.getByRole('button', { name: '取消任务' })).toHaveCount(0)
+  })
+
   test('runs a contract review from upload to risk findings', async ({ page }) => {
     await page.goto('/legal/contract-review')
     await page.getByTestId('contract-new-review').click()
