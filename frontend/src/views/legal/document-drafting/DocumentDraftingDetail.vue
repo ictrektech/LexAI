@@ -230,4 +230,33 @@ onBeforeUnmount(() => { disconnect(); cleanupPreview(); store.clearCurrent(); if
 @keyframes detail-status-pulse { 0%, 100% { box-shadow: 0 0 0 3px var(--legal-status-running-soft); } 50% { box-shadow: 0 0 0 6px transparent; } }
 @media (max-width: 900px) { .detail-heading { align-items: flex-start; flex-direction: column; } .detail-actions { flex-wrap: wrap; } .overview-card { grid-template-columns: 1fr; } .preview-card { min-height: 300px; border-right: 0; border-bottom: 1px solid var(--legal-border); } }
 @media (max-width: 620px) { .detail-topbar { padding: 0 14px; } .copy-id { width: 28px; padding: 0; justify-content: center; overflow: hidden; white-space: nowrap; } .copy-id :deep(.t-icon) { flex: none; } .detail-content { width: calc(100% - 28px); padding-top: 20px; } .detail-title h1 { font-size: 18px; } .detail-title p { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .detail-actions { width: 100%; } .detail-actions button { flex: 1; } .overview-info { padding: 20px; } .overview-grid { grid-template-columns: 1fr; } .section-content { padding: 4px 20px 18px; } .detail-sections summary { padding: 0 12px; } .artifact-list > div { align-items: flex-start; flex-direction: column; padding: 12px 0; } }
+
+/* Readability overrides: keep the detail page scannable at normal zoom. */
+.detail-topbar { min-height: 56px; font-size: 12px; }
+.breadcrumb-link, .copy-id { font-size: 12px; }
+.detail-topbar code { font-size: 11px; }
+.detail-title p { font-size: 12px; }
+.detail-actions button, .detail-state button, .preview-state button { min-height: 38px; font-size: 13px; }
+.preview-state p { font-size: 12px; line-height: 1.6; }
+.job-status { font-size: 12px; }
+.mode-pill { font-size: 11px; }
+.duration { font-size: 12px; }
+.instruction-block span, dt { font-size: 12px; }
+.instruction-block p { font-size: 14px; line-height: 1.75; }
+.overview-grid dd { font-size: 13px; }
+.overview-grid code { font-size: 11px; }
+.detail-sections summary { min-height: 58px; padding-left: 18px; padding-right: 18px; }
+.detail-sections summary strong { font-size: 13px; }
+.detail-sections summary span { font-size: 12px; }
+.section-content { padding-top: 8px; padding-bottom: 24px; }
+.timeline strong { font-size: 13px; }
+.timeline time { font-size: 12px; }
+.operation-list strong { font-size: 13px; }
+.operation-list small { font-size: 12px; }
+.operation-list p { font-size: 12px; }
+.artifact-list strong { font-size: 13px; }
+.artifact-list span, .artifact-list button { font-size: 12px; }
+.error-section code { font-size: 11px; }
+.error-section p { font-size: 13px; }
+.section-empty, .detail-state p { font-size: 12px; }
 </style>

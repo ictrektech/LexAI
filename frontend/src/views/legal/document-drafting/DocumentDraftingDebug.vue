@@ -171,4 +171,50 @@ onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer) })
 .modal-backdrop { position:fixed; z-index:20; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.38); } .compare-modal { width:min(520px,calc(100% - 32px)); border:1px solid var(--legal-border); border-radius:8px; background:var(--legal-bg-surface); box-shadow:0 20px 60px rgba(0,0,0,.2); } .compare-modal > header { padding:18px; display:flex; justify-content:space-between; border-bottom:1px solid var(--legal-border); } .compare-modal h2 { margin:0; font-size:15px; } .compare-modal p { margin:5px 0 0; color:var(--legal-text-secondary); font-size:10px; } .modal-section { padding:15px 18px; display:grid; gap:10px; border-bottom:1px solid var(--legal-border); } .modal-section > strong { font-size:10px; } .modal-section label { display:flex; gap:8px; align-items:flex-start; font-size:10px; } .modal-section label b,.modal-section label small { display:block; } .modal-section label small { margin-top:3px; color:var(--legal-text-secondary); } .compare-modal footer { padding:14px 18px; display:flex; justify-content:flex-end; gap:8px; }
 @media(max-width:1000px){.summary-grid{grid-template-columns:1fr 1fr}.parameter-grid{grid-template-columns:repeat(3,1fr)}.comparison-grid{grid-template-columns:1fr}.split-content,.result-grid{grid-template-columns:1fr}.facts{border-right:0;border-bottom:1px solid var(--legal-border)}}
 @media(max-width:620px){.debug-topbar{padding:0 12px;grid-template-columns:auto 1fr auto}.debug-topbar code{display:none}.debug-content{width:calc(100% - 24px);padding-top:18px}.summary-grid{grid-template-columns:1fr}.parameter-grid{grid-template-columns:1fr 1fr}.debug-heading{flex-direction:column}.table-wrap{margin-left:8px!important;margin-right:8px!important}}
+
+/* Readability overrides: diagnostics are data-heavy and should work without zooming. */
+.debug-topbar { min-height: 58px; }
+.debug-topbar > div { font-size: 13px; }
+.debug-topbar code { font-size: 11px; }
+.debug-heading h1 { font-size: 26px; }
+.debug-heading p { font-size: 13px; line-height: 1.7; }
+.primary, .secondary, .link-button, .icon-button { min-height: 36px; font-size: 12px; }
+.status { font-size: 11px; }
+.summary-grid { gap: 12px; }
+.summary-grid article { padding: 18px; }
+.summary-grid span, .summary-grid small { font-size: 11px; }
+.summary-grid strong { font-size: 15px; }
+.legacy-notice { font-size: 12px; }
+.panel { margin-top: 16px; }
+.panel > header { min-height: 58px; padding-left: 20px; padding-right: 20px; }
+.panel > header span { font-size: 10px; }
+.panel h2 { font-size: 14px; }
+.panel > header small { font-size: 11px; }
+.panel > pre, .panel > details, .panel > .blob-buttons, .panel > .parameter-grid, .panel > .table-wrap, .panel > .result-grid, .panel > button, .panel > .diff, .panel > .empty { margin: 20px; }
+.stage-list { padding: 8px 22px 16px; }
+.stage { min-height: 64px; }
+.stage-main strong, .stage-main span { font-size: 12px; }
+.stage-main p { font-size: 11px; }
+.stage-meta span, .stage-meta strong { font-size: 11px; }
+.facts, .blob-area { padding: 20px; }
+dt { font-size: 11px; }
+dd { font-size: 12px; }
+pre { font-size: 12px; line-height: 1.75; }
+.parameter-grid { gap: 10px; }
+.parameter-grid div { padding: 12px; }
+.parameter-grid span, .parameter-grid strong { font-size: 11px; }
+.parameter-grid strong { font-size: 13px; }
+details summary { padding-top: 13px; padding-bottom: 13px; font-size: 12px; }
+table { font-size: 12px; }
+th, td { padding: 11px 10px; }
+td small { font-size: 11px; }
+.result-grid article { padding: 16px; }
+.result-grid > article > span { font-size: 11px; }
+.result-grid li { font-size: 11px; }
+.comparison-grid article { padding: 15px; }
+.empty, .page-state { font-size: 12px; }
+.compare-modal h2 { font-size: 17px; }
+.compare-modal p { font-size: 12px; }
+.modal-section > strong, .modal-section label { font-size: 12px; }
+.modal-section label small { font-size: 11px; }
 </style>
