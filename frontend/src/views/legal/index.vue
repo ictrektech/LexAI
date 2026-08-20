@@ -1,6 +1,6 @@
 <template>
   <div class="legal-workspace-shell" :class="{ 'legal-workspace-shell--collapsed': collapsed }">
-    <LegalWorkspaceSidebar :collapsed="collapsed" @toggle="toggleSidebar" />
+    <LegalWorkspaceSidebar :collapsed="collapsed" @toggle="toggleSidebar" @expand="expandSidebar" />
     <main class="legal-workspace-outlet">
       <RouterView />
     </main>
@@ -34,6 +34,12 @@ const isAssistantRoute = () => assistantRouteNames.has(String(route.name || ''))
 const toggleSidebar = () => {
   collapsed.value = !collapsed.value
   localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed.value))
+}
+
+const expandSidebar = () => {
+  if (!collapsed.value) return
+  collapsed.value = false
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, 'false')
 }
 
 const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer?.types || []).includes('Files')

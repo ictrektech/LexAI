@@ -16,7 +16,13 @@ export default {
     collapseSidebar: '收起侧边栏',
     expandSidebar: '展开侧边栏',
     platformConsole: '平台控制台',
+    generateContract: '生成合同',
+    editContract: '编辑合同',
+    backToNavigation: '返回上一级',
     legalWorkspace: '法律工作台'
+  },
+  contractGeneration: {
+    eyebrow: '合同工作台', title: '生成合同', subtitle: '根据合同类型、当事人和核心条款生成合同初稿。', status: '功能建设中', cardTitle: '智能生成合同', cardDescription: '生成流程正在建设中，后续将支持从模板或空白文档生成可编辑的 DOCX 合同。'
   },
   contractReview: {
     workspaceEyebrow: '法律工作台', title: '合同审查', subtitle: '依据审查标准逐条识别并处理合同风险。', newReview: '新建审查',

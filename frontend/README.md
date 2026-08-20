@@ -6,6 +6,7 @@ The Vue frontend exposes two authenticated application shells:
 - `/legal/contract-review` lists active and archived Contract Review tasks.
 - `/legal/contract-review/:reviewId` opens the persistent document/review workspace.
 - `/legal/smart-archive` opens the Smart Archive / Contract Archive workspace.
+- `/legal/drafting/generate` is the Contract Generation placeholder; `/legal/drafting` opens Contract Editing.
 - `/platform/*` retains the existing knowledge-base, agent, organization, settings, and legacy chat surfaces.
 
 The root route and successful login/onboarding flows open the ChatSwitch workspace. The legacy `/platform` root still opens `/platform/knowledge-bases`.
@@ -54,8 +55,10 @@ Add future playbooks to the backend playbook registry and preserve their version
 
 ## Contract Drafting
 
-`/legal/drafting` creates DOCX edit jobs and keeps active rows current through an
-authenticated SSE snapshot stream. The task history supports client-side date,
+The sidebar's Contract Drafting entry drills down to Contract Generation and
+Contract Editing. `/legal/drafting/generate` is a placeholder and does not
+start a backend task; `/legal/drafting` creates DOCX edit jobs and keeps active rows current
+through an authenticated SSE snapshot stream. The task history supports client-side date,
 text, engine-mode, and multi-status filters; queued and running jobs remain at
 the top, followed by the most recently updated terminal jobs. Opening a row
 navigates to `/legal/drafting/:jobId`, where its request, timing, operations,

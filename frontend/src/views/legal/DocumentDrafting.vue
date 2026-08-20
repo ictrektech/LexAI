@@ -3,7 +3,7 @@
     <header class="drafting__header">
       <div>
         <span class="eyebrow">{{ t('documentDrafting.eyebrow') }}</span>
-        <h1>{{ t('documentDrafting.title') }}</h1>
+        <h1>{{ t('legalWorkspace.editContract') }}</h1>
         <p>{{ t('documentDrafting.subtitle') }}</p>
       </div>
       <button type="button" class="secondary" :disabled="store.loadingCapabilities" @click="loadCapabilities">{{ t('documentDrafting.refresh') }}</button>
@@ -16,7 +16,7 @@
         <label>{{ t('documentDrafting.instruction') }}<textarea v-model.trim="instruction" rows="7" :placeholder="t('documentDrafting.instructionPlaceholder')" /></label>
         <label>{{ t('documentDrafting.mode') }}<select v-model="mode"><option value="hybrid" :disabled="store.health.adeu?.status !== 'ok' || store.health.officecli?.status !== 'ok'">Hybrid</option><option value="adeu" :disabled="store.health.adeu?.status !== 'ok'">Adeu · Track Changes</option><option value="officecli" :disabled="store.health.officecli?.status !== 'ok'">OfficeCLI · clean-only</option></select></label>
         <p class="hint">{{ mode === 'officecli' ? t('documentDrafting.officeCliLimit') : t('documentDrafting.modeHint') }}</p>
-        <button type="submit" class="primary" :disabled="submitting || !selectedFile || !instruction || !modeReady">{{ submitting ? t('documentDrafting.submitting') : t('documentDrafting.start') }}</button>
+        <button type="submit" class="primary" :disabled="submitting || !selectedFile || !instruction || !modeReady">{{ submitting ? t('documentDrafting.submitting') : t('legalWorkspace.editContract') }}</button>
         <p v-if="error" class="error">{{ error }}</p>
       </form>
 

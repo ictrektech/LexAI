@@ -15,15 +15,56 @@ test.describe('legal workspace', () => {
     await expect(page.getByTestId('archive-tab-documents')).toHaveClass(/active/)
   })
 
+  test('drills into contract drafting and restores the root navigation', async ({ page }) => {
+    await page.goto('/legal/contract-review')
+    await page.getByTestId('legal-nav-drafting').click()
+
+    await expect(page.getByTestId('legal-nav-back')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-generate-contract')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-edit-contract')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-contract-review')).toHaveCount(0)
+    await expect(page.getByTestId('legal-nav-platform-console')).toHaveCount(0)
+
+    await page.getByTestId('legal-nav-edit-contract').click()
+    await expect(page).toHaveURL(/\/legal\/drafting$/)
+    await expect(page.getByTestId('legal-nav-edit-contract')).toHaveAttribute('aria-current', 'page')
+
+    await page.getByTestId('legal-nav-back').click()
+    await expect(page).toHaveURL(/\/legal\/drafting$/)
+    await expect(page.getByTestId('legal-nav-contract-review')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-drafting')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByTestId('legal-nav-platform-console')).toBeVisible()
+  })
+
+  test('expands a collapsed sidebar before entering contract drafting', async ({ page }) => {
+    await page.goto('/legal/contract-review')
+    await page.getByTestId('legal-sidebar-collapse').click()
+    await expect(page.locator('.legal-sidebar')).toHaveClass(/legal-sidebar--collapsed/)
+
+    await page.getByTestId('legal-nav-drafting').click()
+    await expect(page.locator('.legal-sidebar')).not.toHaveClass(/legal-sidebar--collapsed/)
+    await expect(page.getByTestId('legal-nav-back')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-generate-contract')).toBeVisible()
+  })
+
+  test('opens the contract generation placeholder from a direct child route', async ({ page }) => {
+    await page.goto('/legal/drafting/generate')
+    await expect(page.getByTestId('contract-generation')).toBeVisible()
+    await expect(page.getByTestId('legal-nav-generate-contract')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByTestId('legal-nav-edit-contract')).toBeVisible()
+    await expect(page.getByTestId('contract-generation')).toContainText('功能建设中')
+  })
+
   test('opens a drafting task route and restores list filters on return', async ({ page }) => {
     await page.goto('/legal/drafting')
+    await expect(page.getByTestId('legal-nav-edit-contract')).toHaveAttribute('aria-current', 'page')
     await page.getByTestId('drafting-search').fill('同名采购合同')
     await expect(page.getByTestId('drafting-row-11111111-1111-4111-8111-111111111111')).toBeVisible()
     await expect(page.getByTestId('drafting-row-22222222-2222-4222-8222-222222222222')).toBeVisible()
 
     await page.getByTestId('drafting-row-11111111-1111-4111-8111-111111111111').click()
     await expect(page).toHaveURL(/\/legal\/drafting\/11111111-1111-4111-8111-111111111111$/)
-    await expect(page.getByTestId('legal-nav-drafting')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByTestId('legal-nav-edit-contract')).toHaveAttribute('aria-current', 'page')
     await expect(page.getByTestId('drafting-detail')).toContainText('11111111-1111-4111-8111-111111111111')
     await expect(page.getByText('#11111111')).toBeVisible()
 
@@ -49,7 +90,7 @@ test.describe('legal workspace', () => {
     await page.goto('/legal/drafting/11111111-1111-4111-8111-111111111111')
     await page.getByTestId('drafting-debug').click()
     await expect(page).toHaveURL(/\/legal\/drafting\/11111111-1111-4111-8111-111111111111\/debug$/)
-    await expect(page.getByTestId('legal-nav-drafting')).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByTestId('legal-nav-edit-contract')).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('heading', { name: 'EditPlan' })).toBeVisible()
     await expect(page.locator('.table-wrap')).toContainText('付款期限为三日')
 

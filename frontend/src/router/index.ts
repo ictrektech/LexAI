@@ -7,6 +7,7 @@ import {
   DEFAULT_AUTHENTICATED_PATH,
   LEGAL_ASSISTANT_CHAT_ROUTE,
   LEGAL_ASSISTANT_HOME_ROUTE,
+  LEGAL_CONTRACT_GENERATION_ROUTE,
   LEGAL_CONTRACT_REVIEW_ROUTE,
   LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
   LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE,
@@ -148,6 +149,12 @@ const router = createRouter({
           path: 'smart-archive',
           name: LEGAL_SMART_ARCHIVE_ROUTE,
           component: () => import('../views/legal/SmartArchive.vue'),
+          meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
+        },
+        {
+          path: 'drafting/generate',
+          name: LEGAL_CONTRACT_GENERATION_ROUTE,
+          component: () => import('../views/legal/ContractGeneration.vue'),
           meta: { requiresInit: true, requiresAuth: true, legalWorkspace: true },
         },
         {

@@ -1,6 +1,6 @@
 # 合同起草与 Office Engine
 
-LexAI 的合同起草功能通过独立项目 `/home/czy/p/office-engine` 提供
+LexAI 的“编辑合同”功能通过独立项目 `/home/czy/p/office-engine` 提供
 `office.engine.v1` gRPC 能力。LexAI 保存源 DOCX 的存储引用和 SHA256、用户指令、
 模型与 EditPlan、任务状态、能力快照、操作账本及产物存储引用；发送给 Worker 的
 只有文档字节、摘要和结构化请求，不包含宿主机路径、数据库信息或对象存储凭据。
@@ -14,7 +14,7 @@ LexAI 的合同起草功能通过独立项目 `/home/czy/p/office-engine` 提供
 
 ## 当前实际生成流程
 
-合同起草页面提交的是“DOCX 文件 + 自然语言修改要求 + 执行模式”。Hybrid
+“编辑合同”页面提交的是“DOCX 文件 + 自然语言修改要求 + 执行模式”。Hybrid
 不是一个单独的 LLM，而是文档执行编排模式；LLM 负责把自然语言要求转换成
 结构化 `EditPlan`，Adeu 负责实际修改，OfficeCLI 负责验证和渲染。
 
@@ -387,7 +387,7 @@ grpcurl -plaintext \
 
 ### 3. 验证 LexAI 能力探测
 
-确认 LexAI 已经带 `OFFICE_*` 配置重启后，在合同起草页面点击“刷新”，Adeu 和
+确认 LexAI 已经带 `OFFICE_*` 配置重启后，在“编辑合同”页面点击“刷新”，Adeu 和
 OfficeCLI 都应显示 `ok`。也可以携带当前登录令牌直接调用：
 
 ```bash

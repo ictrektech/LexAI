@@ -16,7 +16,13 @@ export default {
     collapseSidebar: 'Свернуть панель',
     expandSidebar: 'Развернуть панель',
     platformConsole: 'Консоль платформы',
+    generateContract: 'Создать договор',
+    editContract: 'Редактировать договор',
+    backToNavigation: 'Назад к навигации',
     legalWorkspace: 'Юридическое рабочее пространство'
+  },
+  contractGeneration: {
+    eyebrow: 'Рабочее пространство договоров', title: 'Создать договор', subtitle: 'Создайте черновик по типу договора, сторонам и ключевым условиям.', status: 'В разработке', cardTitle: 'Интеллектуальное создание договора', cardDescription: 'Функция находится в разработке. В будущем можно будет создавать редактируемые DOCX-договоры из шаблона или пустого документа.'
   },
   contractReview: {
     selectAll:'Выбрать все в списке',selectedCount:'Выбрано: {count}',bulkArchive:'Архивировать выбранные',bulkRestore:'Восстановить выбранные',bulkDelete:'Удалить выбранные',bulkArchiveConfirm:'Архивировать выбранные проверки ({count})?',bulkArchiveRunningConfirm:'Будет архивировано проверок: {count}. Выполняющиеся проверки ({running}) будут пропущены. Продолжить?',bulkRestoreConfirm:'Восстановить выбранные проверки ({count})?',bulkDeleteConfirm:'Безвозвратно удалить выбранные проверки и документы ({count})?',bulkDeleteRunningConfirm:'Среди выбранных проверок ({count}) выполняются {running}. Удаление немедленно остановит проверку и запись результатов. Продолжить?',bulkActionSuccess:'Обработано проверок: {count}.',bulkActionPartial:'Обработано: {succeeded}, ошибок: {failed}.',bulkActionFailed:'Не удалось выполнить массовую операцию.',

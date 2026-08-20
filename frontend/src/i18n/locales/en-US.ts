@@ -16,7 +16,13 @@ export default {
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
     platformConsole: 'Platform Console',
+    generateContract: 'Generate Contract',
+    editContract: 'Edit Contract',
+    backToNavigation: 'Back to navigation',
     legalWorkspace: 'Legal Workspace'
+  },
+  contractGeneration: {
+    eyebrow: 'Contract workspace', title: 'Generate Contract', subtitle: 'Generate a first draft from the contract type, parties, and core terms.', status: 'In progress', cardTitle: 'Intelligent contract generation', cardDescription: 'This workflow is being built. It will support generating editable DOCX contracts from a template or a blank document.'
   },
   contractReview: {
     workspaceEyebrow: 'Legal workspace', title: 'Contract Review', subtitle: 'Review contracts against your standards and resolve risk clause by clause.', newReview: 'New Review',

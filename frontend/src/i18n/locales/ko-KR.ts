@@ -16,7 +16,13 @@ export default {
     collapseSidebar: '사이드바 접기',
     expandSidebar: '사이드바 펼치기',
     platformConsole: '플랫폼 콘솔',
+    generateContract: '계약서 생성',
+    editContract: '계약서 편집',
+    backToNavigation: '상위 메뉴로 돌아가기',
     legalWorkspace: '법률 워크스페이스'
+  },
+  contractGeneration: {
+    eyebrow: '계약서 작업 공간', title: '계약서 생성', subtitle: '계약 유형, 당사자와 핵심 조항을 바탕으로 계약서 초안을 생성합니다.', status: '준비 중', cardTitle: '지능형 계약서 생성', cardDescription: '이 기능은 준비 중입니다. 템플릿 또는 빈 문서에서 편집 가능한 DOCX 계약서를 생성할 예정입니다.'
   },
   contractReview: {
     selectAll:'현재 목록 전체 선택',selectedCount:'{count}개 선택됨',bulkArchive:'선택 항목 보관',bulkRestore:'선택 항목 복원',bulkDelete:'선택 항목 삭제',bulkArchiveConfirm:'선택한 검토 {count}개를 보관하시겠습니까?',bulkArchiveRunningConfirm:'검토 {count}개를 보관합니다. 실행 중인 {running}개는 건너뜁니다. 계속하시겠습니까?',bulkRestoreConfirm:'선택한 검토 {count}개를 복원하시겠습니까?',bulkDeleteConfirm:'선택한 검토 {count}개와 문서를 영구 삭제하시겠습니까?',bulkDeleteRunningConfirm:'선택한 {count}개 중 {running}개가 실행 중입니다. 삭제하면 검토와 결과 저장이 즉시 중지됩니다. 계속하시겠습니까?',bulkActionSuccess:'검토 {count}개를 처리했습니다.',bulkActionPartial:'{succeeded}개 처리, {failed}개 실패했습니다.',bulkActionFailed:'일괄 작업에 실패했습니다.',

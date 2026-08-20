@@ -14,6 +14,7 @@
         v-if="!sidebarProps.collapsed"
         class="legal-sidebar__collapse"
         type="button"
+        data-testid="legal-sidebar-collapse"
         :aria-label="t('legalWorkspace.collapseSidebar')"
         :title="t('legalWorkspace.collapseSidebar')"
         @click="$emit('toggle')"
@@ -23,19 +24,44 @@
     </div>
 
     <nav class="legal-sidebar__navigation" :aria-label="t('legalWorkspace.navigationLabel')">
-      <div v-if="primaryItems.length" class="legal-sidebar__primary">
-        <NavButton v-for="item in primaryItems" :key="item.id" :item="item" primary />
-      </div>
+      <Transition :name="navigationTransition" mode="out-in">
+        <div :key="navigationLevelKey" class="legal-sidebar__navigation-panel">
+          <template v-if="isDrilledDown">
+            <div class="legal-sidebar__subnav-header">
+              <button
+                class="legal-sidebar__back"
+                type="button"
+                data-testid="legal-nav-back"
+                :aria-label="t('legalWorkspace.backToNavigation')"
+                :title="t('legalWorkspace.backToNavigation')"
+                @click="goBack"
+              >
+                <t-icon name="chevron-left" size="17px" />
+                <span v-if="!sidebarProps.collapsed">{{ currentLevelTitle }}</span>
+              </button>
+            </div>
+            <div class="legal-sidebar__subnav-items">
+              <NavButton v-for="item in currentLevelItems" :key="item.id" :item="item" />
+            </div>
+          </template>
 
-      <div class="legal-sidebar__section">
-        <div v-if="!sidebarProps.collapsed" class="legal-sidebar__section-label">{{ t('legalWorkspace.tools') }}</div>
-        <NavButton v-for="item in toolItems" :key="item.id" :item="item" />
-      </div>
+          <template v-else>
+            <div v-if="primaryItems.length" class="legal-sidebar__primary">
+              <NavButton v-for="item in primaryItems" :key="item.id" :item="item" primary />
+            </div>
 
-      <div class="legal-sidebar__section legal-sidebar__section--resources">
-        <div v-if="!sidebarProps.collapsed" class="legal-sidebar__section-label">{{ t('legalWorkspace.resources') }}</div>
-        <NavButton v-for="item in resourceItems" :key="item.id" :item="item" />
-      </div>
+            <div class="legal-sidebar__section">
+              <div v-if="!sidebarProps.collapsed" class="legal-sidebar__section-label">{{ t('legalWorkspace.tools') }}</div>
+              <NavButton v-for="item in toolItems" :key="item.id" :item="item" />
+            </div>
+
+            <div class="legal-sidebar__section legal-sidebar__section--resources">
+              <div v-if="!sidebarProps.collapsed" class="legal-sidebar__section-label">{{ t('legalWorkspace.resources') }}</div>
+              <NavButton v-for="item in resourceItems" :key="item.id" :item="item" />
+            </div>
+          </template>
+        </div>
+      </Transition>
     </nav>
 
     <t-tooltip v-if="sidebarProps.collapsed" :content="t('legalWorkspace.expandSidebar')" placement="right">
@@ -52,21 +78,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, type PropType } from 'vue'
+import { computed, defineComponent, h, ref, type PropType, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as TIcon, Tooltip as TTooltip } from 'tdesign-vue-next'
 import lexaiLogo from '@/assets/img/LexAI_logo_exact.svg'
 
 import {
+  LEGAL_WORKSPACE_NAV_ITEMS,
   isLegalWorkspaceItemActive,
+  legalWorkspaceNavPath,
   legalWorkspaceItemsFor,
   type LegalWorkspaceNavItem,
 } from '@/config/legalWorkspace'
 import { LEGAL_ASSISTANT_HOME_ROUTE } from '@/router/paths'
 
 const sidebarProps = defineProps<{ collapsed: boolean }>()
-defineEmits<{ toggle: [] }>()
+const emit = defineEmits<{ toggle: []; expand: [] }>()
 
 const { t } = useI18n()
 const route = useRoute()
@@ -75,8 +103,81 @@ const router = useRouter()
 const primaryItems = legalWorkspaceItemsFor('primary')
 const toolItems = legalWorkspaceItemsFor('tools')
 const resourceItems = legalWorkspaceItemsFor('resources')
+const navigationStack = ref<string[]>([])
+const navigationTransition = ref<'nav-forward' | 'nav-back'>('nav-forward')
+
+const navigationLevelKey = computed(() => navigationStack.value.length ? navigationStack.value.join('/') : 'root')
+const isDrilledDown = computed(() => navigationStack.value.length > 0)
+
+function resolveNavigationLevel(stack: readonly string[]) {
+  let items: readonly LegalWorkspaceNavItem[] = LEGAL_WORKSPACE_NAV_ITEMS
+  let item: LegalWorkspaceNavItem | undefined
+
+  for (const id of stack) {
+    item = items.find((candidate) => candidate.id === id)
+    if (!item) return { item: undefined, items: [] as readonly LegalWorkspaceNavItem[] }
+    items = item.children || []
+  }
+
+  return { item, items }
+}
+
+const currentNavigationLevel = computed(() => resolveNavigationLevel(navigationStack.value))
+const currentLevelItems = computed(() => currentNavigationLevel.value.items)
+const currentLevelTitle = computed(() => currentNavigationLevel.value.item ? t(currentNavigationLevel.value.item.labelKey) : '')
+
+function stackForRoute(routeName: unknown): string[] {
+  const path = legalWorkspaceNavPath(routeName)
+  return path.length > 1 ? path.slice(0, -1).map((item) => item.id) : []
+}
+
+function sameStack(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function setNavigationStack(nextStack: readonly string[], transition: 'nav-forward' | 'nav-back') {
+  if (sameStack(navigationStack.value, nextStack)) return
+  navigationTransition.value = transition
+  navigationStack.value = [...nextStack]
+}
+
+function pushNavigation(id: string) {
+  setNavigationStack([...navigationStack.value, id], 'nav-forward')
+}
+
+function popNavigation() {
+  if (!navigationStack.value.length) return
+  setNavigationStack(navigationStack.value.slice(0, -1), 'nav-back')
+}
+
+function resetNavigation() {
+  setNavigationStack([], 'nav-back')
+}
+
+function syncNavigationFromRoute(routeName: unknown) {
+  const nextStack = stackForRoute(routeName)
+  if (!nextStack.length) resetNavigation()
+  else setNavigationStack(nextStack, nextStack.length >= navigationStack.value.length ? 'nav-forward' : 'nav-back')
+  if (nextStack.length && sidebarProps.collapsed) emit('expand')
+}
+
+watch(() => route.name, syncNavigationFromRoute, { immediate: true })
 
 const goHome = () => router.push({ name: LEGAL_ASSISTANT_HOME_ROUTE })
+
+function handleNavigation(item: LegalWorkspaceNavItem) {
+  if (item.disabled) return
+  if (item.children?.length) {
+    pushNavigation(item.id)
+    if (sidebarProps.collapsed) emit('expand')
+    return
+  }
+  if (item.destination) void router.push(item.destination)
+}
+
+function goBack() {
+  popNavigation()
+}
 
 const NavButton = defineComponent({
   name: 'LegalWorkspaceNavButton',
@@ -88,11 +189,6 @@ const NavButton = defineComponent({
     const active = computed(() => isLegalWorkspaceItemActive(props.item, route.name))
     const label = computed(() => t(props.item.labelKey))
     const badge = computed(() => props.item.badgeKey ? t(props.item.badgeKey) : '')
-
-    const navigate = () => {
-      if (props.item.disabled || !props.item.destination) return
-      router.push(props.item.destination)
-    }
 
     return () => {
       const button = h('button', {
@@ -107,13 +203,16 @@ const NavButton = defineComponent({
         disabled: props.item.disabled,
         'aria-current': active.value ? 'page' : undefined,
         'aria-label': label.value,
-        onClick: navigate,
+        'aria-haspopup': props.item.children?.length ? 'menu' : undefined,
+        'aria-expanded': props.item.children?.length ? navigationStack.value.includes(props.item.id) : undefined,
+        onClick: () => handleNavigation(props.item),
       }, [
         h(TIcon, { class: 'legal-nav-item__icon', name: props.item.icon, size: '19px' }),
         !sidebarProps.collapsed
           ? h('span', { class: 'legal-nav-item__content' }, [
               h('span', { class: 'legal-nav-item__label' }, label.value),
               badge.value ? h('span', { class: 'legal-nav-item__badge' }, badge.value) : null,
+              props.item.children?.length ? h(TIcon, { class: 'legal-nav-item__chevron', name: 'chevron-right', size: '15px' }) : null,
             ])
           : null,
       ])
@@ -244,6 +343,67 @@ const NavButton = defineComponent({
   flex-direction: column;
 }
 
+.legal-sidebar__navigation-panel {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.legal-sidebar__subnav-header {
+  min-height: 40px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.legal-sidebar__back {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--legal-text-primary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+
+  &:hover {
+    background: var(--legal-bg-hover);
+  }
+}
+
+.legal-sidebar__subnav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nav-forward-enter-active,
+.nav-forward-leave-active,
+.nav-back-enter-active,
+.nav-back-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.nav-forward-enter-from { opacity: 0; transform: translateX(14px); }
+.nav-forward-leave-to { opacity: 0; transform: translateX(-14px); }
+.nav-back-enter-from { opacity: 0; transform: translateX(-14px); }
+.nav-back-leave-to { opacity: 0; transform: translateX(14px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-forward-enter-active,
+  .nav-forward-leave-active,
+  .nav-back-enter-active,
+  .nav-back-leave-active {
+    transition-duration: 0ms;
+  }
+}
+
 .legal-sidebar__primary {
   margin-bottom: 22px;
 }
@@ -339,6 +499,11 @@ const NavButton = defineComponent({
   font-weight: 650;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+
+:deep(.legal-nav-item__chevron) {
+  flex: 0 0 15px;
+  color: var(--legal-text-disabled);
 }
 
 .legal-sidebar--collapsed {
