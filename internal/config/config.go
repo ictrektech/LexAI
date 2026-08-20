@@ -27,6 +27,7 @@ type Config struct {
 	Models          []ModelConfig          `yaml:"models"           json:"models"`
 	VectorDatabase  *VectorDatabaseConfig  `yaml:"vector_database"  json:"vector_database"`
 	DocReader       *DocReaderConfig       `yaml:"docreader"        json:"docreader"`
+	OfficeEngine    *OfficeEngineConfig    `yaml:"office_engine"     json:"office_engine"`
 	StreamManager   *StreamManagerConfig   `yaml:"stream_manager"   json:"stream_manager"`
 	ExtractManager  *ExtractManagerConfig  `yaml:"extract"          json:"extract"`
 	WebSearch       *WebSearchConfig       `yaml:"web_search"       json:"web_search"`
@@ -84,6 +85,20 @@ type DocReaderConfig struct {
 	Addr string `yaml:"addr" json:"addr"`
 	// Transport: "grpc" (default) or "http"
 	Transport string `yaml:"transport" json:"transport"`
+}
+
+// OfficeEngineConfig controls optional external document-editing workers.
+// The application remains fully functional when editing is disabled or a
+// worker address is absent; only the corresponding drafting capabilities are
+// unavailable.
+type OfficeEngineConfig struct {
+	Enabled          bool          `yaml:"enabled"         json:"enabled"`
+	Mode             string        `yaml:"mode"            json:"mode"`
+	AdeuAddr         string        `yaml:"adeu_addr"       json:"adeu_addr"`
+	AdeuTimeout      time.Duration `yaml:"adeu_timeout"    json:"adeu_timeout"`
+	OfficeCLIAddr    string        `yaml:"officecli_addr"   json:"officecli_addr"`
+	OfficeCLITimeout time.Duration `yaml:"officecli_timeout" json:"officecli_timeout"`
+	MaxDocumentBytes int64         `yaml:"max_document_bytes" json:"max_document_bytes"`
 }
 
 type VectorDatabaseConfig struct {
@@ -588,6 +603,7 @@ func LoadConfig() (*Config, error) {
 	applyConversationEnvOverrides(&cfg)
 	applyAgentEnvOverrides(&cfg)
 	applyKnowledgeBaseEnvOverrides(&cfg)
+	applyOfficeEngineEnvOverrides(&cfg)
 	applyAuthAndTenantDefaults(&cfg)
 	applyAuditDefaults(&cfg)
 
@@ -771,6 +787,46 @@ func applyKnowledgeBaseEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_DOCREADER_CALL_TIMEOUT")); value != "" {
 		if d, err := time.ParseDuration(value); err == nil && d > 0 {
 			cfg.KnowledgeBase.DocReaderCallTimeout = d
+		}
+	}
+}
+
+func applyOfficeEngineEnvOverrides(cfg *Config) {
+	if cfg.OfficeEngine == nil {
+		cfg.OfficeEngine = &OfficeEngineConfig{}
+	}
+	if cfg.OfficeEngine.Mode == "" {
+		cfg.OfficeEngine.Mode = "hybrid"
+	}
+	if cfg.OfficeEngine.AdeuTimeout <= 0 {
+		cfg.OfficeEngine.AdeuTimeout = 10 * time.Minute
+	}
+	if cfg.OfficeEngine.OfficeCLITimeout <= 0 {
+		cfg.OfficeEngine.OfficeCLITimeout = 10 * time.Minute
+	}
+	if cfg.OfficeEngine.MaxDocumentBytes <= 0 {
+		cfg.OfficeEngine.MaxDocumentBytes = 50 * 1024 * 1024
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_EDITING_ENABLED")); value != "" {
+		cfg.OfficeEngine.Enabled = strings.EqualFold(value, "true") || value == "1"
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_ENGINE_MODE")); value != "" {
+		cfg.OfficeEngine.Mode = strings.ToLower(value)
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_ENGINE_ADEU_ADDR")); value != "" {
+		cfg.OfficeEngine.AdeuAddr = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_ENGINE_ADEU_TIMEOUT")); value != "" {
+		if d, err := time.ParseDuration(value); err == nil && d > 0 {
+			cfg.OfficeEngine.AdeuTimeout = d
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_ENGINE_OFFICECLI_ADDR")); value != "" {
+		cfg.OfficeEngine.OfficeCLIAddr = value
+	}
+	if value := strings.TrimSpace(os.Getenv("OFFICE_ENGINE_OFFICECLI_TIMEOUT")); value != "" {
+		if d, err := time.ParseDuration(value); err == nil && d > 0 {
+			cfg.OfficeEngine.OfficeCLITimeout = d
 		}
 	}
 }

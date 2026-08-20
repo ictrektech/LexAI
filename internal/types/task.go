@@ -68,6 +68,7 @@ var queueDefinitions = []QueueDefinition{
 	// queue so a large KB import cannot make chat uploads queue behind it.
 	{Name: QueueChatAttachment, Pool: WorkerPoolCore, Weight: 3, SharedWeight: 3, TaskTypes: []string{
 		TypeTemporaryDocumentProcess, TypeContractReviewDocumentProcess,
+		TypeDocumentEditProcess,
 	}},
 	{Name: QueuePostProcess, Pool: WorkerPoolPostProcess, Weight: 1, TaskTypes: []string{
 		TypeKnowledgePostProcess,
@@ -262,6 +263,7 @@ const (
 	TypeTemporaryDocumentProcess      = "temporary_document:process" // 会话临时文档解析任务
 	TypeContractReviewDocumentProcess = "contract_review:document_process"
 	TypeContractReviewAnalyze         = "contract_review:analyze"
+	TypeDocumentEditProcess           = "document_edit:process"
 	// TypeMemoryExtract 长期记忆抽取任务（会话轮次防抖后异步执行）
 	TypeMemoryExtract = "memory:extract"
 )

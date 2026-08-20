@@ -47,6 +47,17 @@ knowledge_base:
   image_processing:
     enable_multimodal: true
 
+# Optional external Office document editing workers. Disabled by default so
+# existing deployments start unchanged; workers receive document bytes only.
+office_engine:
+  enabled: false
+  mode: hybrid
+  adeu_addr: ""
+  adeu_timeout: 10m
+  officecli_addr: ""
+  officecli_timeout: 10m
+  max_document_bytes: 52428800
+
 extract:
   extract_graph:
     description: |

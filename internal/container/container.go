@@ -80,6 +80,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/im/wecom"
 	"github.com/Tencent/WeKnora/internal/im/yunzhijia"
 	"github.com/Tencent/WeKnora/internal/infrastructure/docparser"
+	"github.com/Tencent/WeKnora/internal/infrastructure/officeengine"
 	infra_web_search "github.com/Tencent/WeKnora/internal/infrastructure/web_search"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/mcp"
@@ -136,6 +137,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// External service clients
 	logger.Debugf(ctx, "[Container] Registering external service clients...")
 	must(container.Provide(initDocReaderClient))
+	must(container.Provide(officeengine.NewClients))
 	must(container.Provide(docparser.NewImageResolver))
 	must(container.Provide(initOllamaService))
 	must(container.Provide(initNeo4jClient))
@@ -176,6 +178,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewTenantDisabledSharedAgentRepository))
 	must(container.Provide(repository.NewUserResourceFavoriteRepository))
 	must(container.Provide(repository.NewContractReviewRepository))
+	must(container.Provide(repository.NewDocumentEditRepository))
 	must(container.Provide(repository.NewSmartArchiveRepository))
 	must(container.Provide(repository.NewDocumentParseArtifactRepository))
 	must(container.Provide(service.NewWebSearchStateService))
@@ -344,6 +347,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	}
 	must(container.Provide(service.NewTemporaryDocumentService))
 	must(container.Provide(service.NewContractReviewService))
+	must(container.Provide(service.NewDocumentEditService))
 	must(container.Provide(service.NewSmartArchiveService))
 	must(container.Invoke(startTemporaryDocumentCleanup))
 
@@ -422,6 +426,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewCustomAgentHandler))
 	must(container.Provide(handler.NewUserResourceFavoriteHandler))
 	must(container.Provide(handler.NewContractReviewHandler))
+	must(container.Provide(handler.NewDocumentEditHandler))
 	must(container.Provide(handler.NewSmartArchiveHandler))
 	must(container.Provide(service.NewSkillService))
 	must(container.Provide(handler.NewSkillHandler))

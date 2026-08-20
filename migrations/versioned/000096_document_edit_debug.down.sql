@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS document_edit_debug_blobs;
+DROP TABLE IF EXISTS document_edit_stage_runs;
+DROP INDEX IF EXISTS idx_document_edit_jobs_comparison_parent;
+DROP INDEX IF EXISTS idx_document_edit_jobs_comparison_group;
+ALTER TABLE document_edit_operations DROP COLUMN IF EXISTS engine_message;
+ALTER TABLE document_edit_operations DROP COLUMN IF EXISTS engine_name;
+ALTER TABLE document_edit_operations DROP COLUMN IF EXISTS actual_matches;
+ALTER TABLE document_edit_jobs DROP COLUMN IF EXISTS comparison_strategy;
+ALTER TABLE document_edit_jobs DROP COLUMN IF EXISTS comparison_parent_id;
+ALTER TABLE document_edit_jobs DROP COLUMN IF EXISTS comparison_group_id;
