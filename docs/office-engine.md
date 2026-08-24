@@ -445,6 +445,8 @@ clean 中修改已经接受，HTML 预览可以打开；再次执行 `sha256sum 
 合同起草任务基础数据使用 `document_edit_jobs`、`document_edit_artifacts` 和
 `document_edit_operations`；`000096`（SQLite 为 `000009`）增加
 `document_edit_stage_runs`、`document_edit_debug_blobs`、对比组字段和操作执行诊断。
+`000097`（SQLite 为 `000010`）统一合同起草时间戳为 UTC；同时修复早期版本把
+`created_at` 与 `completed_at` 相差 8 小时、以及丢失 `started_at` 的历史任务。
 已执行过旧版 `000094` 但缺少操作账本表的
 部署，会通过后续 `000095_document_edit_operations_repair` 迁移补齐表和索引；
 不要修改已执行的历史迁移文件。

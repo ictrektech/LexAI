@@ -1,0 +1,2 @@
+-- SQLite has no timestamp type to revert. The migration's legacy-row repair
+-- is intentionally not reversed because the original values were ambiguous.

@@ -59,7 +59,7 @@ func (r *documentEditRepository) SavePlanning(ctx context.Context, job *types.Do
 	result := r.db.WithContext(ctx).Model(&types.DocumentEditJob{}).
 		Where("tenant_id = ? AND user_id = ? AND id = ? AND status = ?", job.TenantID, job.UserID, job.ID, types.DocumentEditStatusRunning).
 		Updates(map[string]any{
-			"model_id": job.ModelID, "plan": job.Plan, "capabilities": job.Capabilities, "updated_at": time.Now(),
+			"model_id": job.ModelID, "plan": job.Plan, "capabilities": job.Capabilities, "updated_at": time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return result.Error
@@ -71,7 +71,7 @@ func (r *documentEditRepository) SavePlanning(ctx context.Context, job *types.Do
 }
 
 func (r *documentEditRepository) Cancel(ctx context.Context, job *types.DocumentEditJob) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&types.DocumentEditJob{}).
 			Where("tenant_id = ? AND user_id = ? AND id = ? AND status IN ?", job.TenantID, job.UserID, job.ID, []types.DocumentEditStatus{types.DocumentEditStatusQueued, types.DocumentEditStatusRunning}).
@@ -92,7 +92,7 @@ func (r *documentEditRepository) Cancel(ctx context.Context, job *types.Document
 }
 
 func (r *documentEditRepository) Start(ctx context.Context, job *types.DocumentEditJob) (bool, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 	result := r.db.WithContext(ctx).Model(&types.DocumentEditJob{}).
 		Where("tenant_id = ? AND user_id = ? AND id = ? AND status IN ?", job.TenantID, job.UserID, job.ID, []types.DocumentEditStatus{types.DocumentEditStatusQueued, types.DocumentEditStatusFailed}).
 		Updates(map[string]any{
@@ -103,11 +103,20 @@ func (r *documentEditRepository) Start(ctx context.Context, job *types.DocumentE
 			"completed_at":  nil,
 			"updated_at":    &now,
 		})
+	if result.Error == nil && result.RowsAffected > 0 {
+		// Keep the in-memory snapshot in sync with the conditional update. The
+		// processor later passes this same object to Complete/Fail; leaving
+		// StartedAt nil would erase the timestamp that was just persisted.
+		job.Status = types.DocumentEditStatusRunning
+		job.StartedAt = &now
+		job.CompletedAt = nil
+		job.UpdatedAt = now
+	}
 	return result.RowsAffected > 0, result.Error
 }
 
 func (r *documentEditRepository) Fail(ctx context.Context, job *types.DocumentEditJob, code, message string) (bool, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 	returnValue := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&types.DocumentEditJob{}).
@@ -130,6 +139,9 @@ func (r *documentEditRepository) Fail(ctx context.Context, job *types.DocumentEd
 			return nil
 		}
 		returnValue = true
+		job.Status = types.DocumentEditStatusFailed
+		job.CompletedAt = &now
+		job.UpdatedAt = now
 		return tx.Model(&types.DocumentEditOperation{}).
 			Where("tenant_id = ? AND job_id = ? AND status = ?", job.TenantID, job.ID, types.DocumentEditOperationPlanned).
 			Updates(map[string]any{"status": types.DocumentEditOperationFailed, "error_message": message}).Error
@@ -161,7 +173,7 @@ func (r *documentEditRepository) RecordOperations(ctx context.Context, job *type
 func (r *documentEditRepository) UpdateOperationStatus(ctx context.Context, job *types.DocumentEditJob, status types.DocumentEditOperationStatus, message string) error {
 	values := map[string]any{"status": status, "error_message": message}
 	if status == types.DocumentEditOperationApplied {
-		now := time.Now()
+		now := time.Now().UTC()
 		values["applied_at"] = &now
 	}
 	return r.db.WithContext(ctx).Model(&types.DocumentEditOperation{}).
@@ -181,7 +193,7 @@ func (r *documentEditRepository) UpdateOperationResults(ctx context.Context, job
 			switch operation.Status {
 			case "applied":
 				values["status"] = types.DocumentEditOperationApplied
-				now := time.Now()
+				now := time.Now().UTC()
 				values["applied_at"] = &now
 			case "failed":
 				values["status"] = types.DocumentEditOperationFailed
@@ -216,7 +228,7 @@ func (r *documentEditRepository) Complete(ctx context.Context, job *types.Docume
 			}
 		}
 		if len(operations) > 0 {
-			now := time.Now()
+			now := time.Now().UTC()
 			if err := tx.Model(&types.DocumentEditOperation{}).
 				Where("tenant_id = ? AND job_id = ? AND status = ?", job.TenantID, job.ID, types.DocumentEditOperationPlanned).
 				Updates(map[string]any{"status": types.DocumentEditOperationApplied, "error_message": "", "applied_at": &now}).Error; err != nil {

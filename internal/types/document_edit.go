@@ -248,7 +248,7 @@ func (s *DocumentEditStageRun) BeforeCreate(_ *gorm.DB) error {
 		s.Attempt = 1
 	}
 	if s.StartedAt.IsZero() {
-		s.StartedAt = time.Now()
+		s.StartedAt = time.Now().UTC()
 	}
 	if len(s.InputSummary) == 0 {
 		s.InputSummary = JSON(`{}`)

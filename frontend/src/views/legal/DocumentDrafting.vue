@@ -74,7 +74,7 @@
           <article v-for="job in filteredJobs" :key="job.id" :data-testid="`drafting-row-${job.id}`" class="job">
             <RouterLink class="job__link" :to="jobRoute(job.id)" :aria-label="`${job.file_name} · ${t('documentDrafting.taskId')} ${shortDocumentEditId(job.id)}`" />
             <div class="job__main"><i><t-icon name="file-word" /></i><div><strong>{{ job.file_name }}</strong><span class="job__instruction">{{ job.instruction }}</span><code class="job__id" :title="job.id">{{ t('documentDrafting.taskId') }} #{{ shortDocumentEditId(job.id) }}</code></div></div>
-            <div class="job__status" :class="`job__status--${job.status}`"><span class="status-indicator" :class="`status-indicator--${job.status}`" /><b>{{ t(`documentDrafting.status.${job.status}`) }}</b><small v-if="duration(job)">{{ duration(job) }}</small></div>
+            <div class="job__status" :class="`job__status--${job.status}`"><span class="status-indicator" :class="`status-indicator--${job.status}`" /><b>{{ t(`documentDrafting.status.${job.status}`) }}</b></div>
             <span class="mode-pill">{{ modeLabel(job.mode) }}</span>
             <span class="job__artifacts">{{ t('documentDrafting.artifactCount', { count: documentEditArtifactCount(job) }) }}</span>
             <time :datetime="job.updated_at">{{ formatDate(job.updated_at) }}</time>
@@ -100,7 +100,7 @@ import type { DocumentEditJob, DocumentEditMode, DocumentEditStatus } from '@/ap
 import { streamDocumentEdit } from '@/api/document-edit'
 import { LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE } from '@/router/paths'
 import { useDocumentDraftingStore } from '@/stores/documentDrafting'
-import { documentEditArtifactCount, documentEditDurationMs, filterDocumentEditJobs, formatDocumentEditDuration, shortDocumentEditId, sortDocumentEditJobs } from './documentDraftingTasks'
+import { documentEditArtifactCount, filterDocumentEditJobs, shortDocumentEditId, sortDocumentEditJobs } from './documentDraftingTasks'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -115,8 +115,6 @@ const error = ref('')
 const jobsError = ref('')
 const streams = new Map<string, AbortController>()
 const allStatuses: DocumentEditStatus[] = ['queued', 'running', 'completed', 'failed', 'cancelled']
-const now = ref(Date.now())
-let nowTimer: ReturnType<typeof setInterval> | null = null
 
 const modeFilter = computed({
   get: () => store.filters.modes[0] || '',
@@ -132,7 +130,6 @@ const statusFilterLabel = computed(() => store.filters.statuses.length ? t('docu
 
 function onFile(event: Event) { selectedFile.value = (event.target as HTMLInputElement).files?.[0] || null }
 function hasArtifact(job: DocumentEditJob, kind: string) { return (job.artifacts || []).some((item) => item.kind === kind) }
-function duration(job: DocumentEditJob) { return formatDocumentEditDuration(documentEditDurationMs(job, now.value)) }
 function modeLabel(value: DocumentEditMode) { return value === 'hybrid' ? 'Hybrid' : value === 'adeu' ? 'Adeu' : 'OfficeCLI' }
 function formatDate(value: string) { return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }
 function jobRoute(id: string) { return { name: LEGAL_DOCUMENT_DRAFTING_DETAIL_ROUTE, params: { jobId: id } } }
@@ -204,7 +201,6 @@ async function cancel(job: DocumentEditJob) {
 
 onMounted(async () => {
   void loadCapabilities()
-  nowTimer = setInterval(() => { now.value = Date.now() }, 1000)
   if (store.initialized) {
     store.jobs.forEach(watchJob)
     await nextTick()
@@ -220,7 +216,6 @@ onBeforeUnmount(() => {
   store.scrollTop = draftingRoot.value?.scrollTop || 0
   streams.forEach((controller) => controller.abort())
   streams.clear()
-  if (nowTimer) clearInterval(nowTimer)
 })
 </script>
 

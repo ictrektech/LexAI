@@ -1,0 +1,35 @@
+ALTER TABLE document_edit_debug_blobs
+    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING created_at AT TIME ZONE 'UTC';
+
+ALTER TABLE document_edit_stage_runs
+    ALTER COLUMN started_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING started_at AT TIME ZONE 'UTC',
+    ALTER COLUMN completed_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING completed_at AT TIME ZONE 'UTC',
+    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING created_at AT TIME ZONE 'UTC',
+    ALTER COLUMN updated_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING updated_at AT TIME ZONE 'UTC';
+
+ALTER TABLE document_edit_operations
+    ALTER COLUMN applied_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING applied_at AT TIME ZONE 'UTC',
+    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING created_at AT TIME ZONE 'UTC';
+
+ALTER TABLE document_edit_artifacts
+    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING created_at AT TIME ZONE 'UTC';
+
+ALTER TABLE document_edit_jobs
+    ALTER COLUMN started_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING started_at AT TIME ZONE 'UTC',
+    ALTER COLUMN completed_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING completed_at AT TIME ZONE 'UTC',
+    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING created_at AT TIME ZONE 'UTC',
+    ALTER COLUMN updated_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING updated_at AT TIME ZONE 'UTC',
+    ALTER COLUMN deleted_at TYPE TIMESTAMP WITHOUT TIME ZONE
+        USING deleted_at AT TIME ZONE 'UTC';

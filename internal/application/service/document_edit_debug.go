@@ -34,7 +34,7 @@ func documentEditAttempt(ctx context.Context) int {
 func (s *documentEditService) startStage(ctx context.Context, job *types.DocumentEditJob, stage, engine string, input any) (*types.DocumentEditStageRun, error) {
 	run := &types.DocumentEditStageRun{
 		JobID: job.ID, TenantID: job.TenantID, Stage: stage, Attempt: documentEditAttempt(ctx),
-		EngineName: engine, Status: types.DocumentEditStageRunning, StartedAt: time.Now(), InputSummary: jsonValue(input),
+		EngineName: engine, Status: types.DocumentEditStageRunning, StartedAt: time.Now().UTC(), InputSummary: jsonValue(input),
 	}
 	if err := s.repo.CreateStage(context.WithoutCancel(ctx), run); err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (s *documentEditService) finishStage(ctx context.Context, run *types.Docume
 	if run == nil {
 		return nil
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	run.Status = status
 	run.CompletedAt = &now
 	run.DurationMS = now.Sub(run.StartedAt).Milliseconds()

@@ -633,7 +633,7 @@ func (s *documentEditService) loadOrGeneratePlan(ctx context.Context, job *types
 		_ = s.finishStage(ctx, planStage, types.DocumentEditStageFailed, nil, "debug_blob_failed", err)
 		return nil, err
 	}
-	modelStarted := time.Now()
+	modelStarted := time.Now().UTC()
 	response, err := model.Chat(ctx, plannerMessages, plannerOptions)
 	if err != nil {
 		_ = s.finishStage(ctx, planStage, types.DocumentEditStageFailed, map[string]any{"model_duration_ms": time.Since(modelStarted).Milliseconds()}, "model_call_failed", err)
@@ -773,7 +773,7 @@ func (s *documentEditService) publish(ctx context.Context, job *types.DocumentEd
 	if len(artifacts) == 0 {
 		return errors.New("worker returned no output artifacts")
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	job.Status = types.DocumentEditStatusCompleted
 	job.CompletedAt = &now
 	job.ErrorCode, job.ErrorMessage = "", ""
