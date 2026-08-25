@@ -119,6 +119,27 @@ onUnmounted(() => {
 </script>
 
 <style lang="less">
+.legal-checkbox-hit-area {
+  width: 26px;
+  height: 26px;
+  margin: -6px;
+  display: inline-flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.legal-checkbox-hit-area:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+.legal-workspace-shell .doc-list-view .doc-list-check.t-checkbox,
+.legal-workspace-shell .doc-list-view .doc-list-check .t-checkbox {
+  padding: 5px;
+  margin: -5px;
+}
+
 .legal-workspace-shell,
 :root:root[data-workspace-theme='legal'] {
   --legal-bg-page: #f7f4ed;

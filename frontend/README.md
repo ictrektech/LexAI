@@ -41,6 +41,12 @@ All `/legal/*` pages use **Warm Legal + Vercel Neutral**: warm ivory surfaces, s
 
 The legal shell maps these tokens onto TDesign variables and sets `data-workspace-theme="legal"` on the root element while mounted so teleported popups inherit the same palette. The attribute is removed when leaving `/legal/*`; do not move these overrides into the global platform theme. Statuses must retain a text or icon label and must not rely on color alone.
 
+Checkboxes in the legal workspace use a local hit area around the unchanged
+visual control. Native controls use a 26px wrapper, while the project file
+list's TDesign control gets the same local expansion. Row-selection hit areas
+stop propagation so the surrounding row keeps its existing navigation and
+action behavior.
+
 ## Contract Review
 
 Creating a review immediately persists a draft. Upload one PDF or DOCX, wait for the document to reach `ready`, select the General Contract Review playbook and represented party, then start the review. Results arrive incrementally over an authenticated SSE stream and remain available after refresh. Running detail workspaces also fetch a durable snapshot every 1.5 seconds, while the task list silently refreshes every 2 seconds whenever it contains an uploading or reviewing task; this prevents buffered or disconnected SSE connections from leaving stale status text on screen.

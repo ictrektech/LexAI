@@ -58,7 +58,7 @@
         <details class="status-filter">
           <summary><span class="status-dots"><i v-for="status in allStatuses" :key="status" :class="`dot--${status}`" /></span>{{ statusFilterLabel }}<t-icon name="chevron-down" /></summary>
           <div class="status-filter__menu">
-            <label v-for="status in allStatuses" :key="status"><input type="checkbox" :checked="store.filters.statuses.includes(status)" @change="store.toggleStatus(status)" /><i :class="`dot--${status}`" />{{ t(`documentDrafting.status.${status}`) }}</label>
+            <label v-for="status in allStatuses" :key="status"><span class="legal-checkbox-hit-area"><input type="checkbox" :checked="store.filters.statuses.includes(status)" @change="store.toggleStatus(status)" /></span><i :class="`dot--${status}`" />{{ t(`documentDrafting.status.${status}`) }}</label>
           </div>
         </details>
         <button v-if="hasFilters" type="button" class="clear-filters" @click="store.clearFilters">{{ t('documentDrafting.clearFilters') }}</button>
