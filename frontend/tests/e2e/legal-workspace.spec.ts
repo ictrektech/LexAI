@@ -94,10 +94,15 @@ test.describe('legal workspace', () => {
     await expect(page.getByRole('heading', { name: 'EditPlan' })).toBeVisible()
     await expect(page.locator('.table-wrap')).toContainText('付款期限为三日')
 
-    const blobResponse = page.waitForResponse(response => response.url().includes('/debug/stages/') && response.url().includes('/blobs/inspect_text'))
-    await page.getByRole('button', { name: /加载文本快照/ }).click()
+    await expect(page.locator('button[data-testid^="debug-inspect-"]')).toHaveCount(3)
+    const blobResponse = page.waitForResponse(response => response.url().includes('/debug/stages/') && response.url().includes('/blobs/inspect_plain'))
+    await page.getByTestId('debug-inspect-inspect_plain').click()
     await blobResponse
     await expect(page.locator('.blob-area pre')).toContainText('付款期限为三日')
+    await page.getByTestId('debug-planner-planner_response_initial').click()
+    await expect(page.getByTestId('debug-planner-viewer')).toBeVisible()
+    await page.getByTestId('debug-plan-json-toggle').click()
+    await expect(page.getByTestId('debug-plan-json')).toBeVisible()
 
     await page.getByRole('button', { name: '对比模式' }).click()
     await expect(page.getByRole('heading', { name: '使用相同输入对比执行模式' })).toBeVisible()

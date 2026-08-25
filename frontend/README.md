@@ -71,6 +71,14 @@ user returns during the same SPA session. Render previews are fetched only on
 demand and their temporary browser URLs are released when the task changes or
 the detail page is left.
 
+The task diagnostics route `/legal/drafting/:jobId/debug` keeps every recorded
+stage attempt in the timeline, but the Inspect and Planner viewers default to
+the latest stage attempt so retries do not render duplicate blobs. Plain text,
+annotated text, semantic snapshots, planner messages, and planner responses use
+single-click tabs that load and display the selected content directly. Plan JSON
+uses the same one-click viewer; historical retry data remains available through
+the stage timeline and API.
+
 ## Smart Archive MVP
 
 Smart Archive imports PDF, Word, Excel, JPG/JPEG, PNG and WEBP files. It stores

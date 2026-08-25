@@ -238,18 +238,24 @@ export async function installLegalApi(page: Page, role: LegalRole = 'admin') {
       }
       if (action === 'debug' && method === 'GET') {
         const traceRecorded = !id.startsWith('22222222')
+        const inspectStages = [1, 2, 3].map((attempt) => ({
+          id: `${id}-inspect-${attempt}`, job_id: id, stage: 'Inspect', attempt, engine_name: 'adeu', engine_version: '2.4.1', status: 'completed', started_at: now, completed_at: now, duration_ms: 120 + attempt, input_summary: {}, output_summary: { characters: 128 },
+        }))
+        const inspectBlobs = inspectStages.flatMap((stage) => ['inspect_plain', 'inspect_annotated', 'semantic_snapshot'].map((kind) => ({
+          id: `${stage.id}-${kind}`, job_id: id, stage_run_id: stage.id, kind, content_type: kind === 'inspect_plain' ? 'text/plain' : 'application/json', sha256: `${kind}-sha-${stage.attempt}`, size: kind === 'semantic_snapshot' ? 73100 : kind === 'inspect_annotated' ? 10100 : 3100, created_at: now,
+        })))
         await json(route, { success: true, data: {
           job: item,
           model: { id: 'e2e-model', name: 'e2e-planner', display_name: 'E2E Planner' },
           trace_recorded: traceRecorded,
           stages: traceRecorded ? [
-            { id: `${id}-inspect`, job_id: id, stage: 'Inspect', attempt: 1, engine_name: 'adeu', engine_version: '2.4.1', status: 'completed', started_at: now, completed_at: now, duration_ms: 120, input_summary: {}, output_summary: { characters: 128 } },
+            ...inspectStages,
             { id: `${id}-plan`, job_id: id, stage: 'Plan', attempt: 1, engine_name: 'model', status: 'completed', started_at: now, completed_at: now, duration_ms: 350, input_summary: { prompt_version: 'document-edit-plan-v1', temperature: 0.1, max_completion_tokens: 4096, truncated: false }, output_summary: { repair_count: 0, finish_reason: 'stop', usage: { total_tokens: 321 } } },
             { id: `${id}-apply`, job_id: id, stage: 'Apply', attempt: 1, engine_name: 'adeu', status: 'completed', started_at: now, completed_at: now, duration_ms: 440, input_summary: {}, output_summary: {} },
             { id: `${id}-validate`, job_id: id, stage: 'Validate', attempt: 1, engine_name: 'officecli', status: 'completed', started_at: now, completed_at: now, duration_ms: 90, input_summary: {}, output_summary: { warnings: 0 } },
           ] : [],
           blobs: traceRecorded ? [
-            { id: `${id}-inspect-blob`, job_id: id, stage_run_id: `${id}-inspect`, kind: 'inspect_text', content_type: 'text/plain', sha256: 'inspect-sha', size: 128, created_at: now },
+            ...inspectBlobs,
             { id: `${id}-planner-blob`, job_id: id, stage_run_id: `${id}-plan`, kind: 'planner_response_initial', content_type: 'application/json', sha256: 'planner-sha', size: 80, created_at: now },
             { id: `${id}-clean-blob`, job_id: id, stage_run_id: `${id}-validate`, kind: 'clean_text', content_type: 'text/plain', sha256: 'clean-sha', size: 128, created_at: now },
           ] : [],
@@ -258,8 +264,9 @@ export async function installLegalApi(page: Page, role: LegalRole = 'admin') {
       }
       if (action.startsWith('debug/stages/') && action.includes('/blobs/') && method === 'GET') {
         const kind = decodeURIComponent(action.slice(action.lastIndexOf('/blobs/') + '/blobs/'.length))
-        const body = kind === 'inspect_text' ? '付款期限为三日' : kind === 'clean_text' ? '付款期限为三十日' : '{"operations":[]}'
-        await route.fulfill({ status: 200, contentType: kind.includes('text') ? 'text/plain' : 'application/json', body })
+        const isPlainText = kind === 'inspect_text' || kind === 'inspect_plain'
+        const body = isPlainText ? '付款期限为三日' : kind === 'clean_text' ? '付款期限为三十日' : '{"operations":[]}'
+        await route.fulfill({ status: 200, contentType: isPlainText || kind === 'clean_text' ? 'text/plain' : 'application/json', body })
         return
       }
       if (action === 'comparison' && method === 'GET') {
